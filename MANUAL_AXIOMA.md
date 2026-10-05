@@ -41,7 +41,6 @@ python main.py --check              # Diagnóstico del sistema
 python main.py --chat               # Chat interactivo en terminal
 python main.py --web                # Interfaz web (NiceGUI) → http://127.0.0.1:8000
 python main.py --web --host 0.0.0.0 --port 8080   # Servidor accesible en red
-python main.py --backup             # Crear respaldo (tools/commit.py + backup en data/backups)
 ```
 
 ## 3. Interfaz web (`python main.py --web`)

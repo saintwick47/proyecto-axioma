@@ -72,7 +72,6 @@ guardado nunca se leyera.
 
 ### 🚫 v0.6.9y — `logs/` y `docs/` fuera de git (commit y push) — 2026-09-13
 
-**Regla (ISSUE-072):** ni `tools/commit.py` ni `tools/push.py` deben commitear
 ni subir el contenido de `logs/` ni de `docs/`. Son carpetas de runtime
 (reportes de test, `commit_log.jsonl`, trazas) o de documentación generada por
 herramientas / interna (STRUCTURE_REPORT, AXIOMA_COMPLETE_CONTEXT, RAC_*, planes).
@@ -80,16 +79,12 @@ herramientas / interna (STRUCTURE_REPORT, AXIOMA_COMPLETE_CONTEXT, RAC_*, planes
 - ✅ **`.gitignore`**: `logs/` y `docs/` completos (antes `docs/` solo ignoraba
   `STRUCTURE_REPORT.*`, `verification_report_*`, `test_report_*`, `*.pdf/…`).
   Cualquier archivo NUEVO en esas carpetas queda fuera del repo.
-- ✅ **`tools/commit.py`**: `docs/` sumado a `DEFAULT_EXCLUDE_PATTERNS` (antes el
   docstring decía explícitamente "SE COMMITEA: docs/"). `logs/` ya estaba.
-- ✅ **`tools/push.py`**: guardia nueva `_contenido_prohibido()` — antes de
   pushear inspecciona `git diff --name-status <upstream>..HEAD` y avisa qué
   archivos de `logs/`/`docs/` **suben contenido** (A/M/C/R; las eliminaciones no
   cuentan). `--strict` cancela el push en ese caso.
 - ⚠️ **Excepción puntual**: para versionar un doc concreto hay que forzarlo a
   mano (`git add -f docs/<archivo>`), nunca desde las herramientas.
-- ℹ️ `tools/commit.py` y `tools/push.py` están **fuera de git por diseño**
-  (`.gitignore` los excluye: el push.py original llevaba un token hardcodeado),
   así que sus cambios viven solo en local; lo versionado de esta regla es
   `.gitignore`.
 - 📌 Los 11 archivos de `docs/` que ya estaban trackeados siguen en el repo: se
@@ -98,7 +93,6 @@ herramientas / interna (STRUCTURE_REPORT, AXIOMA_COMPLETE_CONTEXT, RAC_*, planes
   remoto y rompe los enlaces del README a `docs/`).
 - ✅ Verificado: `docs/FIX_RAC_v0.6.9w.md` y `docs/FIX_VERSIONES_v0.6.9x.md`
   pasaron a estar ignorados (ya no aparecen en `git status`), y
-  `python3 tools/push.py --dry-run` avisa de los commits que subirían docs
   (con `--strict` los bloquea).
 
 ### 🔢 v0.6.9x — FIX VERSIONES: cada artefacto muestra la versión real — 2026-09-13
@@ -956,11 +950,9 @@ cualquier verificación estática previa.
 
 ### 🟢 v0.6.8aa — Commit/push: fix de eliminaciones y renames (v0.4.5) — 2026-09-01
 
-- ✅ **FIX en `tools/commit.py` — `get_modified_files()`**: en renames/copies
   (`R  old -> new`) solo se tomaba el DESTINO, descartando el ORIGEN. Un
   `git mv` (ej. `axioma_model_bench_v2.py` → `tools/`) commiteaba solo el
   "create new file" sin el "delete old file" → quedaba `D  archivo` stageado
-  para siempre y `push.py` se cancelaba. Ahora se incluyen AMBOS paths.
 - ✅ **Nuevo `get_tracked_deleted_files()`**: la eliminación de un archivo YA
   trackeado (ej. `speedtest_history.json`) siempre debe commitearse, aunque
   el archivo esté en `DEFAULT_EXCLUDE_PATTERNS` — si no, el árbol queda
@@ -1166,7 +1158,6 @@ Implementación del **PLAN AXIOMA v2.0** (6 fases planificadas → 5 implementad
 
 ### 🟢 v0.6.8q — Limpieza git + panel de archivos en la UI — 2026-08-31
 
-- ✅ **`tools/push.py` ELIMINADO** (contenía un token de GitHub hardcodeado
   `ghp_...`). Estaba en `.gitignore` (no se subía), pero ahora tampoco existe
   localmente. `docs/documentador.txt` actualizado (push vía `git push`).
 - ✅ **`axioma-v1.0.0.bundle`**: backup portátil del repo (git bundle,
@@ -1453,7 +1444,6 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 
 ### 🟢 v0.6.8e — Poda automática de logs y backups (ahorro de disco) — 2026-08-29
 
-- ✅ **`data/backups/`**: poda automática en `tools/commit.py`
   (`prune_backups()`, `BACKUP_KEEP_COUNT=5`) — tras cada commit se conservan
   solo los últimos 5 backups `commit_*` y se borran los más antiguos. Limpieza
   inicial: **22 GB → 7,7 MB** (39 backups viejos eliminados).

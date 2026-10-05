@@ -167,9 +167,6 @@ python tools/run_evals.py                       # ejecuta tests/dataset_evals.ya
 
 ```bash
 # Git / commit con seguridad
-python tools/commit.py --message "feat: ..."    # backup + commit + log
-python tools/commit.py --list-backups
-python tools/commit.py --restore TIMESTAMP
 
 # Verificación / diagnóstico
 python tools/verify_axioma.py
@@ -224,13 +221,11 @@ Excluye `venv/`, `.git/`, `deepseek-harness/`, `cache/`, `data/` (backups/salida
 | Métrica | Valor |
 |---|---|
 | Archivos de código documentados | **270** |
-| Archivos Python de fuente | **250** (249 reportados; `tools/push.py` excluido por seguridad) |
 | LOC Python | **≈ 117.400** |
 | Clases (incl. anidadas) | **≈ 678** |
 | Funciones (incl. métodos) | **≈ 4.471** |
 | Archivos de test | **18** `test_*.py` en `tests/` (la suite del proyecto) |
 
-> ⚠️ Las métricas de los README anteriores (p. ej. "1.067 funciones", "124.473 LOC", "47 TaskTypes", "162 variables de entorno") **no eran fiables** — provenían del documentador automático. Las de este README y las de `docs/STRUCTURE_REPORT.md` (generadas por `tools/structure_detector.py` v0.3.1) están verificadas. El documentador (`tools/documentador/`) reporta su propio alcance (excluye además `tools/documentador/`, `commit.py` y `structure_detector.py`); sus métricas están etiquetadas con esa nota de alcance.
 > **2026-09-11:** suite en verde con **17 archivos** `test_axioma_*.py` (**768 tests**,
 SCORE AXIOMA **100/100**, HIGH=0) y **gate de calidad** en CI. Los archivos de
 test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líneas

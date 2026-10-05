@@ -396,11 +396,6 @@ git commit -m "feat: descripción"
 git log --oneline -10
 git diff
 
-# commit.py (backup automático + historial + restore)
-python tools/commit.py --message "feat: descripción"
-python tools/commit.py --list-backups
-python tools/commit.py --restore TIMESTAMP
-python tools/commit.py --history
 
 ════════════════════════════════════════════════════════════════════════════════
 12. 🌐 WEB SERVER
@@ -481,15 +476,7 @@ NODE_OPTIONS="--max-old-space-size=4096" pnpm dsh web / ollama launch dsh
 16. ⚠️ NOTAS / ADVERTENCIAS
 ════════════════════════════════════════════════════════════════════════════════
 · tools/test_suite.py NO EXISTE MÁS — reemplazado por pytest + run_diagnostic_suite.py
-· tools/push.py y tools/commit.py están redactados (🔐) en STRUCTURE_REPORT.md — sensibles
-#   push.py v3 (2026-09-11): ÁRBOL SUCIO YA NO BLOQUEA (avisaba y cancelaba en cada
 #   edición → fallaba "constantemente"). Ahora:
-#     python tools/push.py                 avisa si hay cambios y pushea SOLO los commits
-#     python tools/push.py --commit        commitea lo pendiente (commit.py) y pushea
-#     python tools/push.py --commit -m "…" ídem con mensaje propio
-#     python tools/push.py --strict        exige árbol limpio (comportamiento viejo)
-#     python tools/push.py --rebase        si lo rechazan: git pull --rebase y reintenta
-#     python tools/push.py --dry-run       no commitea ni envía; informa y sale 0
 #   Nunca hace force-push, configura el upstream si falta y da mensajes accionables
 #   para auth/red/rechazo.
 · GitHub token expuesto en remote de STRUCTURE_REPORT.md — ROTAR
