@@ -78,6 +78,38 @@ def marcar_primer_arranque(ruta: Optional[Any] = None) -> None:
         log_degraded(logger, e, "configurar_axioma.marcar_primer_arranque")
 
 
+def _seccion_chequeo_de_modelo() -> None:
+    """🔎 "¿Este modelo va a andar en mi PC?" — sin consola, como en la pantalla de Odysseus.
+
+    Pedido del usuario: que el usuario pueda **determinar por sí mismo** si el modelo que quiere usar
+    funciona en su equipo, de forma fácil. Escribe el nombre y recibe: si entra, dónde corre (placa o
+    procesador) y cuánta memoria necesita.
+    """
+    with ui.column().classes('w-full gap-1'):
+        ui.separator()
+        ui.label('🔎 ¿Este modelo va a andar en mi PC?').classes('text-sm font-bold')
+        ui.label('Escribí el nombre (por ejemplo `qwen3:8b` o `llama3:70b`) y te digo si entra, '
+                 'dónde corre y cuánta memoria necesita.').classes('text-xs opacity-70')
+        salida = ui.column().classes('gap-0 w-full')
+
+        def revisar() -> None:
+            from src.core.preflight import evaluar_modelo_en_la_pc
+            resultado = evaluar_modelo_en_la_pc((campo.value or '').strip())
+            salida.clear()
+            with salida:
+                ui.label(str(resultado.get("veredicto", ""))).classes('text-sm font-bold')
+                if resultado.get("detalle"):
+                    ui.label(str(resultado["detalle"])).classes('text-xs')
+                if resultado.get("donde") and resultado["donde"] != "—":
+                    ui.label(f"Corre {resultado['donde']}.").classes('text-xs opacity-70')
+                if resultado.get("aviso"):
+                    ui.label(str(resultado["aviso"])).classes('text-xs opacity-70')
+
+        with ui.row().classes('items-center gap-2 w-full'):
+            campo = ui.input(placeholder="qwen3:8b").props("dense").classes('flex-1')
+            ui.button('Revisar', on_click=revisar).props('dense color=primary')
+
+
 def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
     """Abre la pantalla. Se llama desde el botón del encabezado (o sola, en el primer arranque)."""
     if primer_arranque is None:
@@ -204,5 +236,6 @@ def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
             ui.button('Guardar claves', on_click=guardar).props('dense')
 
     construir_claves()
+    _seccion_chequeo_de_modelo()
     dialogo.open()
     ui.timer(0.05, refrescar, once=True)

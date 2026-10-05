@@ -18,7 +18,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-# ── Ayudantes compartidos (duplicados a propósito: cada archivo de la suite corre solo) ──
 
 class _ClienteFalso:
     def __init__(self, vivo=True, modelos=()):
@@ -374,7 +373,6 @@ def test_un_catalogo_con_los_niveles_al_reves_falla(tmp_path):
         cargar_catalogo(malo, usar_cache=False)
 
 
-# ── FASE 1: claves de API del usuario (son personales, no viajan en la imagen) ──
 
 def test_las_claves_se_guardan_sin_pisar_el_resto_del_archivo(tmp_path):
     from src.core import apikeys
@@ -438,7 +436,6 @@ def test_la_carga_guiada_guarda_lo_que_escribe_el_usuario(tmp_path):
     assert any("Guardado en" in d for d in dichos)
 
 
-# ── La placa decide qué modelo va a la placa (reusa `effective_budget_gb`) ──
 
 def _hw_con_placa(vram_gb, utilizable=True, nombre="NVIDIA RTX"):
     from types import SimpleNamespace
@@ -501,7 +498,6 @@ def test_sin_placa_utilizable_todo_va_al_procesador_y_no_bloquea(monkeypatch):
     assert pre.puede_responder(), "sin placa tiene que poder responder igual"
 
 
-# ── Descarga con un clic, avance y DETENER (pantalla "Configurar AXIOMA") ──
 
 class _ClienteLento:
     """Cliente falso que avanza hasta que lo cancelan (determinista, sin red)."""
@@ -781,7 +777,6 @@ def test_el_acceso_directo_no_abre_la_terminal():
         assert (PROJECT_ROOT / "instalar" / reloj).exists()
 
 
-# ── Primer arranque guiado (pedido del usuario) ──
 
 def test_la_guia_de_primer_arranque_se_muestra_una_sola_vez(tmp_path):
     """Se abre sola la PRIMERA vez y después no vuelve a molestar (se marca en `data/`)."""
@@ -914,3 +909,41 @@ def test_el_codigo_del_producto_no_tiene_un_usuario_cocido():
             if re.search(r"saintwick", linea, re.IGNORECASE):
                 ofensas.append(f"{archivo.relative_to(PROJECT_ROOT)}:{numero}")
     assert ofensas == [], f"el usuario del autor está cocido en el producto: {ofensas}"
+
+
+# ── "¿Este modelo va a andar en mi PC?" (pedido del usuario, fácil como Odysseus) ──
+
+def test_el_chequeo_de_modelo_avisa_si_no_entra_en_el_equipo():
+    from src.core.preflight import evaluar_modelo_en_la_pc
+    grande = evaluar_modelo_en_la_pc("llama3:70b")          # no instalado: se estima por el nombre
+    assert grande["nivel"] == "no_fit", grande
+    assert "No" in grande["veredicto"] and "46" in grande["detalle"], grande
+    assert grande.get("aviso"), "tiene que aclarar que es una estimación"
+
+
+def test_el_chequeo_de_modelo_usa_el_tamano_real_cuando_esta_instalado():
+    from src.core.preflight import evaluar_modelo_en_la_pc
+    chico = evaluar_modelo_en_la_pc("qwen3:8b")             # instalado en el equipo de prueba
+    if not chico["instalado"]:
+        chico = evaluar_modelo_en_la_pc("modelo:7b")        # sin Ollama: cae a la estimación
+        assert chico["nivel"] in ("marginal", "no_fit", "good"), chico
+        return
+    assert chico["memoria_gb"] and chico["donde"], chico
+    assert chico["veredicto"].startswith(("✅", "⚠️")), chico
+
+
+def test_un_nombre_raro_no_inventa_un_veredicto():
+    from src.core.preflight import evaluar_modelo_en_la_pc
+    d = evaluar_modelo_en_la_pc("cualquier-cosa")
+    assert d["nivel"] == "desconocido" and "No puedo" in d["veredicto"], d
+    assert evaluar_modelo_en_la_pc("")["nivel"] == "desconocido"
+
+
+def test_la_pantalla_ofrece_el_chequeo_de_modelo():
+    """Cableado: la pantalla tiene que ofrecerlo (si no, el usuario no lo encuentra)."""
+    import inspect
+    from src.interfaces.components import configurar_axioma as pantalla
+    fuente = inspect.getsource(pantalla.abrir_configurar_axioma)
+    assert "_seccion_chequeo_de_modelo()" in fuente, "la pantalla no muestra el chequeo"
+    seccion = inspect.getsource(pantalla._seccion_chequeo_de_modelo)
+    assert "evaluar_modelo_en_la_pc" in seccion and "Revisar" in seccion, seccion

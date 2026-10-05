@@ -586,6 +586,92 @@ def revisar(cliente: Optional[Any] = None, catalogo: Optional[Any] = None,
     return Preflight(requisitos=requisitos)
 
 
+_VEREDICTOS = {
+    "perfect": ("✅", "Sí, con comodidad"),
+    "good": ("✅", "Sí"),
+    "marginal": ("⚠️", "Sí, pero justo"),
+    "too_tight": ("⚠️", "Muy justo: puede fallar si tenés otras aplicaciones abiertas"),
+    "no_fit": ("❌", "No: no entra en la memoria de tu equipo"),
+    "desconocido": ("❔", "No puedo saberlo con este nombre"),
+}
+_DONDE = {
+    "gpu": "en la placa de video (lo más rápido)",
+    "cpu_offload": "parte en la placa y parte en el procesador",
+    "cpu_only": "en el procesador (más lento, pero anda)",
+}
+
+
+def evaluar_modelo_en_la_pc(nombre: str, hw: Any = None) -> Dict[str, Any]:
+    """¿ESTE modelo va a funcionar en MI equipo? Respuesta fácil de leer, sin consola.
+
+    Pedido del usuario: *"solo dejar las herramientas que le permitan al usuario determinar si el modelo
+    elegido funcionará en su PC o no, y que pueda usar esas herramientas de una forma fácil"*.
+
+    · Si el modelo **está instalado**, se usa el chequeo del proyecto (`hardware_fit`), que compara su
+      tamaño real contra la memoria de la placa y del equipo.
+    · Si **no está instalado**, se estima por el tamaño que sugiere el nombre (`:7b` ≈ 4,5 GB en 4 bits) y
+      se aclara que es una estimación: sirve para decidir ANTES de descargar varios GB.
+    """
+    nombre = (nombre or "").strip()
+    salida: Dict[str, Any] = {"modelo": nombre, "instalado": False, "nivel": "desconocido"}
+    if not nombre:
+        salida.update(veredicto="Escribí el nombre del modelo (por ejemplo `qwen3:8b`).")
+        return salida
+
+    if hw is None:
+        try:
+            from src.core.hardware_fit import detect_hardware
+            hw = detect_hardware()
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[evaluar] no se pudo detectar el hardware: {e}")
+            hw = None
+    ram_gb = float(getattr(hw, "ram_gb", 0) or 0)
+    presupuesto = float(getattr(hw, "effective_budget_gb", 0) or 0)
+    en_placa_ok = bool(getattr(hw, "is_gpu_available", False))
+
+    try:
+        from src.core.hardware_fit import check_model_fits
+        r = check_model_fits(nombre, hw)
+        icono, texto = _VEREDICTOS.get(r.fit_level, ("❔", r.fit_level))
+        salida.update(instalado=True, nivel=r.fit_level, memoria_gb=round(r.required_gb, 2),
+                      donde=_DONDE.get(r.run_mode, r.run_mode),
+                      velocidad_tps=round(r.speed_tps, 1) if r.speed_tps else None,
+                      veredicto=f"{icono} {texto}",
+                      detalle=(f"Necesita unos {r.required_gb:.1f} GB y tu equipo tiene {ram_gb:.1f} GB"
+                               + (f" ({r.notes})" if r.notes else "")))
+        return salida
+    except Exception as e:  # noqa: BLE001 — no está instalado (o falló la consulta): se estima
+        logger.debug(f"[evaluar] {nombre} no está instalado o falló el chequeo: {e}")
+
+    # Estimación por el nombre: `:7b` = 7 mil millones de parámetros ≈ 4,5 GB en 4 bits (+ margen)
+    import re
+    m = re.search(r"[:_-](\d+(?:\.\d+)?)b\b", nombre.lower())
+    if not m:
+        salida.update(veredicto="❔ No puedo estimarlo con ese nombre",
+                      detalle="Probá con el nombre completo, por ejemplo `qwen3:8b` o `llama3:70b`.")
+        return salida
+    parametros = float(m.group(1))
+    necesario = round(parametros * 0.65 + 0.8, 1)          # 4 bits + margen de contexto
+    entra_placa = en_placa_ok and necesario <= presupuesto
+    entra_equipo = necesario <= ram_gb - 1.5
+    if entra_placa:
+        nivel, icono, texto = "good", "✅", "Sí, y entra en tu placa de video"
+        donde = "en la placa de video (lo más rápido)"
+    elif entra_equipo:
+        nivel, icono, texto = "marginal", "⚠️", "Sí, pero en el procesador (más lento)"
+        donde = "en el procesador"
+    else:
+        nivel, icono, texto = "no_fit", "❌", "No: no entra en la memoria de tu equipo"
+        donde = "—"
+    salida.update(nivel=nivel, memoria_gb=necesario, donde=donde,
+                  veredicto=f"{icono} {texto}",
+                  detalle=(f"Estimado: ~{necesario} GB ({parametros:g} mil millones de parámetros en 4 "
+                           f"bits). Tu equipo tiene {ram_gb:.1f} GB de memoria"
+                           + (f" y {presupuesto:.1f} GB utilizables de placa" if en_placa_ok else "")),
+                  aviso="Es una ESTIMACIÓN (el modelo no está descargado): el tamaño real puede variar.")
+    return salida
+
+
 def informe(pre: Preflight) -> str:
     """Informe legible (lo que ve el usuario)."""
     lineas = ["", "AXIOMA — ¿qué hace falta para funcionar?", "=" * 58]
