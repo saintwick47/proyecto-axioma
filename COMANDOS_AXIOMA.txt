@@ -1,0 +1,492 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  AXIOMA v0.3.6 — MANUAL UNIFICADO DE COMANDOS                                ║
+║  Tests · Diagnóstico · Auditoría · Sistema · Modelos · Calidad             ║
+║  (la carpeta del proyecto es donde tengas AXIOMA instalado)                  ║
+║  Unificado: COMANDOS_AXIOMA.txt + COMANDOS_TESTS.txt                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+▶ TRABAJAR SIEMPRE DESDE LA RAÍZ DEL PROYECTO:
+cd /ruta/donde/instalaste/axioma
+(usar el venv:  source venv/bin/activate   — o anteponer venv/bin/ a python)
+
+════════════════════════════════════════════════════════════════════════════════
+1. 🚀 ENTRY POINT — main.py
+════════════════════════════════════════════════════════════════════════════════
+python main.py --check
+python main.py --chat "consulta"
+python main.py --chat                    # interactivo
+python main.py --web
+python main.py --backup
+python main.py --info                    # info del sistema (unificado 2026-09-29)
+python main.py --voice                   # modo voz: VAD→STT→Dispatcher→TTS
+python main.py --rac status              # estado del RAC (avance, ritmo, ETA)
+python main.py --rac stop | pause | resume
+
+# ✅ 2026-09-29 (unificación de CLIs): `main.py` es el ENTRY POINT y DELEGA la
+# implementación de check/chat/backup/info/voice en `src/interfaces/cli/main.py`
+# (una sola implementación por comando; antes había dos y derivaron). El bucle de
+# chat, el backup y la validación de entorno son los MISMOS por los dos caminos:
+#     python main.py --chat "..."            ≡  python -m src.interfaces.cli.main --chat "..."
+# La raíz aporta lo suyo: chequeo de dependencias, warm-up de modelos, chequeo de
+# hardware, `--web` (UI NiceGUI, única) y `--rac` (control del RAC).
+# El RAC es INCREMENTAL: reutiliza el análisis de los archivos cuyo contenido no
+# cambió (hash SHA-1). Para forzar el re-análisis completo: AXIOMA_RAC_SOLO_CAMBIADOS=false
+
+────────────────────────────────────────────────────────────────────────────────
+1.1 💬 COMANDOS DEL CHAT (UI web / --chat) — v0.6.8pp..uu
+────────────────────────────────────────────────────────────────────────────────
+/plan <consulta compleja>   # F3 opt-in (v0.6.8rr): descompone la tarea
+                            # (heurístico, gratis) y ejecuta un pipeline de
+                            # ≤2 pasos: rol principal (coder/researcher) +
+                            # validador FINAL. Coste real en CPU: 2 generaciones
+                            # LLM (~1-3 min) — por eso es opt-in explícito.
+                            # Ej:
+                            #   /plan analizá tools/auditor y generá un reporte
+                            #        de mejoras de seguridad en markdown
+                            #   /plan generá un programa completo que procese CSV
+                            # Si la consulta es atómica o de chat puro → se
+                            # procesa por la ruta normal (sin pipeline).
+                            # /plan solo → mensaje de uso.
+
+# Activación AUTOMÁTICA del pipeline (opcional, default OFF):
+#   plan_pipeline_enabled=true  → consultas ≥40 chars descomponibles corren
+#   pipeline tras clasificar. plan_max_steps=2 (cap de pasos).
+#   Config en config/settings.py o variables .env (settings pydantic).
+
+# Consultas de ARCHIVOS con grounding local (v0.6.8pp — sin LLM, <1 s):
+#   usá fs_search para buscar qué archivos de tools/auditor hablan del SCORE
+#   qué archivos de src/core mencionan validator
+#   usá fs_list para listar la carpeta tools/auditor
+#   (respuesta con sources reales vía grep local del contenido)
+# v0.6.8ss:
+#   - Validador: extracción de score tolerante a markdown (**SCORE:** 10.0 ya
+#     parsea); skip de validación en respuestas ≤80 chars o con sources reales
+#     (eventos "Chat validation SKIPPED (A1)" en logs). Single-pass se mantiene.
+#   - Streaming de tokens a la UI: stream_chat_tokens=true (default OFF; probar
+#     en vivo antes de activar). Con OFF la respuesta llega completa como siempre.
+#   - Tools del chat: se activan por verbo/contexto (buscá/noticia/archivo/fs_*…);
+#     chat puro va directo a 1 generación (B2).
+# v0.6.9p — canal de imágenes + fuentes + calculadora:
+#   🖼️ ADJUNTAR IMAGEN (Web): botón 📎 → PNG/JPG/WebP/GIF/BMP → responde
+#     qwen3-vl:4b bajo demanda (~45-55 s en CPU; desaloja qwen3:8b de Ollama
+#     y libera RAM al terminar). Instrucción vacía → la describe.
+#   - OCR HÍBRIDO: si pedís leer/transcribir ("¿qué dice?", "copiá el texto")
+#     se usa Tesseract LOCAL primero (dependencia de SISTEMA: sudo apt
+#     install tesseract-ocr tesseract-ocr-spa). Si confianza ≥
+#     vision_ocr_min_conf (60) → texto exacto en ~0 s; si no → VLM.
+#     Preprocesado adaptativo: contraste bajo → autocontraste; imagen <400 px
+#     → upscale 2x; tope vision_num_predict (512) evita generaciones colgadas.
+#   - LÍMITES medidos: colores/formas/conteo/escenas/ruido OK; fotos reales
+#     clasifican persona/animal/vehículo/vegetación (tests E2E con assets en
+#     tests/assets/vision); texto muy chico/embebido → inestable (mitigado por
+#     Tesseract); fotos complejas/rostros → acotados por el hardware (4B).
+#   📎 FUENTES/CITAS: respuestas grounded (fs_search/folder-analysis) muestran
+#     el bloque "📎 Fuentes (N)" bajo la burbuja (Web) y la lista en el CLI.
+#   🧮 CALCULADORA: pedí una cuenta ("¿cuánto es 15% de 4200?") — tool MCP
+#     determinística (AST, sin eval(), sin red).
+#   Settings nuevos (config/settings.py): vision_num_predict ·
+#     vision_preprocess_enabled · vision_ocr_enabled · vision_ocr_min_conf.
+════════════════════════════════════════════════════════════════════════════════
+2. 🧪 SUITE INTEGRAL DE TESTS (tests/test_axioma_01..26 · pytest · reporte logs/)
+════════════════════════════════════════════════════════════════════════════════
+── 2.1 EJECUTAR TODA LA SUITE ──────────────────────────────────────────────────
+python -m pytest tests/
+Al terminar genera automáticamente el reporte:
+logs/axioma_test_report_<fecha_hora>.md
+
+Con más detalle (por test, con tiempos):
+python -m pytest tests/ -v
+Con trazas largas en caso de fallo:
+python -m pytest tests/ --tb=long
+Sin caché de pytest (evita interferencias):
+python -m pytest tests/ -p no:cacheprovider
+Rápido, solo resumen:
+python -m pytest tests/ --tb=no -q
+Suite total (modo silencioso):
+python -m pytest tests/ -q
+Ejemplo completo recomendado:
+python -m pytest tests/ -v -p no:cacheprovider
+
+── 2.2 EJECUTAR UN ARCHIVO DE LA SUITE ─────────────────────────────────────────
+python -m pytest tests/test_axioma_01_config_domain.py        # Config + dominio
+python -m pytest tests/test_axioma_02_core.py                 # Núcleo (core)
+python -m pytest tests/test_axioma_03_llm_router_memory.py    # LLM + router + memoria
+python -m pytest tests/test_axioma_04_agents.py               # Agentes
+python -m pytest tests/test_axioma_05_tools_multimodal.py     # Tools MCP + multimodal
+python -m pytest tests/test_axioma_06_web_handlers_analisis.py  # Web + análisis global
+
+Patrón alternativo (invoca pytest internamente):
+python tests/test_X.py
+python -m pytest tests/test_X.py -v      # si el anterior no muestra output
+
+── 2.3 EJECUTAR UNA CLASE O UN TEST ESPECÍFICO ────────────────────────────────
+# Una clase completa:
+python -m pytest tests/test_axioma_02_core.py::TestTaskQueue
+# Un test concreto:
+python -m pytest tests/test_axioma_01_config_domain.py::TestConfigSettings::test_campos_esenciales
+# Varios archivos a la vez:
+python -m pytest tests/test_axioma_01_config_domain.py tests/test_axioma_02_core.py
+
+── 2.4 FILTRAR POR NOMBRE (EXPRESIONES -k) ─────────────────────────────────────
+python -m pytest tests/ -k "memory"          # tests con "memory" en el nombre
+python -m pytest tests/ -k "classify"        # tests de clasificación
+python -m pytest tests/ -k "not imports"     # excluye los de imports
+python -m pytest tests/ -k "test_api or test_ambiguity"
+
+── 2.5 COBERTURA DE CÓDIGO (coverage) ──────────────────────────────────────────
+python -m pytest tests/ --cov=src --cov=config --cov-report=term
+python -m pytest tests/ --cov=src --cov-report=term-missing  # líneas sin cubrir
+python -m pytest tests/ --cov=src --cov-report=html          # reporte HTML en htmlcov/
+
+── 2.6 QUÉ VERIFICA CADA ARCHIVO ───────────────────────────────────────────────
+test_axioma_01_config_domain.py   → estructura del proyecto, config/ (settings,
+                                     paths, YAML), dominio (entities, types, exceptions)
+test_axioma_02_core.py            → task_queue, load_balancer, model_swap, vram_lock,
+                                     quality_monitor, workspace_manager, self_healing,
+                                     dispatcher, planner, dependency_resolver, hardware_fit…
+test_axioma_03_llm_router_memory.py → OllamaClient, judge, classifier, caches L2/L3,
+                                     memoria (short/long/semantic/KG), context window
+test_axioma_04_agents.py          → base, coder, analyst, researcher, searcher, validator,
+                                     loop, parallel_executor, code_contract
+test_axioma_05_tools_multimodal.py → tools MCP (base/registry/executor/sandbox/MCP),
+                                     pipeline multimodal (audio/STT/TTS/VAD/screen capture)
+test_axioma_06_web_handlers_analisis.py → web/CLI, handlers, prompts, utils, learning,
+                                     monitoring + import de TODOS los módulos de src/
+
+── 2.7 REPORTE DE RESULTADOS (logs/) ───────────────────────────────────────────
+Cada ejecución de pytest genera:
+logs/axioma_test_report_<fecha_hora>.md
+→ 521+ checks con PASS/FAIL detallado por sección y veredicto final.
+Ver el último reporte:
+ls -t logs/axioma_test_report_*.md | head -1
+
+── 2.8 NOTAS ÚTILES DE LA SUITE ────────────────────────────────────────────────
+· La suite NO requiere Ollama ni hardware real (todo mockeado) → corre en ~5 s.
+· Cada archivo de test respeta el límite de 750 líneas (máx. real: 412).
+· tests/axioma_report.py = generador del reporte (no es un test, no se ejecuta solo).
+· tests/suite_utils.py = helpers compartidos (import_safe, api_check…).
+· Los 3 diagnósticos de tests/ (audio, code_contract_e2e, rafael_bridge) requieren
+  entorno real; por eso pytest los ignora (collect_ignore en tests/conftest.py).
+· El check "PromotionGate" copia una sombra del proyecto a /tmp (excluye data/,
+  logs/, cache/ y venv desde 2026-08-25). Si /tmp (tmpfs) está 100 % lleno por
+  otros procesos, ese check puede reportar FAIL de entorno (no es bug del código)
+  — libere espacio en /tmp y vuelva a ejecutar.
+· Comandos con venv sin activar:
+    venv/bin/python -m pytest tests/
+· Ver ayuda completa de pytest:
+    python -m pytest --help
+
+════════════════════════════════════════════════════════════════════════════════
+3. 🩺 SUITE DE DIAGNÓSTICO POR FASES (tools/run_diagnostic_suite.py)
+════════════════════════════════════════════════════════════════════════════════
+python tools/run_diagnostic_suite.py                 # Todas las fases (0-5)
+python tools/run_diagnostic_suite.py --phase 3       # Solo la fase 3 (Agentes)
+python tools/run_diagnostic_suite.py -o MI_REPORTE   # Nombre base del reporte
+python tools/run_diagnostic_suite.py --real          # incluye tests que requieren Ollama corriendo
+# Diagnóstico completo (genera TEST_DIAGNOSTIC_REPORT.md)
+
+Fases:
+0 = Config & Domain           (test_axioma_01)
+1 = Core                      (test_axioma_02)
+2 = LLM + Router + Memoria    (test_axioma_03)
+3 = Agentes                   (test_axioma_04)
+4 = Tools MCP + Multimodal    (test_axioma_05)
+5 = Web + Análisis global     (test_axioma_06)
+Salida: tests/diagnostic_output/ (reportes por fase + summary.json)
+
+════════════════════════════════════════════════════════════════════════════════
+4. 🔬 DIAGNÓSTICOS DE ENTORNO REAL (en tests/, NO los recolecta pytest)
+════════════════════════════════════════════════════════════════════════════════
+Son diagnósticos manuales que requieren hardware/modelos reales (Ollama, audio,
+daemon). Están excluidos de la suite con collect_ignore en tests/conftest.py.
+Se ejecutan a mano:
+
+python tests/test_audio_diagnostic.py     # Diagnóstico de audio (mic → STT → TTS)
+# genera reports/audio_diagnostic_report.json
+python tests/test_code_contract_e2e.py    # E2E Contrato de Código con Ollama real
+# genera logs/code_contract_report_*.md
+python tests/test_code_contract_e2e.py --skip-ollama   # Salta la sección C (Ollama)
+python tests/test_rafael_bridge.py        # Diagnóstico puente Widget ↔ Daemon de Rafael
+
+════════════════════════════════════════════════════════════════════════════════
+5. 🛡️ AUDITORÍA COMPLETA DEL PROYECTO — axioma_auditor.py (UNIFICADO)
+════════════════════════════════════════════════════════════════════════════════
+Auditor unificado (v0.6.8uu — 26 detectores; axioma_auditor.py es SHIM, la
+lógica vive en tools/auditor/: aud_core · aud_detectors_infra ·
+aud_detectors_salud · aud_detectors_arquitectura · aud_main):
+
+python axioma_auditor.py                          # Auditoría completa (26 detectores)
+python axioma_auditor.py --detectors syntax_import,env_models   # Solo algunos detectores
+python axioma_auditor.py --format json -o audit.json            # Salida JSON
+python axioma_auditor.py -o -                    # Informe a stdout en vez de logs/
+python axioma_auditor.py -v                      # Verbose (progreso de cada detector)
+
+python axioma_auditor.py --full --run-tests  # + pytest (test_axioma_*.py) + SCORE en el reporte
+# 📊 Health report (E2 — v2 detector, v0.6.9p):
+#   python tools/log_health_report.py        # lee logs/reg_error.txt
+#   → logs/axioma_health_<fecha>.md
+#   v2: clasificación de errores (infra/red · memoria · validación esperada ·
+#   otros), anomalías con umbrales + VERDICTO (✅/⚠️/❌), reintentos/timeouts de
+#   Ollama, reparaciones Fase4 del pipeline de código, hit-rate C1 corregido
+#   (FULL+PARTIAL) y delta vs reporte previo (sidecar logs/axioma_health_last.json).
+#   Opciones: --logs a.txt b.txt · -o SALIDA · --umbral clave=valor ·
+#     --no-sidecar. Umbrales: validator_fail_pct, single_pass_fails,
+#     infra_errors, mem_errors, quality_min, error_handling_min, circuit_opens,
+#     ok_min_pct, retry_warn_pct, cache_min_hit, tool_loops_min, repair_warn_pct.
+# 🖼️ Batería de visión (canal de imágenes, v0.6.9p):
+#   python tools/vision_battery.py                 # 13 casos sintéticos → logs/vision_battery_*.md
+#   python tools/vision_battery.py --quick         # subconjunto rápido
+#   python tools/vision_real_probe.py --download   # fotos reales (Wikimedia Commons)
+#   python tools/vision_real_probe.py --local CARPETA   # clasifica tus fotos
+#   Tests E2E reales (requiere Ollama + qwen3-vl):
+#   AXIOMA_VISION_E2E=1 python -m pytest tests/test_axioma_11_vision_imagenes.py -q
+# ✅ v0.6.8uu: axioma_auditor.py es ahora un SHIM — la lógica vive en
+# tools/auditor/ (5 módulos aud_*: aud_core · aud_detectors_infra ·
+# aud_detectors_salud · aud_detectors_arquitectura · aud_main).
+# Tipos Aud* (AudVerdict/AudSeverity/AudFinding) para no colisionar con
+# promotion_gate.Verdict ni security_audit.Severity/Finding.
+# Mismos comandos, mismo resultado.
+# Para desarrollar: editar los módulos del paquete, no el shim raíz.
+Modos:
+--mode full      (default)  # Ejecuta todos los detectores (+verify si hay --findings)
+--mode discover             # Solo descubre hallazgos nuevos
+--mode verify               # Solo verifica hallazgos previos (--findings archivo.json)
+--run-tests                 # Ejecuta pytest y lo incluye en el reporte
+
+Genera el informe automáticamente en:
+logs/axioma_audit_report_<fecha_hora>.md
+
+Qué audita (26 detectores):
+· syntax_import      → errores de sintaxis + módulos que no importan (salud base)
+· silent_exceptions  → except: desnudos, except ...: pass, handlers que tragan errores
+· env_models         → .env vs .env.example + referencias a modelos obsoletos
+· singleton_violation → singletons instanciados directo (usar get_*())
+· async_module_level → asyncio.get_event_loop() / primitivas asyncio a nivel módulo
+· circular_import    → ciclos de import por grafo estático
+· duplicate_code     → copy-paste real por fingerprint AST
+· integration        → módulos aislados/residuales de refactor + archivos/métodos pesados
+· 18 detectores de anti-patrones (LRU, caches sin límite, dead code, timeouts fijos,
+  sync-blocking en async, colisión de nombres, starvation, etc.)
+· SCORE AXIOMA /100 al final (fusionado de axioma_inspector.py, eliminado)
+Complementario — estructura/score del proyecto:
+# ✅ FUSIONADO en axioma_auditor.py (v8.3, 2026-09-01): los detectores de
+# axioma_inspector.py (singletons, asyncio module-level, imports circulares,
+# duplicados, integración, tests, SCORE) ahora viven en el auditor.
+# python axioma_auditor.py --full --run-tests   # incluye pytest + SCORE /100
+
+Herramienta de imports de tests:
+python tools/analyze_tests_imports.py      # Verifica que cada test importe
+# módulos/símbolos existentes
+
+Documentos de referencia en logs/:
+logs/analisis_tests_vs_sistema_*.md        # Comparativa tests antiguos vs sistema
+logs/axioma_test_report_*.md               # Reportes de ejecución de la suite
+logs/axioma_audit_report_*.md              # Reportes de auditoría completa
+
+════════════════════════════════════════════════════════════════════════════════
+6. 🛠️ VERIFICACIÓN / DIAGNÓSTICO GENERAL
+════════════════════════════════════════════════════════════════════════════════
+python tools/system_check.py all            # Diagnóstico unificado (health+setup+diagnostic)
+python tools/system_check.py health         # Health check (16+ componentes: modelos, memoria, Ollama)
+python tools/system_check.py setup          # Validación de entorno pre-ejecución
+python tools/system_check.py diagnostic     # Diagnóstico SO/hardware/IA/optimizaciones
+python tools/system_check.py verify         # Verificación integral + visión runtime (ex-verify_axioma.py)
+python axioma_auditor.py --detectors config_refs   # TaskType/Paths/settings inexistentes (ex-verify_all.py)
+python tools/security_audit.py
+
+════════════════════════════════════════════════════════════════════════════════
+7. 📊 BENCHMARKS
+════════════════════════════════════════════════════════════════════════════════
+python tools/benchmark_latency.py         # Benchmark p50/p95/p99 (KG/Profile)
+python tools/benchmark_response.py        # Benchmark de rendimiento/latencia
+python tools/benchmark_calibration.py     # Calibración A/B de modelos (usa CODE_TEST_CASES del bench v2)
+python tools/axioma_model_bench_v2.py     # Benchmark de modelos de CÓDIGO: velocidad, calidad
+#                                          estructural (AST), ejecución real y RAM → MD + JSON
+#                                          (migrado de la raíz a tools/ el 2026-09-01)
+
+════════════════════════════════════════════════════════════════════════════════
+8. 🤖 MODELOS
+════════════════════════════════════════════════════════════════════════════════
+python tools/model_tester.py --all
+python tools/warmup_models.py             # Pre-carga modelos en VRAM
+python tools/optimize_ollama.py
+
+════════════════════════════════════════════════════════════════════════════════
+9. 🧰 HERRAMIENTAS DE DIAGNÓSTICO EN tools/ (relocalizadas desde la raíz)
+════════════════════════════════════════════════════════════════════════════════
+python tools/network_scanner.py 192.168.1.1 -r 1 1024 -w 200 --retries 2
+# Escáner de red asíncrono: IP objetivo, rango de puertos (-r INICIO FIN),
+# workers (-w), reintentos (--retries), timeout por intento (-t)
+
+python tools/speedtest.py
+# Test de velocidad: latencia, descarga y subida (Cloudflare/CDN)
+# guarda historial en speedtest_history.json
+
+python tools/hardware_report.py
+# Reporte de hardware (CPU/GPU/RAM/disco) → genera un .md con el informe
+
+python lista_paquetes.py
+# Lista de paquetes instalados (pacman -Q) → genera paquetes_completos.md
+
+Otros tools útiles:
+python tools/system_check.py health         # Health check (modelos, memoria, Ollama)
+python tools/system_check.py diagnostic   # Diagnóstico general del sistema
+python tools/warmup_models.py             # Pre-carga modelos en VRAM
+python tools/benchmark_response.py        # Benchmark de rendimiento/latencia
+python tools/benchmark_latency.py         # Benchmark p50/p95/p99 (KG/Profile)
+
+════════════════════════════════════════════════════════════════════════════════
+10. 📚 DOCUMENTACIÓN
+════════════════════════════════════════════════════════════════════════════════
+python tools/documentador/axioma_doc_main.py
+python tools/documentador/axioma_doc_main.py --validate
+python tools/documentador/axioma_doc_main.py --clear-cache
+python tools/documentador/validate_docs.py
+python tools/structure_detector.py               # regenera STRUCTURE_REPORT.md
+
+════════════════════════════════════════════════════════════════════════════════
+11. 🔧 GIT + COMMIT
+════════════════════════════════════════════════════════════════════════════════
+git status
+git add .
+git commit -m "feat: descripción"
+git log --oneline -10
+git diff
+
+# commit.py (backup automático + historial + restore)
+python tools/commit.py --message "feat: descripción"
+python tools/commit.py --list-backups
+python tools/commit.py --restore TIMESTAMP
+python tools/commit.py --history
+
+════════════════════════════════════════════════════════════════════════════════
+12. 🌐 WEB SERVER
+════════════════════════════════════════════════════════════════════════════════
+uvicorn src.interfaces.web.server:app --reload
+curl http://localhost:8000/health
+
+════════════════════════════════════════════════════════════════════════════════
+13. ⚙️ OPTIMIZADOR DE SISTEMA (CachyOS — sudo requerido)
+════════════════════════════════════════════════════════════════════════════════
+# Optimiza sysctl, scheduler scx, ananicy, zram, env y el override
+# systemd de Ollama para este hardware (AMD RX 460 + 14GB RAM).
+# Usa .optimizer_manifest.json para rollback exacto.
+
+./tools/axioma_optimizer.sh --status          # estado de las optimizaciones
+./tools/axioma_optimizer.sh --apply           # aplica (o re-aplica tras update de kernel)
+./tools/axioma_optimizer.sh --rollback        # revierte todo (usa backups)
+./tools/axioma_optimizer.sh --dry-run         # muestra qué haría sin aplicar
+
+── 13.1 DESPUÉS DE UN pacman -Syu (actualización completa del sistema) ─────────
+🚀 AUTOMÁTICO (recomendado): un solo comando hace todo el flujo:
+      python tools/post_update.py
+  → Pregunta si actualizar (sudo pacman -Syu — la contraseña la ponés vos)
+  → Pregunta si reiniciar → instala el auto-arranque y reinicia
+  → Al volver (login), ejecuta SOLO:
+      tools/axioma_optimizer.sh --status
+      tools/axioma_optimizer.sh --apply
+      sudo systemctl status ollama --no-pager
+    y te muestra un resumen con los problemas detectados y la acción.
+  → Se auto-limpia (quita flag y hooks del auto-arranque) al terminar.
+  Re-intento manual si algo falló: python tools/post_update.py --post-reboot
+
+Flujo manual:
+1. Terminar el update y REINICIAR (el kernel nuevo necesita reboot).
+2. Tras el reboot, verificar qué se perdió:
+      ./tools/axioma_optimizer.sh --status
+3. Re-aplicar lo perdido (idempotente, usa manifest + backups):
+      ./tools/axioma_optimizer.sh --apply
+4. Verificar que Ollama quedó bien:
+      sudo systemctl status ollama --no-pager
+
+Qué persiste y qué NO tras un -Syu:
+  ❌ Scheduler scx      → NO persiste entre reinicios (vuelve a CFS).
+                         Es lo más común que haya que re-aplicar.
+  ✅ Sysctl             → persiste (/etc/sysctl.d/99-axioma.conf), pero un
+                         kernel nuevo puede cambiar defaults → revalidar.
+  ✅ Override Ollama    → persiste (/etc/systemd/system/ollama.service.d/).
+                         Si el -Syu actualizó Ollama, el servicio se reinicia
+                         y las variables se cargan solas. Si --status dice
+                         "Variables en override pero NO aplicadas", alcanza:
+                             sudo systemctl restart ollama
+  ✅ Ananicy / env / optimizer.env → persisten sin cambios.
+
+OPCIONAL: activar zram tras el update para más RAM efectiva (hoy inactivo):
+      ./tools/axioma_optimizer.sh --apply   (incluye zram como opt-in)
+
+════════════════════════════════════════════════════════════════════════════════
+14. 🤝 SERVICIO RAFAEL (systemd --user)
+════════════════════════════════════════════════════════════════════════════════
+# Detener el servicio ahora mismo
+systemctl --user stop rafael.service
+# Deshabilitar para que NO arranque al bootear
+systemctl --user disable rafael.service
+# Verificar que quedó deshabilitado
+systemctl --user status rafael.service
+# Arrancar
+systemctl --user start rafael.service
+# Modo Jarvis
+python Rafael.py --mode jarvis
+
+════════════════════════════════════════════════════════════════════════════════
+15. 🧠 DEEPSEEK HARNESS (terminal)
+════════════════════════════════════════════════════════════════════════════════
+cd deepseek-harness
+NODE_OPTIONS="--max-old-space-size=4096" pnpm dsh web / ollama launch dsh
+
+════════════════════════════════════════════════════════════════════════════════
+16. ⚠️ NOTAS / ADVERTENCIAS
+════════════════════════════════════════════════════════════════════════════════
+· tools/test_suite.py NO EXISTE MÁS — reemplazado por pytest + run_diagnostic_suite.py
+· tools/push.py y tools/commit.py están redactados (🔐) en STRUCTURE_REPORT.md — sensibles
+#   push.py v3 (2026-09-11): ÁRBOL SUCIO YA NO BLOQUEA (avisaba y cancelaba en cada
+#   edición → fallaba "constantemente"). Ahora:
+#     python tools/push.py                 avisa si hay cambios y pushea SOLO los commits
+#     python tools/push.py --commit        commitea lo pendiente (commit.py) y pushea
+#     python tools/push.py --commit -m "…" ídem con mensaje propio
+#     python tools/push.py --strict        exige árbol limpio (comportamiento viejo)
+#     python tools/push.py --rebase        si lo rechazan: git pull --rebase y reintenta
+#     python tools/push.py --dry-run       no commitea ni envía; informa y sale 0
+#   Nunca hace force-push, configura el upstream si falta y da mensajes accionables
+#   para auth/red/rechazo.
+· GitHub token expuesto en remote de STRUCTURE_REPORT.md — ROTAR
+
+════════════════════════════════════════════════════════════════════════════════
+17. github harness
+════════════════════════════════════════════════════════════════════════════════
+https://github.com/deepseek-ai/deepseek-harness
+
+
+════════════════════════════════════════════════════════════════════════════════
+# v0.6.9v — transparencia, feedback real, salud y gate de calidad
+════════════════════════════════════════════════════════════════════════════════
+# UI (header): 🟢/🟡/🔴 badge de salud · 🗂️ Sesiones · 📄 Exportar · 🖥️ Mi Hard
+# Bajo cada respuesta: colapsable "¿Por qué esta respuesta?" con modelo, agente,
+#   confianza CALIBRADA (score del validador 60% + agente 40%), validación
+#   (aprobada/fallida/omitida/no aplica), fuentes y tiempo — y la calificación
+#   1-5 + comentario + etiquetas, que ahora SÍ llega al FeedbackLoop.
+#
+# Verificación (lo que se corre antes de dar algo por terminado):
+venv/bin/python tools/run_all_tests.py --timeout 150    # suite (17 archivos) + reporte con run_id
+venv/bin/python axioma_auditor.py                       # SCORE AXIOMA /100
+venv/bin/python axioma_auditor.py --format json -o logs/audit_summary.json
+venv/bin/python tools/quality_gate.py                   # 13 condiciones (SCORE, HIGH, detectores, run_id, health)
+venv/bin/python tools/quality_gate.py --no-require-health   # modo CI (sin logs de runtime)
+venv/bin/python tools/log_health_report.py              # health report desde logs
+venv/bin/python tools/measure_task_config.py            # modelo + temperatura efectivos por tarea
+venv/bin/python tools/audit_silent_excepts.py           # inventario de except silenciosos
+#
+# API nueva:
+#   GET /api/api/v1/metrics/degradation   → contrato vs degradación esperada (+alertas)
+#   GET /api/api/v1/feedback/stats        → feedback agregado + señal ROUTED
+#   GET /api/api/v1/stats                 → requests/latencia/uptime reales, storage, degradación
+#
+# Exportación: 📄 → Investigación (con citas) o CONVERSACIÓN completa (usuario +
+#   asistente + fuentes + código generado) en MD / HTML (imprimible a PDF) / JSON.
+#
+# Reglas del proyecto que conviene recordar:
+#   · Nada de config sin lector (models.yaml: solo `models` y `task_mappings`).
+#   · Precedencia de temperatura: mapeo por tarea > solo-temperatura > modelo > 0.7.
+#   · Degradar no es esconder: usar log_degraded (contrato → WARNING).
+#   · Sin cargas permanentes: refrescos manuales, no ui.timer que lata siempre.
+#   · Los tests se FUSIONAN por tema; ningún archivo supera 950 líneas (R13).

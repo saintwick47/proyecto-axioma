@@ -1,0 +1,381 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA v0.7.2 — Archivos que Git debe ignorar
+# ═══════════════════════════════════════════════════════════════
+# Autor: SaintWick
+# Fecha: 2026-07-25
+# 
+# ESQUEMA DE VERSIONADO:
+#   - Versión inicial: 0.0.1
+#   - Cada fix grande: +0.0.1 (ej: 0.0.1 → 0.0.2)
+#   - Cada archivo nuevo: +0.0.1 (ej: 0.0.2 → 0.0.3)
+#   - Funcionalidad completa: 0.0.5
+#   - Features mayores: 0.1.0, 0.2.0, etc.
+#   - Release estable: 1.0.0
+# 
+# CAMBIOS v0.7.2:
+#   - Agregado: informes internos y datos del sistema del usuario (sección 🔒):
+#     diagnósticos, resultados de benchmark/calibración, inventario de paquetes
+#     y utilidades personales. Estaban versionados y se desversionaron con
+#     `git rm --cached` el 2026-09-28 (el historial no se reescribió).
+#   - ⚠️ Recordatorio: `.gitignore` NO afecta a lo ya trackeado. Para dejar de
+#     seguir un archivo hay que `git rm --cached <ruta>` (sin -f no se borra
+#     del disco) y commitear esa eliminación.
+# CAMBIOS v0.7.1:
+#   - Agregado: .pw-browsers/ (binarios de Playwright/Chromium descargados localmente).
+# CAMBIOS v0.6.6:
+#   - Agregado: data/ completo, incluyendo backups, cache, tts, sqlite, etc.
+#   - Agregado: logs/ completo, incluyendo feedback_log.jsonl y commit_log.jsonl.
+#   - Agregado: inforchat/ completo.
+#   - Agregado: reports/ completo.
+#   - Agregado: cache/ y .cache/.
+#   - Agregado: auditoria_v7.md, auditoria_v*.md y auditoria_*.md.
+#   - Agregado: .optimizer_backups/, .optimizer_manifest.json, prueba_mic.wav y speedtest_history.json.
+#   - Agregado: excepción explícita para permitir axioma_auditor.py.
+# CAMBIOS v0.6.5:
+#   - Agregado: push.py y tools/push.py en sección CREDENCIALES (contenían tokens hardcodeados).
+#   - Agregado: commit.py en sección CREDENCIALES (puede contener credenciales).
+#   - Agregado: *.py con tokens hardcodeados (patrón de seguridad).
+# CAMBIOS v0.6.8s:
+#   - tools/push.py recreado como wrapper seguro (sin credenciales); sigue ignorado por diseño.
+# CAMBIOS v0.6.4:
+#   - Agregado: tokens github.txt en sección CREDENCIALES.
+#   - Agregado: planes para axioma/ en sección PLANIFICACIÓN LOCAL.
+# CAMBIOS v0.6.3:
+#   - Agregado: data/semantic_cache_l3_lance/ e histórico de transacciones vectoriales.
+# CAMBIOS v0.6.2:
+#   - Actualizado: versión header a v0.6.2 (migración de stack de modelos)
+# CAMBIOS v0.0.5:
+#   - Corregido: backups/ → data/backups/git_backup/ (commit.py v0.0.10)
+#   - Eliminado: backups/ de raíz (ya no se usa)
+# CAMBIOS v0.0.4:
+#   - Agregado: logs/*.jsonl (commit_history.jsonl)
+#   - Agregado: backups/ (backup automático de commit.py)
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
+# 📁 ENTORNO VIRTUAL
+# ═══════════════════════════════════════════════════════════════
+venv/
+.venv/
+env/
+ENV/
+
+# ═══════════════════════════════════════════════════════════════
+# 🔐 VARIABLES DE ENTORNO REALES (NUNCA VERSIONAR)
+# ═══════════════════════════════════════════════════════════════
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# ═══════════════════════════════════════════════════════════════
+# 🐍 CACHE DE PYTHON
+# ═══════════════════════════════════════════════════════════════
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ═══════════════════════════════════════════════════════════════
+# 💻 IDEs Y EDITORES
+# ═══════════════════════════════════════════════════════════════
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ═══════════════════════════════════════════════════════════════
+# 🚫 AXIOMA v0.6.9y — RUTAS QUE NO DEBEN VERSIONARSE
+# ═══════════════════════════════════════════════════════════════
+data/
+# ✅ v0.6.9y: logs/ y docs/ COMPLETOS fuera de git (contenido de runtime,
+# generado por herramientas o interno). Ni `tools/commit.py` ni
+# `tools/push.py` deben subirlos. Excepción puntual y deliberada:
+#   git add -f docs/<archivo>
+logs/
+docs/
+inforchat/
+# Storage de sesión de NiceGUI (storage-user-*.json, runtime)
+.nicegui/
+# Checkout externo del harness (70K archivos / 1.8GB)
+deepseek-harness/
+reports/
+cache/
+.cache/
+.optimizer_backups/
+.optimizer_manifest.json
+prueba_mic.wav
+speedtest_history.json
+# Binarios de Playwright / Navegadores headless (descargados localmente)
+.pw-browsers/
+
+# Informes generados por auditoría
+auditoria_v7.md
+auditoria_v*.md
+auditoria_*.md
+
+# Resultados de los estudios comparativos de modelos (bench): se generan
+# localmente y NO se versionan (mismo criterio que en tools/commit.py, que ya
+# los excluye). Sin esto quedan como "sin seguimiento" y la marca del prompt
+# (Pure: `git status --porcelain`) sigue mostrando el árbol como SUCIO.
+benchmark_*results.json
+benchmark_*results.md
+benchmark_*.json
+benchmark_*.md
+
+# Excepción explícita: este script sí debe poder commitearse
+!axioma_auditor.py
+!**/axioma_auditor.py
+
+# ═══════════════════════════════════════════════════════════════
+# 📝 LOGS Y DATOS SENSIBLES
+# ═══════════════════════════════════════════════════════════════
+logs/*.json
+logs/*.jsonl
+logs/*.log
+logs/audit.json
+logs/*.txt
+data/*.db
+data/*.sqlite
+data/memory/*.bin
+data/memory/*.sqlite
+data/memory/*.db
+data/knowledge/*
+data/model_tests/*
+data/benchmarks/*.json
+
+# ═══════════════════════════════════════════════════════════════
+# 🗄️ BACKUPS LOCALES (commit.py v0.0.10)
+# ═══════════════════════════════════════════════════════════════
+data/backups/
+data/backups/*
+data/backups/git_backup/
+data/backups/git_backup/*
+
+# ═══════════════════════════════════════════════════════════════
+# 🖥️ SISTEMA
+# ═══════════════════════════════════════════════════════════════
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ═══════════════════════════════════════════════════════════════
+# 🧪 TESTING
+# ═══════════════════════════════════════════════════════════════
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ═══════════════════════════════════════════════════════════════
+# 🔍 MYPY
+# ═══════════════════════════════════════════════════════════════
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+
+# ═══════════════════════════════════════════════════════════════
+# 📓 JUPYTER
+# ═══════════════════════════════════════════════════════════════
+.ipynb_checkpoints
+*.ipynb
+
+# ═══════════════════════════════════════════════════════════════
+# 🗑️ TEMPORALES
+# ═══════════════════════════════════════════════════════════════
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+docs/*.pdf
+docs/*.docx
+*.orig
+*.pyc
+
+# ═══════════════════════════════════════════════════════════════
+# 🔑 CREDENCIALES (NUNCA SUBIR BAJO NINGUNA CIRCUNSTANCIA)
+# ═══════════════════════════════════════════════════════════════
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+secrets.json
+credentials.json
+service_account.json
+api_keys.json
+tokens.json
+*.secret
+*.password
+tokens github.txt
+
+# ✅ v0.6.5: Archivos Python con credenciales hardcodeadas
+# v0.6.8s: tools/push.py es ahora un wrapper SEGURO (sin tokens, solo
+# `git push` vía SSH). Se mantiene ignorado a propósito: herramienta local.
+push.py
+tools/push.py
+commit.py
+tools/commit.py
+
+# Patrones para cualquier archivo con tokens en el nombre
+*token*.py
+*credential*.py
+*secret*.py
+
+# ═══════════════════════════════════════════════════════════════
+# 📦 PAQUETES Y DEPENDENCIAS
+# ═══════════════════════════════════════════════════════════════
+requirements-local.txt
+requirements-dev.txt
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ═══════════════════════════════════════════════════════════════
+# 🌐 SERVIDORES LOCALES
+# ═══════════════════════════════════════════════════════════════
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# ═══════════════════════════════════════════════════════════════
+# 📊 BASE DE DATOS LOCALES
+# ═══════════════════════════════════════════════════════════════
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ═══════════════════════════════════════════════════════════════
+# 🤖 MODELOS ML/LLM LOCALES Y BASES VECTORIALES
+# ═══════════════════════════════════════════════════════════════
+*.bin
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pb
+*.lance
+*.txn
+*.manifest
+model_cache/
+checkpoint/
+data/semantic_cache_l3_lance/
+
+# ═══════════════════════════════════════════════════════════════
+# ⚙️ CONFIGURACIÓN LOCAL
+# ═══════════════════════════════════════════════════════════════
+config.local.yaml
+settings.local.json
+*.local.json
+*.local.yaml
+*.local.yml
+
+# ═══════════════════════════════════════════════════════════════
+# 📁 DIRECTORIOS DE SALIDA
+# ═══════════════════════════════════════════════════════════════
+output/
+output/*
+results/
+results/*
+exports/
+exports/*
+
+# ═══════════════════════════════════════════════════════════════
+# 🤖 AXIOMA: CACHE Y REPORTES DINÁMICOS
+# ═══════════════════════════════════════════════════════════════
+data/.ai_analysis_cache.json
+data/.doc_hashes.json
+data/.last_doc_timestamp
+docs/STRUCTURE_REPORT.*
+docs/verification_report_*
+docs/test_report_*
+
+# ═══════════════════════════════════════════════════════════════
+# 📝 PLANIFICACIÓN LOCAL
+# ═══════════════════════════════════════════════════════════════
+planes para axioma/
+
+# ═══════════════════════════════════════════════════════════════
+# 🔒 v0.7.2 — INFORMES INTERNOS Y DATOS DEL SISTEMA DEL USUARIO
+# ═══════════════════════════════════════════════════════════════
+# No son código: exponen el estado del proyecto (planes, diagnósticos,
+# resultados de benchmark) y datos de la máquina del usuario (kernel, hardware,
+# inventario de paquetes con versiones exactas → superficie de ataque).
+# Desversionados el 2026-09-28 con `git rm --cached` y bloqueados de ahora en
+# más. Los MISMOS patrones están en tools/commit.py (INTERNAL_ONLY_PATTERNS) y
+# los aplica tools/push.py antes de enviar. El `/` inicial ancla a la raíz.
+/diagnostico_*.md
+/diagnostico_*.py
+/diagnostico_*.txt
+/diagnostic_*.js
+/PC_Informe_*.md
+/informe *.txt
+/informe_*.txt
+# ⚠️ v0.7.3: la familia `informe-*` (con guion) y los .md internos se
+# escapaban del patrón: un `informe-inferencia-cpu.md` quedaba commiteable.
+/informe-*
+/informe*.md
+/calibration_data.json
+/calibration_results.json
+/calibration_results.md
+/paquetes_completos.md
+/lista_paquetes.py
+/prueba *.txt
+/gold.json
+/.directory
+
+# ═══════════════════════════════════════════════════════════════
+# GIT
+# ═══════════════════════════════════════════════════════════════
+!.gitkeep
+
+# ═══════════════════════════════════════════════════════════════
+# FIN DEL .gitignore — AXIOMA v0.7.2
+# ═══════════════════════════════════════════════════════════════
+# Backups portátiles del repo (git bundle) — no subir a GitHub
+*.bundle
+# ═══════════════════════════════════════════════════════════════
+# 🧪 Herramientas experimentales fuera del repositorio (2026-10-03)
+# Los archivos siguen en disco (no se borran): sólo dejan de versionarse.
+# Para volver a versionarlos: quitar estas líneas y `git add` de las carpetas.
+# ═══════════════════════════════════════════════════════════════
+tools/netron/
+tools/actron/
+tests/test_netron.py

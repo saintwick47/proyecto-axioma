@@ -1,0 +1,165 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA en contenedor — Fase 1 del plan (`docs/PLAN_CONTENEDORES.md` §3.3 y §11)
+# ═══════════════════════════════════════════════════════════════
+# DECISIONES QUE APLICA
+#
+# 1. **Ollama del equipo, sin exponerlo a la red** (pedido del usuario: "hay que resolver la
+#    conexión con Ollama primero"). El servicio `axioma` usa `network_mode: host`: comparte la red
+#    del equipo, así que `127.0.0.1:11434` DENTRO del contenedor **es** el Ollama del equipo. No hay
+#    que tocar la configuración de Ollama ni abrir puertos (la alternativa `OLLAMA_HOST=0.0.0.0:11434`
+#    expondría tus modelos a cualquiera en la misma red local).
+#    Consecuencia: la aplicación queda escuchando directo en el puerto 8080 del equipo (no hace falta
+#    mapear puertos) y el contenedor comparte la red en vez de tener la suya.
+#
+# 2. **Ollama propio del contenedor** (opcional, perfil `ollama-local`): para quien no tenga Ollama
+#    en el equipo o quiera los modelos aparte. No arranca salvo que se pida.
+#
+# 3. **Tus claves NO viajan en la imagen**: `.env` está excluido al compilar y la imagen trae la
+#    plantilla con los valores vacíos (verificado byte a byte). Si tenés un `.env` en esta carpeta,
+#    sus variables entran al contenedor. Para cargar tus claves de forma guiada:
+#    `python -m src.core.apikeys`
+#
+# Uso:
+#     docker compose up -d --build          # AXIOMA con el Ollama del equipo (recomendado)
+#     docker compose logs -f axioma         # ver qué dice
+#     docker compose exec axioma python -m src.core.preflight     # ¿qué le falta?
+#     docker compose down                   # detener
+
+services:
+  axioma:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: axioma:local
+    container_name: axioma
+    restart: unless-stopped
+    # Red del equipo: así ve el Ollama que ya tenés (127.0.0.1:11434) sin exponerlo a la red local.
+    network_mode: host
+    env_file:
+      - path: .env
+        required: false          # si no existe, arranca con los valores por defecto
+    environment:
+      # El Ollama del EQUIPO, que con `network_mode: host` es el propio 127.0.0.1.
+      # (El esquema va FUERA de la interpolación: si se deja adentro, compose puede resolverlo sin
+      #  `http://` — verificado con `docker compose config`. Para apuntar a otro equipo:
+      #  AXIOMA_OLLAMA_HOST=192.168.0.50:11434)
+      OLLAMA_HOST: "http://${AXIOMA_OLLAMA_HOST:-127.0.0.1:11434}"
+      # SIN usuario por defecto: quien instala crea el suyo la primera vez desde la interfaz.
+      AXIOMA_USER_ID: "${AXIOMA_USER_ID:-}"
+      AXIOMA_USER_ROLE: "${AXIOMA_USER_ROLE:-user}"
+      # Dentro del contenedor no hay dispositivos de audio: la voz se desactiva sola y el chat
+      # sigue andando (verificado: el preflight avisa y no bloquea).
+      AXIOMA_SIN_AUDIO: "1"
+    volumes:
+      # Los datos del usuario (memoria, cachés, modelo de voz) viven en el equipo, no en la imagen.
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # La configuración es la del usuario y se puede editar sin recompilar.
+      - ./config:/app/config
+    healthcheck:
+      test: ["CMD", "python", "-m", "src.core.preflight", "--json"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 40s
+
+  # ── Alternativa para Docker Desktop (macOS/Windows), donde la red del equipo no funciona igual ──
+  # Se usa con:  docker compose --profile puente up -d
+  axioma-puente:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: axioma:local
+    container_name: axioma-puente
+    profiles: ["puente"]
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # En Docker Desktop el equipo se alcanza con este nombre, no con 127.0.0.1.
+      OLLAMA_HOST: "http://${AXIOMA_OLLAMA_HOST:-host.docker.internal:11434}"
+      AXIOMA_SIN_AUDIO: "1"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"    # Linux: hace que el nombre resuelva al equipo
+
+  # ── Servicio de VOZ (Rafael) dentro del contenedor — perfil `voz`, no arranca por defecto ──
+  # Se usa con:  docker compose --profile voz up -d voz
+  #
+  # ✅ MEDIDO (2026-10-05): el audio del equipo SÍ es alcanzable desde el contenedor, pero hacen
+  # falta las DOS cosas: los dispositivos (`/dev/snd`) y el grupo de audio del equipo (`group_add`).
+  # Sólo con el servidor de sonido montado no alcanza (PortAudio va por ALSA y veía 0 dispositivos);
+  # con `/dev/snd` + el grupo se ven **12 dispositivos y 2 entradas**, con entrada por defecto.
+  #
+  # ✅ `ISSUE-150`: el demonio necesitaba systemd (no hay `systemctl` en el contenedor y abortaba).
+  # Ahora corre en **modo directo** (`AXIOMA_RAFAEL_DIRECTO=1`): el proceso ES el daemon.
+  #
+  # ⚠️ El widget de escritorio (que corre en el equipo) se comunica con el daemon por archivos en
+  # `/tmp`; si querés verlo desde el contenedor, descomentá el montaje de `/tmp` (comparte esa carpeta
+  # con el contenedor: tenelo presente).
+  voz:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: axioma:local
+    container_name: axioma-voz
+    profiles: ["voz"]
+    restart: unless-stopped
+    network_mode: host
+    devices:
+      - /dev/snd                     # el micrófono y los altavoces del equipo
+    group_add:
+      - "${AXIOMA_AUDIO_GID:-996}"   # el gid del grupo `audio` del equipo (id -g audio)
+    environment:
+      AXIOMA_RAFAEL_DIRECTO: "1"     # sin systemd (ISSUE-150)
+      # El equipo usa `pulse` (complemento de ALSA de PulseAudio), que NO existe dentro del
+      # contenedor: medido, el lazo de escucha fallaba en bucle. Con `default` usa la placa de
+      # sonido que sí ve (verificado: 2 entradas). Se puede apuntar a otra con su nombre o índice.
+      AXIOMA_INPUT_DEVICE: "${AXIOMA_INPUT_DEVICE:-pulse}"
+      OLLAMA_HOST: "http://${AXIOMA_OLLAMA_HOST:-127.0.0.1:11434}"
+      AXIOMA_USER_ID: "${AXIOMA_USER_ID:-}"
+      # El servidor de sonido del equipo, por su socket
+      PULSE_SERVER: "unix:/run/user/1000/pulse/native"
+    volumes:
+      - ./data:/app/data
+      # ✅ Registros PROPIOS del servicio de voz: van a `data/registros_voz/` en el equipo, no a
+      # `logs/`. Medido: al dejar la voz encendida, sus errores caían en `logs/reg_error.txt` del
+      # proyecto y el PORTERO DE CALIDAD bloqueaba por "anomalías en el informe de salud". Así la
+      # voz queda aislada (se ven con `docker compose logs -f voz` o en `data/registros_voz/`).
+      - ./data/registros_voz:/app/logs
+      - ./config:/app/config
+      # El servidor de sonido del equipo (PipeWire/PulseAudio): es la vía que FUNCIONA para
+      # capturar (medido: abrir la placa directo da "Invalid sample rate"). Ajustá el 1000 si tu
+      # usuario tiene otro id (`id -u`).
+      - /run/user/1000/pulse:/run/user/1000/pulse
+      # - /tmp:/tmp                   # para que el widget de escritorio lo vea
+    command: ["python", "Rafael.py", "--mode", "jarvis", "--directo"]
+    # Sin chequeo de salud: es un demonio de voz (no hay endpoint que consultar). Se ve en los
+    # registros del equipo: `docker compose logs -f voz`.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+
+  # ── Opcional: Ollama DENTRO del contenedor (perfil, no arranca por defecto) ──
+  ollama:
+    image: ollama/ollama:latest
+    container_name: axioma-ollama
+    profiles: ["ollama-local"]
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      # Los modelos quedan en un volumen propio: no se vuelven a bajar en cada arranque.
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+volumes:
+  ollama_models:

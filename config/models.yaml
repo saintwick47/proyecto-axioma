@@ -1,0 +1,211 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA v0.6.7 — CONFIGURACIÓN DE MODELOS
+# ═══════════════════════════════════════════════════════════════
+# Ruta: /ruta/a/axioma/config/models.yaml
+# Autor: SaintWick
+# Fecha: 2026-08-15
+#
+# Migración v0.6.2: Sin censura, sin swapping, juez externo eliminado
+# Migración v0.6.4: Vision model → moondream:v2 (principal) + gemma4:e4b (fallback)
+# ✅ v0.6.5: ELIMINADO moondream:v2 — gemma4:e4b fue único VLM
+# ✅ v0.6.6: mannix/llama3.1-8b-lexi deshabilitado (no instalado)
+# ✅ v0.6.7: MIGRACIÓN COMPLETA — huihui_ai/qwen2.5-abliterate:7b,
+#            axioma-code:latest, gemma4:e4b, qwen2.5:3b eliminados.
+#            Modelos activos: qwen3:8b (chat), qwen2.5-coder:7b (código),
+#            qwen3-vl:4b (visión), BAAI/bge-m3 (embeddings).
+# ═══════════════════════════════════════════════════════════════
+
+models:
+  # ─────────────────────────────────────────────────────────────
+  # MODELO PRINCIPAL (Chat general)
+  # ─────────────────────────────────────────────────────────────
+  qwen3:8b:
+    enabled: true
+    type: "default"
+    priority: 1
+    timeouts:
+      standard: 45
+      first_load: 65
+
+  # ─────────────────────────────────────────────────────────────
+  # MODELO DE CÓDIGO — qwen2.5-coder:7b
+  # Venció a qwen3:8b y deepseek-r1:8b en calidad de código
+  # (benchmark_code_results.md)
+  # ─────────────────────────────────────────────────────────────
+  qwen2.5-coder:7b:
+    enabled: true
+    type: "code"
+    priority: 1
+    timeouts:
+      level_1: 180
+      level_2: 420
+      level_3: 900
+      level_4: 1200
+    limits:
+      max_lines_recommended: 200
+      max_lines_absolute: 400
+      min_quality_threshold: 0.60
+    parameters:
+      temperature: 0.2
+      top_p: 0.95
+      max_tokens: 4096
+
+  # ─────────────────────────────────────────────────────────────
+  # MODELO FALLBACK + VALIDADOR — qwen2.5-coder:7b
+  # Especialista de código como juez general (validación con uso real)
+  # ─────────────────────────────────────────────────────────────
+  qwen2.5-coder:7b:  # Mismo modelo como fallback_1 (settings.llm_fallback_1)
+    enabled: true
+    type: "fallback"
+    priority: 1
+    timeouts:
+      standard: 30
+
+  # ─────────────────────────────────────────────────────────────
+  # MODELO FALLBACK 2 — Desactivado (eliminado en fase0_stabilizer)
+  # ─────────────────────────────────────────────────────────────
+  # llm_fallback_2 = "" en settings.py — no hay segundo fallback activo.
+
+  # ─────────────────────────────────────────────────────────────
+  # MODELO EMBEDDINGS
+  # ─────────────────────────────────────────────────────────────
+  BAAI/bge-m3:
+    enabled: true
+    type: "embed"
+    priority: 1
+
+  # ─────────────────────────────────────────────────────────────
+  # MODELO VISIÓN — qwen3-vl:4b (VLM 4B multimodal)
+  # Único modelo de visión activo (llm_vision_fallback_model = "")
+  # ─────────────────────────────────────────────────────────────
+  qwen3-vl:4b:
+    enabled: true
+    type: "vision"
+    priority: 1
+    timeouts:
+      standard: 150  # settings.ollama_timeout_vision = 150s (CPU, 4K nativo)
+    description: "VLM 4B multimodal 3.3GB, único modelo de visión activo (gemma4:e4b eliminado)"
+
+# ───────────────────────────────────────────────────────────────
+# MAPEO DE TAREAS A MODELOS
+#
+# ✅ v0.6.9v (ISSUE-028 / ISSUE-032): SOLO se aplican las claves que el loader
+# lee de verdad — `TaskModelMapping.from_dict` (src/llm/config.py) acepta:
+#     preferred_model | primary      → modelo principal
+#     fallback_model  | fallbacks    → fallback(s)
+#     temperature                    → temperatura de la tarea
+# ✅ v0.6.9v (P0 informe): si una entrada declara SOLO `temperature` (sin
+# ninguna clave de modelo), NO se crea un mapeo de modelo: se aplica únicamente
+# la temperatura y el modelo se resuelve como siempre. Es la forma soportada de
+# fijar temperatura por tarea sin tocar el ruteo.
+#
+# ═══════════════════════════════════════════════════════════════
+# 📏 REGLA DE PRECEDENCIA DE TEMPERATURA (dueño: src/llm/config.py)
+# ═══════════════════════════════════════════════════════════════
+# Gana el primero definido (de más específico a más general):
+#   1. `task_mappings.<tarea>.temperature`  ← por TAREA (explícita)
+#   2. `task_mappings.<tarea>` solo con `temperature`  ← por TAREA sin modelo
+#      (no puede coexistir con la 1: el validador rechaza la ambigüedad)
+#   3. `models.<modelo>.temperature`        ← por MODELO (default del modelo)
+#   4. `0.7`                                ← default del código
+# ⚠️ Un mapeo que NO declara `temperature` ya NO fuerza 0.7: hereda la del
+# modelo. Antes, declarar `temperature:` en un modelo no tenía efecto para las
+# tareas mapeadas (se pisaba en silencio). Test que enforcea la regla:
+# `tests/test_axioma_21_config_models_yaml.py`.
+# Las claves `max_lines` y `quality_threshold` se quitaron de acá: NO las leía
+# nadie (los umbrales de calidad por nivel viven en coder_core/smart_router_core
+# con sus propios defaults, y `stop_conditions`/`reflection_engine` reciben el
+# suyo por parámetro). Si en el futuro se quieren configurar por tarea, hay que
+# wirearlas a un consumidor real ANTES de volver a agregarlas acá.
+# ───────────────────────────────────────────────────────────────
+task_mappings:
+  # ── Mapeos de MODELO (con su temperatura opcional) ─────────────
+  code_generation:
+    preferred_model: "qwen2.5-coder:7b"
+    temperature: 0.20
+
+  code_review:
+    preferred_model: "qwen2.5-coder:7b"
+
+  code_correction:
+    preferred_model: "qwen2.5-coder:7b"
+    temperature: 0.10
+
+  code_explanation:
+    preferred_model: "qwen2.5-coder:7b"
+    temperature: 0.15
+
+  # ✅ v0.6.9v (ISSUE-028): antes decía `chat_general`, que NO es un valor de
+  # TaskType → la entrada nunca matcheaba (el clasificador produce
+  # `general_chat`) y editar este modelo no tenía efecto. Nombre canónico.
+  general_chat:
+    preferred_model: "qwen3:8b"
+    temperature: 0.70
+
+  # Etiqueta real que produce smart_router_core (no es un TaskType, pero el
+  # router la emite y llega a get_model_for_task()).
+  # temperature 0.10 = el valor que la vieja sección `task_temperatures`
+  # declaraba como `reasoning` (etiqueta que NO existe: la real es ésta).
+  complex_reasoning:
+    preferred_model: "qwen3:8b"
+    temperature: 0.10
+
+  # ── SOLO TEMPERATURA (sin mapeo de modelo) ─────────────────────
+  # ✅ v0.6.9v (P0 informe): estas entradas NO cambian el modelo — el loader
+  # las aplica como override de temperatura y el modelo se resuelve como
+  # siempre (default/por task_types). Antes esto era imposible: escribir una
+  # entrada sin claves de modelo hacía que `primary_model` cayera al default
+  # CODE_MODEL y TODA la tarea corriera en el modelo de código.
+  # Reemplazan a la vieja sección raíz `task_temperatures` (sin lector).
+  # Valores originales; etiquetas corregidas a las canónicas de TaskType
+  # (`analysis` → data_analysis, `validation` → quality_validation).
+  web_search:
+    temperature: 0.30
+  data_analysis:
+    temperature: 0.30
+  quality_validation:
+    temperature: 0.10
+  weather_query:
+    temperature: 0.30
+  time_query:
+    temperature: 0.10
+  finance_query:
+    temperature: 0.30
+  news_query:
+    temperature: 0.30
+
+  # ✅ v0.6.9v (ISSUE-032): se quitó la entrada `vision_analysis` (era
+  # inalcanzable: ninguna parte de src/ produce esa etiqueta y la visión no
+  # rutea por get_model_for_task, usa `settings.llm_vision_model` = qwen3-vl:4b).
+  # Si algún día se rutea la visión por acá, usar el task_type canónico
+  # (screenshot_analysis / screen_describe / camera_describe).
+
+# ═══════════════════════════════════════════════════════════════
+# SECCIONES ELIMINADAS EN v0.6.9v (P0 del informe) — todas SIN LECTOR
+# ═══════════════════════════════════════════════════════════════
+# El único loader de este archivo es `src/llm/config.py` (LLMConfig) y solo
+# consume las claves raíz `models`, `task_mappings` y `fallback_chain`.
+# Se borraron por ser configuración fantasma (dan falsa expectativa de efecto):
+#
+#   · `chat` / `complex` / `code` / `embed` / `vision` / `vision_fallback` /
+#     `judge` (bloque legacy): alias que nadie resolvía. Los modelos reales ya
+#     están en `models:` y las selecciones en `task_mappings:` / settings.
+#   · `task_temperatures`: movida a `task_mappings.<task>.temperature`
+#     (el mecanismo que SÍ se lee). Antes de moverla, ninguna tarea usaba sus
+#     valores: TODAS corrían a 0.7 (medido).
+#   · `task_models`: duplicaba exactamente `task_mappings` y usaba claves no
+#     canónicas (`general_conversation`, `vision_analysis`). Cablearla habría
+#     creado dos fuentes de verdad para lo mismo.
+#   · `fallback` (raíz): política de cascada (strategy/cooldown/failures) que
+#     nadie leía. Ojo: NO confundir con `fallback_chain` (lista de modelos, sí
+#     se lee) ni con el `fallback` POR MODELO dentro de `models:`. Los
+#     cooldowns reales viven en el código (tool_executor: 60s,
+#     alert_manager: 60/120s).
+#   · `optimizer`: nadie lo leía; la fuente real es `config/settings.py`
+#     (enable_optimizer_loop, max_optimizer_attempts, optimizer_global_timeout).
+#   · `benchmark_seed`: nadie lo leía; la fuente real es
+#     `settings.benchmark_seed` (config/settings.py).
+#
+# Si en el futuro se quiere configurar algo de esto por YAML, hay que wirearlo
+# a un consumidor real ANTES de volver a agregar la sección (hay un test que
+# verifica que no reaparezcan claves raíz sin lector).

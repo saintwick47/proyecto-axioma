@@ -1,0 +1,149 @@
+name: CI — AXIOMA pytest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # ✅ v0.7.3 (2026-09-28): MATRIX DE TRANSICIÓN 3.12 + 3.14.
+    # El runtime real del usuario es **3.14.7** y el CI corría en 3.12: un bug
+    # podía pasar el CI y fallar en casa (verificado: de 195 distribuciones
+    # instaladas, **0 excluyen 3.14** y todas las nativas publican wheel `cp314`
+    # o son `abi3`). Durante la transición corren las dos versiones y el job de
+    # 3.14 NO bloquea (`continue-on-error`), para comparar sin rojo falso.
+    # → A las 2-4 semanas: quitar `continue-on-error`, y después borrar 3.12.
+    # `fail-fast: false`: si una versión falla, la otra SIGUE (sirve para comparar).
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: ${{ matrix.python-version == '3.14' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+
+      # ✅ v0.7.3: `@v5` → `@v6`. Las versiones viejas del action resuelven contra
+      # un manifiesto de Pythons que puede no incluir 3.14 (v7.0.0 es la última).
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # v0.6.9k: requirements.txt fija torch==2.11.0+cpu + torchaudio==2.11.0
+      # (PyPI depende de torch sin +cpu) → conflicto de resolución en CI.
+      # Torch/torchaudio se instalan del index CPU por separado, y el resto de
+      # deps desde requirements-ci.txt (sin las 3 líneas conflictivas).
+      - name: Instalar torch (index CPU)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.11.0+cpu torchaudio==2.11.0+cpu
+
+      - name: Instalar resto de dependencias
+        run: |
+          pip install -r requirements-ci.txt
+
+      # sentence-transformers después de torch (su dep torch ya está satisfecha)
+      - name: Instalar sentence-transformers
+        run: |
+          pip install sentence-transformers==5.4.1
+
+      # v0.6.9n: libs de sistema que los tests necesitan (audio/multimodal):
+      # sounddevice requiere PortAudio (no trae la lib) y soundfile libsndfile.
+      - name: Instalar librerías de sistema (audio)
+        # ✅ ISSUE-149: si el espejo de paquetes falla (pasa seguido), este paso tumbaba TODOS los
+        # siguientes y el error visible era un FileNotFoundError del portero. Ahora avisa y sigue:
+        # los tests de audio se degradan solos si falta la librería (verificado: 10 se saltean).
+        run: |
+          sudo apt-get update || echo "::warning::apt-get update falló; sigo sin las libs de audio"
+          sudo apt-get install -y libportaudio2 libsndfile1 portaudio19-dev \
+            || echo "::warning::no se pudieron instalar las librerías de audio; los tests de voz se saltean"
+
+      # Cache del modelo de embeddings (bge-m3) para no descargarlo en cada run.
+      # ✅ v0.7.3: con matrix, la clave lleva la versión de Python para que los dos
+      # jobs no compitan al guardar la misma clave; `restore-keys` permite que uno
+      # reaproveche la caché del otro (los pesos del modelo son idénticos).
+      - name: Cache HuggingFace
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-py${{ matrix.python-version }}
+          restore-keys: |
+            hf-${{ runner.os }}-py
+            hf-${{ runner.os }}
+
+      # ✅ v0.6.9v (P0 del informe): el `.env` no está en el repo (gitignored) y
+      # algunos detectores del auditor comparan `.env` vs `.env.example`
+      # (`env_models`). Sin este paso la auditoría mediría el entorno, no el
+      # código, y el gate podría bloquear por un motivo falso.
+      # ✅ v0.7.3 (ISSUE-089): además se crean `logs/` **y `docs/`**. Las dos
+      # carpetas existen en cualquier copia de trabajo real pero NO se versionan a
+      # propósito (`ISSUE-072`: son runtime/internas), así que un checkout limpio
+      # no las tiene y los tests de estructura del proyecto fallaban en CI (el
+      # gate cuenta cada archivo con `Veredicto: ✅ TODO CORRECTO`).
+      - name: Preparar .env y carpetas de runtime (logs/, docs/)
+        # ✅ ISSUE-149: `if: always()` para que `logs/` exista aunque un paso anterior falle. Sin
+        # esto, el portero (que corre con `if: always()`) se caía con FileNotFoundError al escribir
+        # `logs/gate.json` y el error real quedaba escondido.
+        if: always()
+        run: |
+          mkdir -p logs docs
+          if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi
+
+      # ✅ v0.6.9v: auditoría ANTES de los tests → deja `logs/audit_summary.json`
+      # (resumen máquina-legible: SCORE, severidades, desglose y detectores).
+      - name: Auditoría (resumen JSON)
+        env:
+          CI: 'true'
+        run: |
+          mkdir -p logs
+          python axioma_auditor.py --format json -o logs/audit_summary.json
+
+      # ✅ v0.6.9v: se reemplazó `pytest tests/` por el runner del proyecto.
+      # Ejecuta cada archivo por separado y escribe el reporte CONSOLIDADO con
+      # `run_id`, `pytest exitstatus` REAL por archivo y tests recolectados —
+      # que es exactamente lo que el gate necesita como evidencia.
+      - name: Suite de tests (reporte consolidado)
+        env:
+          CI: 'true'
+          # Sin Ollama en CI: algunos tests se saltan o degradan solos
+          OLLAMA_HOST: 'http://127.0.0.1:1'
+        run: |
+          python tools/run_all_tests.py --timeout 150
+
+      # ✅ v0.6.9v: gate de calidad (SCORE, severidades, detectores protegidos,
+      # exitstatus real, run_id y frescura del health report).
+      # `--no-require-health`: en CI no hay logs de runtime, así que la frescura
+      # se SALTA (no se finge): localmente sí se exige.
+      - name: Quality gate
+        if: always()
+        env:
+          CI: 'true'
+          OLLAMA_HOST: 'http://127.0.0.1:1'
+        run: |
+          python tools/log_health_report.py || true
+          python tools/quality_gate.py --no-require-health --json logs/gate.json
+
+      # ✅ v0.7.4 (ISSUE-091): el reporte y el gate se suben como artefacto. Sin
+      # esto, cuando el gate bloquea por "17/18 archivos" NO hay forma de saber
+      # cuál falló desde la consola (el detalle vive en este .md, que se pierde
+      # con el runner). El gate además imprime los archivos con checks ❌.
+      - name: Subir reportes (siempre)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-py${{ matrix.python-version }}
+          path: |
+            logs/axioma_test_report_batch_*.md
+            logs/gate.json
+            logs/audit_summary.json
+          if-no-files-found: warn
+          retention-days: 14
+

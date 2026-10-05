@@ -1,0 +1,63 @@
+# config/ambiguity_patterns.yaml
+# Versión: 0.0.8
+# Propósito: Patrones de detección de ambigüedad en requests de usuario
+# ✅ CORREGIDO: thresholds ajustados para detección con 1 patrón
+
+detector:
+  patterns:
+    high:
+      - "mejor que"
+      - "reemplazar"
+      - "reemplaza"
+      - "más eficiente que"
+      - "sistema completo"
+      - "alternativa a"
+      - "superior a"
+      - "más potente que"
+    medium:
+      - "más rápido"
+      - "optimizar"
+      - "optimiza"
+      - "mejorar"
+      - "mejora"
+      - "más seguro"
+      - "refactorizar"
+      - "acelerar"
+      - "pulir"
+    low:
+      - "función para"
+      - "script que"
+      - "código para"
+      - "crear un"
+      - "hacer una"
+      - "implementar"
+  thresholds:
+    # ✅ CORREGIDO: 1 patrón = nivel detectado (más sensible)
+    high: 1
+    medium: 1
+    low: 1
+    fallback_trigger: 2
+
+rewriter:
+  templates:
+    high: "Genera solución PRÁCTICA para '{tema}'. Incluye advertencias de limitaciones vs herramientas enterprise. No asumas requisitos no especificados."
+    medium: "Genera código que optimice '{tema}' con implementación práctica. Documenta trade-offs y suposiciones tomadas."
+    low: "Genera código directo con defaults estándar. Sigue mejores prácticas del lenguaje."
+
+clarification:
+  questions:
+    "mejor que":
+      - "¿Qué aspecto específico te interesa? (velocidad, precisión, UI, características)"
+      - "¿Es para uso personal o empresarial?"
+    "más eficiente":
+      - "¿Eficiente en qué aspecto? (tiempo de ejecución, memoria, líneas de código)"
+      - "¿Tienes un benchmark o código actual para comparar?"
+    "optimizar":
+      - "¿Qué métrica quieres mejorar? (rendimiento, legibilidad, mantenimiento)"
+      - "¿Hay restricciones de recursos o tiempo?"
+  max_questions: 2
+
+logging:
+  feedback_path: "logs/feedback_log.jsonl"
+  max_records: 10000
+  async_write: true

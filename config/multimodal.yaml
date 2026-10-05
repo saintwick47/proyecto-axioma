@@ -1,0 +1,78 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA v0.5.1 — Configuración Multimodal (Voz)
+# ═══════════════════════════════════════════════════════════════
+# Ruta: /ruta/a/axioma/config/multimodal.yaml
+# Autor: SaintWick
+# Fecha: 2026-07-23
+# Propósito: Configuración del stack de audio VAD→STT→TTS
+#
+# ✅ CORREGIDO v0.5.1: revertidos los 4 valores que una edición previa
+# había llevado en la dirección equivocada para el síntoma real (ruido
+# ambiente confundido con voz, alucinación STT tipo "¡Suscríbete!" sobre
+# silencio/ruido). Este yaml recién ahora tiene efecto real — hasta esta
+# sesión, nada en el código lo leía (ver config/multimodal_loader.py,
+# nuevo). Ganancia de mic ya bajada a 58% por SaintWick — reduce el
+# ruido basal en la fuente, esta config lo filtra del lado del software.
+# ═══════════════════════════════════════════════════════════════
+
+stt:
+  # faster-whisper — CPU puro
+  model_size: small          # base(~74MB)|small(~244MB)|medium(~769MB)
+  language: es               # Español
+  beam_size: 1               # ✅ plan_rafael (2026-08-31): 1 (greedy) — 5 saturaba CPU
+                             # en transcribe_partial (el streaming re-transcribe el buffer)
+  temperature: 0.0           # Determinista
+  confidence_threshold: 0.5  # ✅ plan_rafael (2026-08-31): UNA fuente — settings.jarvis_voice_confidence_threshold.
+                             # Este valor queda documental; el loader lo pisa con el setting.
+  sample_rate: 16000         # Hz — requerido por faster-whisper
+  compute_type: int8         # CPU: int8 cuantizado — 2-3x más rápido
+  device: cpu
+  cpu_threads: 4             # Ajustar según núcleos disponibles
+  suppress_blank: true
+  no_speech_threshold: 0.5   # ✅ REVERTIDO de 0.4 a 0.5 — mismo motivo que confidence_threshold
+
+tts:
+  # Cadena de fallback: piper (offline) → edge-tts (cloud) → pyttsx3 → print()
+  voice: es-AR-TomasNeural
+  fallback_voice: es-AR-ElenaNeural
+  rate: "+0%"
+  volume: "+0%"
+  pitch: "+0Hz"
+  play_audio: true
+  timeout_seconds: 10.0
+  # ✅ plan_rafael (2026-08-31): Piper offline ACTIVADO — modelo es_ES-davefx-medium
+  # descargado a data/piper/. edge-tts queda como fallback (no al revés).
+  # ✅ 2026-10-01: voz ARGENTINA (calidad high, offline, 109 MB). Antes es_ES-davefx.
+  # Se puede cambiar con AXIOMA_PIPER_MODEL en `.env` (settings manda sobre este YAML).
+  # ✅ ISSUE-147: ruta RELATIVA a la raíz del proyecto (antes la carpeta del autor).
+  piper_model: "data/piper/es_AR-daniela-high.onnx"
+
+vad:
+  # webrtcvad (default, sin torch) o silero (neural, auto-descarga via torch.hub)
+  sample_rate: 16000
+  frame_ms: 30               # 10|20|30 — solo estos valores válidos
+  aggressiveness: 3          # ✅ REVERTIDO de 1 a 3 (máximo de webrtcvad) — 3 es MÁS estricto filtrando no-voz, bajarlo a 1 dejaba clasificar más ruido ambiente como voz, no menos
+  silence_frames_end: 15     # ✅ REVERTIDO de 30 a 15 (450ms de silencio → fin) — con aggressiveness=3 el ruido de fondo ya no se clasifica como voz, no hace falta esperar más silencio para cerrar la utterance
+  voice_frames_min: 3        # ✅ REVERTIDO de 2 a 3 (90ms voz mínima) — 2 bajaba el umbral para confirmar inicio de habla, más fácil que un pico de ruido dispare una utterance falsa
+  ring_buffer_frames: 10     # 10×30ms = 300ms pre-roll
+  min_yield_interval: 1.2    # ✅ plan_rafael (2026-08-31): partials cada 1.2s en vez de 0.7s
+                             # (~3x menos re-transcripciones del buffer en streaming STT)
+  max_utterance_seconds: 30.0
+  # ✅ 2026-10-01 (ISSUE-127/128): se probó `silero` y **se revirtió a webrtcvad**.
+  # Motivo MEDIDO sobre las grabaciones reales del usuario (mismo audio, 3 niveles):
+  #     vol 40 %: webrtcvad 36 % de voz  ·  silero 100 %  ← silero no discriminaba
+  #     vol 55 %: webrtcvad 71 %         ·  silero 100 %
+  #     vol 70 %: webrtcvad 51 %         ·  silero 100 %
+  # silero espera ventanas de **512 muestras** (32 ms a 16 kHz) y el pipeline le pasa
+  # las de `frame_ms: 30` (480) ⇒ devolvía "voz" en el 100 % de los cuadros ⇒ **la
+  # utterance nunca se cerraba** (log: buffers que crecían de 4,9 s a 29,3 s sin
+  # despachar). webrtcvad acepta 10/20/30 ms y con el nivel de micrófono corregido
+  # discrimina bien. (Mejora futura: alimentar silero con 512 muestras por cuadro y
+  # volver a medir; es más robusto con ruido de fondo.)
+  # El problema de fondo NO era el backend sino el NIVEL del micrófono (31 % = mudo,
+  # 85 % = saturado); con 40-70 % el RMS queda en 0,03-0,17 y el VAD funciona.
+  backend: webrtcvad         # "webrtcvad" | "silero" (silero: requiere 512 muestras/cuadro)
+
+audio:
+  input_device: pulse        # usa PulseAudio/pipewire
+  channels: 1                # Mono — requerido por VAD y Whisper

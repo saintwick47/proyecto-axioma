@@ -1,0 +1,84 @@
+{
+  "rules": [
+    {
+      "pattern": ".git/**",
+      "mode": "deny",
+      "min_confidence": 0.0,
+      "max_risk_score": 0.0,
+      "allowed_tools": null,
+      "description": "✅ FASE 1 (plan_harness): NUNCA tocar el repositorio git — ni lectura desde chat, ni escritura, ni borrado. Debe ir ANTES de las reglas '*' catch-all (primer match gana)."
+    },
+    {
+      "pattern": ".env*",
+      "mode": "deny",
+      "min_confidence": 0.0,
+      "max_risk_score": 0.0,
+      "allowed_tools": null,
+      "description": "✅ FASE 1 (plan_harness): NUNCA tocar archivos de entorno (.env, .env.example) — contienen secretos. Denegado sin excepción."
+    },
+    {
+      "pattern": "config/**",
+      "mode": "deny",
+      "min_confidence": 0.0,
+      "max_risk_score": 0.0,
+      "allowed_tools": ["fs_read", "fs_list"],
+      "description": "✅ FASE 1 (plan_harness): Config — solo lectura (fs_read/fs_list whitelisteadas), NUNCA escritura desde chat. La whitelist se aplica dentro del modo DENY: fs_write/fs_move/fs_delete sobre config/ → DENY directo (no cae al catch-all ASK)."
+    },
+    {
+      "pattern": "data/**",
+      "mode": "deny",
+      "min_confidence": 0.0,
+      "max_risk_score": 0.0,
+      "allowed_tools": ["fs_read", "fs_list"],
+      "description": "✅ FASE 1 (plan_harness): Datos (BD SQLite, memoria, backups) — solo lectura desde chat, NUNCA escritura/borrado."
+    },
+    {
+      "pattern": "*",
+      "mode": "plan",
+      "min_confidence": 0.5,
+      "max_risk_score": 0.5,
+      "allowed_tools": ["fs_read", "fs_list"],
+      "description": "Lectura (fs_read/fs_list) permitida en cualquier path sin confirmación. PLAN mode solo autoriza tools READ_ONLY (ver _apply_mode); fs_write/fs_move/fs_delete no matchean esta regla (allowed_tools los filtra) y caen a las reglas siguientes. ✅ FASE 1 (plan_harness): movida ANTES de src/** para que la lectura de código fuente siga auto-aprobándose (la regla src/** solo gobierna escrituras/ejecución → ASK). Debe ir ANTES del catch-all de escritura. Requiere el FIX de matches_path() en permissions.py (pattern '*' como catch-all real) — sin ese fix esta regla nunca matcheaba paths fuera del CWD del proyecto."
+    },
+    {
+      "pattern": "src/**",
+      "mode": "default",
+      "min_confidence": 0.99,
+      "max_risk_score": 0.10,
+      "allowed_tools": null,
+      "description": "✅ FASE 1 (plan_harness): Código fuente — SIEMPRE pide confirmación (mode=default → ASK), riesgo mínimo tolerado. Antes era acceptEdits con 0.92/0.30; ahora ninguna edición de src/ se auto-aprueba desde chat (la lectura de src/ queda cubierta por la regla '*' plan de arriba)."
+    },
+    {
+      "pattern": "tests/**",
+      "mode": "acceptEdits",
+      "min_confidence": 0.85,
+      "max_risk_score": 0.40,
+      "allowed_tools": null,
+      "description": "Tests — más permisivo para iteración rápida"
+    },
+    {
+      "pattern": "~/.config/**",
+      "mode": "default",
+      "min_confidence": 0.99,
+      "max_risk_score": 0.10,
+      "allowed_tools": ["fs_read"],
+      "description": "Config de usuario — solo lectura sin confirmación extra, escritura siempre pregunta"
+    },
+    {
+      "pattern": "*",
+      "mode": "auto",
+      "min_confidence": 0.85,
+      "max_risk_score": 0.35,
+      "allowed_tools": ["weather", "news", "finance", "web_search"],
+      "description": "✅ NUEVO (hallazgo agente filesystem v1.6.0): tools NETWORK de solo lectura llamadas por dispatcher_handlers.py._handle_chat (Agent Loop) — ctx.resource_path=tool_name ahí, así que sin esta regla explícita cualquiera de estas 4 caía siempre al catch-all mode=default (ASK) sin importar qué tan trivial fuera la consulta (ej. 'qué tiempo hace'), porque ACCEPT_EDITS tampoco sirve para NETWORK (permission_level=3 > LOCAL_WRITE=1, ver _apply_mode). AUTO sí permite auto-aprobar y de todos modos audita (ver PermissionMode.AUTO). confidence/risk_score que pasa ese caller son fijos (0.92/0.2, ExecutionContext default — dispatcher_handlers.py no los pisa), los umbrales de acá quedan cómodos debajo/encima para que sea determinístico y no dependa de ese detalle interno. allowed_tools acotado a estas 4 — nada más queda auto-aprobado por esta regla (ni http_get/post genérico, ni ninguna otra tool NETWORK futura); todo lo demás sigue cayendo al catch-all mode=default de abajo. Debe ir ANTES de los dos '*' siguientes (primer match gana)."
+    },
+    {
+      "pattern": "*",
+      "mode": "default",
+      "min_confidence": 0.92,
+      "max_risk_score": 0.30,
+      "allowed_tools": null,
+      "description": "Catch-all — cualquier path no clasificado pide confirmación (escritura, borrado, movimiento)"
+    }
+  ]
+}

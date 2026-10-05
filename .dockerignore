@@ -1,0 +1,45 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA — qué NO entra en el contexto de compilación de la imagen
+# ═══════════════════════════════════════════════════════════════
+# Fase 1 del plan de contenedores (`docs/PLAN_CONTENEDORES.md` §3.3 y §9.5).
+# Medido el 2026-10-04 en el equipo del autor:
+#   · `deepseek-harness/` = 1,9 GB (otro proyecto, ignorado por git, pero está adentro)
+#   · `venv/` = 11 GB (es un artefacto de compilación: las dependencias se instalan en la imagen)
+#   · `.git/` = 250 MB            · `data/` = 246 MB (memoria, cachés, modelo de voz)
+#   · `.optimizer_backups/` tiene archivos de `root` que NO se pueden ni copiar
+#     (verificado: `rsync` falla con "permiso denegado") ⇒ sin excluirlo, la compilación falla.
+#
+# Regla de oro: `tests/` SE QUEDA (el plan exige correr la suite DENTRO de la imagen, §2.4),
+# igual que `src/`, `config/` y `tools/`.
+
+# --- Otros proyectos y artefactos de la máquina ---
+deepseek-harness/
+venv/
+.venv/
+env/
+.git/
+.github/
+.optimizer_backups/
+
+# --- Datos y registros: van como VOLÚMENES, no dentro de la imagen ---
+data/
+logs/
+docs/
+cache/
+.pytest_cache/
+.ruff_cache/
+*.log
+
+# --- Secretos y configuración local: se pasan por variables o como volumen ---
+.env
+.env.local
+
+# --- Restos de Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# --- Archivos del propio empaquetado (no hacen falta adentro) ---
+Dockerfile
+docker-compose*.yml
+.dockerignore

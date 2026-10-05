@@ -1,0 +1,27 @@
+# Dataset de evals de AXIOMA (PLAN v2.0, Fase 5)
+# Schema: {instruction, agent, criteria, expected}
+# - `response` NO se guarda: se genera en runtime llamando al agente real.
+# - `agent`: coder | researcher (mapeado en tools/run_evals.py).
+# - `expected`: breve descripción de lo que la respuesta debe cumplir (diagnóstico).
+# La evaluación la hace LLMJudge.evaluate_binary(instruction, response, criteria).
+evals:
+  - id: eval-001
+    instruction: "Escribí una función en Python que lea un archivo grande línea por línea."
+    agent: coder
+    criteria: "usa manejo de contexto (with) y no carga todo el archivo en memoria de una vez"
+    expected: "propone with open(...) e iteración por líneas, sin read() completo"
+  - id: eval-002
+    instruction: "¿Qué es un decorador en Python? Da un ejemplo."
+    agent: coder
+    criteria: "explica el concepto y muestra un ejemplo de código válido y ejecutable"
+    expected: "definición correcta + ejemplo con @decorador"
+  - id: eval-003
+    instruction: "Buscá el precio actual del dólar blue en Argentina."
+    agent: researcher
+    criteria: "cita al menos una fuente real de los resultados de búsqueda y no inventa una URL"
+    expected: "menciona fuente/URL obtenida de la búsqueda web"
+  - id: eval-004
+    instruction: "Resumí las noticias de hoy sobre tecnología."
+    agent: researcher
+    criteria: "no inventa fechas ni fuentes; si no hay datos disponibles, lo dice explícitamente"
+    expected: "resumen basado en resultados reales o declaración de falta de información"

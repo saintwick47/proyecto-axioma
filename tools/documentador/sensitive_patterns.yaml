@@ -1,0 +1,163 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA — Patrones de Archivos y Contenido Sensible
+# ═══════════════════════════════════════════════════════════════
+# El documentador (y cualquier herramienta de análisis) consulta
+# este archivo ANTES de leer o mostrar el contenido de un archivo.
+#
+# Editar aquí es la única forma de mantener la lista — no hardcodear
+# en el código.
+# ═══════════════════════════════════════════════════════════════
+
+version: "1.1.0"
+
+# ─────────────────────────────────────────────────────────────
+# ARCHIVOS QUE NUNCA DEBEN MOSTRAR SU CONTENIDO
+# ─────────────────────────────────────────────────────────────
+# Formato: rutas relativas a la raíz del proyecto.
+# Soporta globs básicos (*, **).
+
+sensitive_files:
+  - "tools/push.py"
+  - "tools/commit.py"          # contiene lógica de backups, mejor opaco
+  - ".env"
+  - ".env.*"
+  - "**/.env"
+  - "**/.env.*"
+  - "**/secrets.*"
+  - "**/credentials.*"
+  - "**/*.key"
+  - "**/*.pem"
+  - "**/*.p12"
+  - "**/id_rsa"
+  - "**/id_ed25519"
+  - "**/.netrc"
+  - "**/push.py"
+
+# ─────────────────────────────────────────────────────────────
+# ARCHIVOS EXCLUIDOS DEL ESCANEO COMPLETO
+# ─────────────────────────────────────────────────────────────
+# El documentador ni siquiera intenta leerlos (ni para contar líneas).
+
+excluded_from_scan:
+  - ".git/**"
+  - "data/**"
+  - "logs/**"
+  - "data/backups/**"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "**/.coverage"
+  - "**/.directory"
+  # ✅ v1.1.0: EXCLUSIÓN TOTAL (no listar ni redactar) — misma política que
+  # tools/structure_detector.py. deepseek-harness/ es un checkout externo del
+  # harness y inforchat/ contiene notas privadas del desarrollador.
+  - "deepseek-harness/**"
+  - "inforchat/**"
+  # Variables de entorno reales: nunca se listan (`.env.example` NO se excluye,
+  # es la plantilla pública).
+  - ".env"
+  - "**/.env"
+  - ".env.local"
+  - ".env.development"
+  - ".env.production"
+  - ".env.staging"
+  - ".env.test"
+  # push.py: script de push remoto (por política de seguridad no se lista)
+  - "push.py"
+  - "**/push.py"
+  - "tools/push.py"
+
+# ─────────────────────────────────────────────────────────────
+# PATRONES REGEX DE SECRETOS A REDACTAR EN EL CONTENIDO
+# ─────────────────────────────────────────────────────────────
+# Se aplica al contenido de CUALQUIER archivo, incluso los no sensibles,
+# por si alguien pega un token en un .py "inocente".
+
+secret_patterns:
+  - name: "GitHub Personal Access Token (classic)"
+    pattern: 'ghp_[A-Za-z0-9]{36,255}'
+    replacement: "[REDACTED_GITHUB_PAT]"
+
+  - name: "GitHub Fine-Grained Token"
+    pattern: 'github_pat_[A-Za-z0-9_]{22,255}'
+    replacement: "[REDACTED_GITHUB_FG_PAT]"
+
+  - name: "GitHub OAuth Token"
+    pattern: 'gho_[A-Za-z0-9]{36,255}'
+    replacement: "[REDACTED_GITHUB_OAUTH]"
+
+  - name: "GitHub User Token (server-to-server)"
+    pattern: 'ghu_[A-Za-z0-9]{36,255}'
+    replacement: "[REDACTED_GITHUB_USER]"
+
+  - name: "GitHub Refresh Token"
+    pattern: 'ghr_[A-Za-z0-9]{36,255}'
+    replacement: "[REDACTED_GITHUB_REFRESH]"
+
+  - name: "OpenAI API Key"
+    pattern: 'sk-(proj-)?[A-Za-z0-9]{20,}'
+    replacement: "[REDACTED_OPENAI_KEY]"
+
+  - name: "Anthropic API Key"
+    pattern: 'sk-ant-[A-Za-z0-9-]{20,}'
+    replacement: "[REDACTED_ANTHROPIC_KEY]"
+
+  - name: "Google API Key"
+    pattern: 'AIza[0-9A-Za-z_-]{35}'
+    replacement: "[REDACTED_GOOGLE_KEY]"
+
+  - name: "AWS Access Key"
+    pattern: 'AKIA[0-9A-Z]{16}'
+    replacement: "[REDACTED_AWS_KEY]"
+
+  - name: "Slack Token"
+    pattern: 'xox[abpr]-[0-9A-Za-z-]{10,}'
+    replacement: "[REDACTED_SLACK]"
+
+  - name: "Generic Bearer / Authorization"
+    # ✅ v1.1.0: exige '=' o ':' tras la clave (evita falsos positivos con
+    # listas de NOMBRES de variables de entorno: "API_KEY CHUNK_MAX_TOKENS").
+    # ✅ v1.3.0 (2026-09-29): `[\s]*` → `[ \t]*`. El `\s` cruzaba el
+    # salto de línea y matcheaba CÓDIGO legítimo como valor:
+    #   `if settings.tavily_api_key:` + salto + `providers_status.append(...)`
+    # daba un falso positivo que EXCLUÍA el archivo del commit (medido en
+    # src/agents/searcher.py). Una clave real va en la MISMA línea.
+    pattern: '(?i)(authorization|bearer|api[_-]?key)["\'']?[ \t]*[:=][ \t]*(?!["\'']?(?:settings|self|os|config|cls|app|env)\.)["\'']?(?:bearer[ \t]+)?[A-Za-z0-9._\-]{20,}'
+    replacement: "[REDACTED_BEARER]"
+
+  - name: "PEM Private Key Block"
+    pattern: '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
+    replacement: "[REDACTED_PEM_BLOCK]"
+
+  - name: "Tavily API Key"
+    pattern: 'tvly-[A-Za-z0-9]{32,}'
+    replacement: "[REDACTED_TAVILY]"
+
+  - name: "Serper API Key"
+    pattern: 'serper-[A-Za-z0-9]{32,}'
+    replacement: "[REDACTED_SERPER]"
+
+# ─────────────────────────────────────────────────────────────
+# METADATOS QUE APARECEN EN LA DOCUMENTACIÓN
+# ─────────────────────────────────────────────────────────────
+# Para archivos sensibles, en lugar del contenido se muestra esto:
+
+sensitive_file_metadata:
+  placeholder: "[🔐 ARCHIVO SENSIBLE — CONTENIDO RESTRINGIDO]"
+  fields_shown:
+    - path
+    - lines
+    - category
+    - purpose          # resumen corto, NO contenido
+  fields_hidden:
+    - content
+    - imports_detail
+    - methods_body
+
+# ─────────────────────────────────────────────────────────────
+# AUDITORÍA
+# ─────────────────────────────────────────────────────────────
+
+audit:
+  log_file: "logs/secret_scan_audit.log"
+  fail_on_secret_found: true     # Si se detecta un secret sin redactar, el documentador falla
+  exit_code_on_violation: 7

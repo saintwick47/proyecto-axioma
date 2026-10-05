@@ -1,0 +1,115 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA — Catálogo de modelos por ROL (Fase 1 del plan de contenedores)
+# ═══════════════════════════════════════════════════════════════
+# Para qué sirve: que el sistema pueda decir QUÉ HAY QUE INSTALAR antes de
+# arrancar, cuánto ocupa, qué se rompe si falta y con qué comando se baja.
+# Es la lista que usa el preflight (`scripts/preflight.py`) y la pantalla de
+# configuración. NO decide el ruteo: eso vive en `config/models.yaml`
+# (`task_mappings`) y en `config/settings.py` (que manda sobre todo).
+#
+# Reglas del proyecto que aplican:
+#   · R1: ninguna clave sin lector → lo lee `config/model_catalog.py` (con prueba).
+#   · R8: nada se promete sin medir → los números de RAM están MEDIDOS con
+#     `/api/ps` de Ollama en este equipo (ver `docs/ISSUES_HISTORY.md`, ISSUE-141).
+#
+# Decisión del usuario (2026-10-04): piso de hardware **16 GB** de RAM, SIN modo
+# "modelo chico". Si el equipo no llega, el preflight lo dice y no inventa un plan B.
+
+version: 1
+
+hardware:
+  # ── Memoria POR NIVELES (decisión del usuario, 2026-10-04) ──────────────────────
+  # La corrección importante: 16 GB NO es un piso que se cumple o no. Con menos memoria
+  # AXIOMA **funciona igual, con restricciones**, y hay que decir CUÁLES para que el usuario
+  # sepa con qué cuenta. Los tres niveles son:
+  #   · por debajo de `ram_para_funcionar_gb`  → no entra el modelo de chat: no puede responder
+  #   · desde `ram_para_funcionar_gb`          → funciona, con restricciones (se dicen abajo)
+  #   · desde `ram_bien_gb` (16)               → funciona BIEN: es el nivel recomendado
+  #   · desde `ram_ideal_gb` (24)              → ideal (32 para máxima comodidad)
+  ram_para_funcionar_gb: 9   # medido: chat 6,67 + margen 1,5 + núcleo 0,19 ≈ 8,4
+  ram_bien_gb: 16            # "funciona bien" (decisión del usuario)
+  ram_ideal_gb: 24           # ideal; 32 = máxima comodidad
+  ram_margen_gb: 1.5         # margen para el sistema y el propio AXIOMA (núcleo: 192 MB medidos)
+  disco_factor: 1.5          # espacio libre exigido ANTES de descargar: 1,5 × lo que se baja
+  ram_nucleo_mb: 192         # medido: arranque del núcleo
+  nota: "Medido en el equipo del autor (2026-10-04): chat 6,67 GB y código 5,80 GB EN RAM"
+  # Qué se pierde por debajo de cada nivel (medido, no supuesto)
+  restricciones:
+    bajo_16_gb: >-
+      un solo modelo cargado a la vez y conviene cerrar los programas pesados mientras
+      conversás: los dos modelos juntos piden 12,47 GB y el equipo de referencia tiene
+      11,05 GB disponibles (ISSUE-141)
+    bajo_24_gb: >-
+      el chat y el código no pueden estar cargados a la vez: cada cambio de tarea recarga
+      el modelo (~6 s medidos)
+  # ── Placa de video (opcional, pero suma) ───────────────────────────────────────
+  # Con VRAM suficiente un modelo puede vivir en la placa: libera memoria del equipo y va más
+  # rápido. Se detecta y se informa; NO es obligatoria (el diseño es "primero CPU").
+  gpu:
+    obligatoria: false
+    nota: >-
+      si la placa tiene VRAM para el modelo, AXIOMA lo carga ahí (más rápido y libera
+      memoria): sirve sobre todo para el modelo de código
+
+# Qué modelo cumple cada rol. Si el usuario cambia el modelo de un rol en
+# `config/models.yaml` o en el `.env`, la prueba de coherencia lo detecta y hay que
+# actualizar acá (así el preflight no miente con tamaños de otro modelo).
+por_rol:
+  chat: "qwen3:8b"
+  codigo: "qwen2.5-coder:7b"
+  codigo_respaldo: "huihui_ai/qwen2.5-coder-abliterate:7b"
+  vision: "qwen3-vl:4b"
+  voz: "piper:es_AR-daniela-high"
+
+modelos:
+  "qwen3:8b":
+    roles: [chat]
+    obligatorio: true
+    tipo: ollama
+    disco_gb: 4.87
+    ram_gb: 6.67
+    para: "conversar y razonar (modelo por defecto)"
+    si_falta: "AXIOMA no puede responder nada"
+    instalar: "ollama pull qwen3:8b"
+
+  "qwen2.5-coder:7b":
+    roles: [codigo]
+    obligatorio: true
+    tipo: ollama
+    disco_gb: 4.68
+    ram_gb: 5.80
+    para: "generar, revisar y corregir código"
+    si_falta: "las tareas de código fallan; el chat sigue andando"
+    instalar: "ollama pull qwen2.5-coder:7b"
+
+  "huihui_ai/qwen2.5-coder-abliterate:7b":
+    roles: [codigo_respaldo]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 4.68
+    ram_gb: 5.80
+    para: ("respaldo cuando el modelo de código se NIEGA en prosa (censura) en pedidos "
+           "legítimos de laboratorio; en código común rinde menos, por eso es respaldo")
+    si_falta: "ante una negativa del de código se avisa en vez de reintentar"
+    instalar: "ollama pull huihui_ai/qwen2.5-coder-abliterate:7b"
+
+  "qwen3-vl:4b":
+    roles: [vision]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 3.30
+    ram_gb: 3.30
+    para: "leer imágenes (medido: 0 % en tareas de código)"
+    si_falta: "no se pueden analizar imágenes"
+    instalar: "ollama pull qwen3-vl:4b"
+
+  "piper:es_AR-daniela-high":
+    roles: [voz]
+    obligatorio: false
+    tipo: piper
+    disco_gb: 0.11
+    ram_gb: 0.10
+    archivo: "data/piper/es_AR-daniela-high.onnx"
+    para: "síntesis de voz offline (sin internet)"
+    si_falta: "la voz cae a edge-tts (necesita internet) o al texto"
+    instalar: "descargar el modelo de voz a data/piper/ (ver el manual de voz)"
