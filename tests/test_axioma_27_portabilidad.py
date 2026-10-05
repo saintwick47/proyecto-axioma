@@ -117,8 +117,11 @@ def test_no_quedan_rutas_del_autor_en_codigo_ejecutable():
     yamls = [y.name for y in (PROJECT_ROOT / "config").glob("*.y*ml")
              if con_ruta(y.read_text(encoding="utf-8"))]
     assert yamls == [], f"rutas del autor en configuración: {yamls}"
+    # `preparar_publicacion.sh` queda exceptuado a propósito: su trabajo es LIMPIAR la carpeta del
+    # autor en la copia que se publica, así que necesita nombrarla (es el único que puede).
     guiones = [g.name for g in sorted((PROJECT_ROOT / "tools").rglob("*.sh"))
-               if con_ruta(g.read_text(encoding="utf-8", errors="ignore"))]
+               if g.name != "preparar_publicacion.sh"
+               and con_ruta(g.read_text(encoding="utf-8", errors="ignore"))]
     assert guiones == [], f"rutas del autor en guiones: {guiones}"
 
 

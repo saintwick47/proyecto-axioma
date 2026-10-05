@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════
-# Autor: SaintWick — AXIOMA, suite integral (archivo 3/6)
-# Sección 3: LLM (src/llm), router (src/router) y memoria (src/memory)
-# ═══════════════════════════════════════════════════════════════
+# Autor: SaintWick — AXIOMA, suite integral (archivo 3/6): LLM, router y memoria
 from __future__ import annotations
 
 import importlib
@@ -76,7 +74,6 @@ class TestImportsYApi:
 
 # ═══════════════════════════════════════════════════════════════
 # 3B. Comportamiento LLM
-# ═══════════════════════════════════════════════════════════════
 
 
 class TestOllamaClient:
@@ -150,7 +147,6 @@ class TestJudge:
 
 # ═══════════════════════════════════════════════════════════════
 # 3C. Comportamiento router
-# ═══════════════════════════════════════════════════════════════
 
 
 class TestClassifierCore:
@@ -191,7 +187,6 @@ class TestSmartRouter:
 
 # ═══════════════════════════════════════════════════════════════
 # 3D. Comportamiento memoria
-# ═══════════════════════════════════════════════════════════════
 
 
 class TestShortTerm:
@@ -568,10 +563,12 @@ class TestPlanMemory:
                 pass
 
     def test_capa2_user_id_en_metadata(self):
-        """Capa 2: user_id se propaga a short_term y long_term vía el gateway."""
+        """Capa 2: el user_id se propaga a short_term y long_term."""
         from src.memory.gateway import MemoryGateway
+        # ✅ Usuario PROPIO de la prueba: antes dependía de la configuración del equipo (ISSUE-151).
+        usuario = "usuario-de-prueba"
         gw = MemoryGateway(
-            session_id="suite_c2", user_id="usuario",
+            session_id="suite_c2", user_id=usuario,
             enable_long=False, enable_semantic=False,
             enable_optimizer=False, enable_kg=False,
         )
@@ -579,7 +576,7 @@ class TestPlanMemory:
             gw.add_message("user", "hola capa2")
             recent = gw._short_term.get_recent(5)
             md = next((m.get("metadata", {}) for m in recent if m.get("role") == "user"), {})
-            check("Capa2: user_id en short_term", md.get("user_id") == "saintwick", str(md), SECTION)
+            check("Capa2: user_id en short_term", md.get("user_id") == usuario, str(md), SECTION)
 
             captured = {}
 
@@ -590,7 +587,7 @@ class TestPlanMemory:
 
             gw._long_term = FakeLong()
             gw.add_message("assistant", "respuesta")
-            check("Capa2: user_id en long_term", captured.get("user_id") == "saintwick",
+            check("Capa2: user_id en long_term", captured.get("user_id") == usuario,
                   str(captured), SECTION)
         finally:
             gw.close()
@@ -666,10 +663,16 @@ class TestUserRegistry:
         import src.memory.user_registry as ur
         monkeypatch.setattr(ur, "_users_path", lambda: tmp_path / "users.json")
 
-        users = ur.list_users()
-        check("UserRegistry: seed saintwick root",
-              len(users) == 1 and users[0]["username"] == "saintwick"
-              and users[0]["role"] == "root", str(users), SECTION)
+        # ✅ ISSUE-151: sin identidad no hay usuarios; con identidad se siembra ESA.
+        from config.settings import settings
+        monkeypatch.setattr(settings, "axioma_user_id", "")
+        monkeypatch.setattr(settings, "axioma_user_role", "user")
+        check("UserRegistry: sin identidad no hay usuarios", ur.list_users() == [],
+              str(ur.list_users()), SECTION)
+        monkeypatch.setattr(settings, "axioma_user_id", "del-equipo")
+        sembrados = ur.list_users()
+        check("UserRegistry: con identidad configurada se siembra esa",
+              len(sembrados) == 1 and sembrados[0]["username"] == "del-equipo", str(sembrados), SECTION)
 
         u = ur.create_user("maria")
         check("UserRegistry: crea usuario normal",
@@ -685,7 +688,7 @@ class TestUserRegistry:
         except ValueError:
             check("UserRegistry: vacío rechazado", True, "ValueError", SECTION)
         try:
-            ur.create_user("saintwick")
+            ur.create_user("maria")          # duplicado del recién creado (no del autor)
             check("UserRegistry: duplicado rechazado", False, "no lanzó", SECTION)
         except ValueError:
             check("UserRegistry: duplicado rechazado", True, "ValueError", SECTION)
@@ -706,9 +709,10 @@ class TestUserRegistry:
             gw = a._memory_for("sess_u", user_id="maria")
             check("UI usuarios: gateway con user de sesión",
                   gw.user_id == "maria", str(gw.user_id), SECTION)
+            from config.settings import settings
             gw2 = a._memory_for("sess_u2")
-            check("UI usuarios: fallback al setting (saintwick)",
-                  gw2.user_id == "saintwick", str(gw2.user_id), SECTION)
+            check("UI usuarios: respaldo = la identidad configurada",
+                  gw2.user_id == settings.axioma_user_id, str(gw2.user_id), SECTION)
         finally:
             cp.Paths.MEMORY = orig
 
@@ -747,9 +751,7 @@ class TestCodeBatteryRouting:
 # ═══════════════════════════════════════════════════════════════
 # Normalización de espacios en el matching de keywords (ISSUE-064)
 # ═══════════════════════════════════════════════════════════════
-# Bug silencioso: `_preprocess_text` solo hacía `lower().strip()`, así que un texto
-# con espaciado irregular ("que  hora es", típico de dictado) NO matcheaba keywords
-# multi-palabra → clasificación degradada a general_chat y ~15 s de LLM.
+# `lower().strip()` no matcheaba keywords multi-palabra con espaciado irregular.
 class TestNormalizacionDeEspaciosEnKeywords:
     def _k(self):
         from src.router.classifier_core import IntentClassifierCore
@@ -790,9 +792,7 @@ class TestNormalizacionDeEspaciosEnKeywords:
 # ═══════════════════════════════════════════════════════════════
 # Delta rule en las asociaciones del perfil (ISSUE-066)
 # ═══════════════════════════════════════════════════════════════
-# Antes: `w ← 0.95·w + 1.0` (Hebbiana) → punto fijo **w* = 20**: todas las entidades
-# convergían al mismo valor (30 = 100 interacciones) y no había corrección. Ahora el
-# peso persigue la frecuencia relativa.
+# Antes `w ← 0.95·w + 1.0`: todo convergía al mismo valor. Ahora persigue la frecuencia.
 class TestDeltaRulePerfil:
     @staticmethod
     def _rule():
