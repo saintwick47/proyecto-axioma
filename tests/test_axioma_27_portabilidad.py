@@ -76,6 +76,8 @@ def test_la_ruta_del_modelo_de_voz_no_depende_de_la_carpeta_de_trabajo():
     assert ruta.is_absolute(), f"la ruta quedó relativa a la carpeta de trabajo: {ruta}"
 
 
+@pytest.mark.skipif(not (PROJECT_ROOT / "tools" / "axioma_optimizer.sh").exists(),
+                    reason="el optimizador del equipo no se publica (es una herramienta del autor)")
 def test_el_guion_del_optimizador_usa_la_raiz_del_proyecto(tmp_path):
     """`ISSUE-147`: asumía `$HOME/Escritorio/axioma` (rompe con el proyecto en `/app`).
 

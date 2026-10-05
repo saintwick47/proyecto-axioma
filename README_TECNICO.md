@@ -171,7 +171,6 @@ python tools/run_evals.py                       # ejecuta tests/dataset_evals.ya
 # Verificación / diagnóstico
 python tools/verify_axioma.py
 python tools/structure_detector.py              # regenera STRUCTURE_REPORT.md
-python tools/system_check.py health           # chequeo de salud (hardware/Ollama/runtime)
 ```
 
 ---

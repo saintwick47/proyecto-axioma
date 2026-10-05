@@ -30,7 +30,6 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ### Corregido
 - Rutas absolutas del autor, `.env` relativo a la carpeta de trabajo, ruta del modelo de voz y del
-  documentador, y `tools/axioma_optimizer.sh` que asumía `$HOME/Escritorio`.
 - El chequeo del entorno ya no dice "listo" cuando falta Ollama o un modelo (explica qué falta y sale con 4).
 - El registro del CLI no se cae en los caminos de error; el paquete CLI ya no recursa al importarlo.
 - Las pruebas ya no dependen de la configuración de un equipo en particular (fallaban en un entorno limpio).
@@ -911,20 +910,12 @@ cualquier verificación estática previa.
 
 ### 🟢 v0.6.8bb — Tools: análisis, fusiones y logger robusto — 2026-09-01
 
-- ✅ **Nuevo `tools/system_check.py`** — diagnóstico unificado que FUSIONA 3
   herramientas redundantes en una con subcomandos:
-  - `python tools/system_check.py health` → HealthCheck (16+ componentes)
-  - `python tools/system_check.py setup` → SetupValidator (entorno pre-ejecución)
-  - `python tools/system_check.py diagnostic` → SystemDiagnostic (SO/hardware/IA/optimizaciones)
-  - `python tools/system_check.py verify` → delega a verify_axioma.py (visión runtime)
-  - `python tools/system_check.py all` → los 3 primeros
   - Eliminados: `tools/health_checker.py`, `tools/setup_validator.py`, `tools/system_diagnostic.py`.
   - **Bug corregido en la fusión**: setup_validator verificaba `chromadb`
     (ELIMINADO del proyecto) y usaba `__import__("scikit-learn")` con guion
     (inválido) — ahora verifica `lancedb`/`pyarrow`/`sklearn` correctamente.
-  - `tools/__init__.py` actualizado: `tools.system_check` + retro-compat
     (`tools.health_checker`/`setup_validator`/`system_diagnostic` resuelven a
-    system_check); lazy loading con `importlib.import_module` (el patrón
     `from . import X` en `__getattr__` causaba RecursionError).
 - ✅ **Eliminados tests obsoletos de tools/** (duplicados por la suite
   `tests/test_axioma_*.py`):
@@ -951,7 +942,6 @@ cualquier verificación estática previa.
 ### 🟢 v0.6.8aa — Commit/push: fix de eliminaciones y renames (v0.4.5) — 2026-09-01
 
   (`R  old -> new`) solo se tomaba el DESTINO, descartando el ORIGEN. Un
-  `git mv` (ej. `axioma_model_bench_v2.py` → `tools/`) commiteaba solo el
   "create new file" sin el "delete old file" → quedaba `D  archivo` stageado
 - ✅ **Nuevo `get_tracked_deleted_files()`**: la eliminación de un archivo YA
   trackeado (ej. `speedtest_history.json`) siempre debe commitearse, aunque
@@ -973,26 +963,19 @@ cualquier verificación estática previa.
   v3.9.9)**: los archivos NOISE (herramientas standalone en `tools/`, listadas en
   `IGNORED_PATTERNS`) se descartaban por completo como FUENTE del grafo — por eso un
   archivo no-noise importado SOLO desde una fuente noise quedaba `[⚠️ AISLADO]` pese a
-  estar conectado. Caso real detectado: **`tools/benchmark_suites.py` aparecía AISLADO
-  pero es importado por `tools/benchmark_response.py`** (que está en IGNORED_PATTERNS).
 - ✅ **Comportamiento corregido**: los edges de import desde herramientas standalone
   ahora se registran en `module_graph` (prueban conexión real de producción), pero:
   - desde `tests/` **no** se registran (un módulo importado solo por un test no está
     integrado a producción — `quality_monitor.py` y `security_listener.py` siguen
     correctamente aislados);
   - los `symbol_traces` (used_in/call_sites) no se contaminan desde fuentes noise.
-- ✅ **Verificado con el scan real del documentador**: `tools/benchmark_suites.py`
   ahora figura en `connected_modules`. Los 12 aislados restantes son CLIs autónomos /
   entry points legítimos (nadie los importa: `Rafael.py`, `ptt_axioma.py`,
   `run_diagnostic_suite.py`, `run_evals.py`, `security_audit.py`, `system_diagnostic.py`,
-  `speedtest.py`, `hardware_report.py`, `post_update.py`, `analyze_tests_imports.py`,
   `test_autonomous.py`, `test_detect_intent.py`, `test_handoff_integration.py`).
 - Suite: **254 passed** — sin cambios de comportamiento en runtime (solo análisis del documentador).
 
-### 🟢 v0.6.8y — Migración y actualización de axioma_model_bench_v2.py — 2026-09-01
 
-- ✅ **`axioma_model_bench_v2.py` migrado de la raíz a `tools/`** — el header
-  declaraba `tools/axioma_model_bench_v2.py` pero el archivo vivía en la raíz
   (único benchmark fuera de `tools/`).
 - ✅ **`CODE_CANDIDATES` actualizado**: `deepseek-r1:8b` fue reemplazado por
   `qwen3-vl:4b` — deepseek-r1:8b está descartado por el proyecto
@@ -1001,7 +984,6 @@ cualquier verificación estática previa.
   realmente instalados (qwen2.5-coder:7b, qwen3:8b, qwen3-vl:4b).
 - ✅ **`OLLAMA_HOST` leído de `settings.ollama_host`** (antes hardcodeado
   `http://127.0.0.1:11434`); si el host cambia en `.env`, el bench lo respeta.
-- ✅ **`tools/benchmark_calibration.py`**: los fallbacks de import de
   `CODE_TEST_CASES`/helpers ahora buscan en `tools/` primero (raíz como
   retro-compat) y registran el módulo en `sys.modules` ANTES de `exec_module`
   — fix de un bug latente: cargar el módulo por path sin registrarlo crasheaba
@@ -1202,7 +1184,6 @@ Implementación del **PLAN AXIOMA v2.0** (6 fases planificadas → 5 implementad
 - ✅ **"✕" en la esquina superior derecha real**: flet 0.85 no posiciona bien
   `right` en Stack → ahora usa `left`/`top` explícitos (36, 4).
 - ✅ **Verificado**: suite 221 PASS; end-to-end "buscá el archivo
-  benchmark_calibration" → `tools/benchmark_calibration.py` (ruta exacta);
   "dónde está la carpeta tools" → `tools/`. Widget relanzado sin errores.
 
 ### 🟢 v0.6.8ñ — Widget: botón "✕" visible para cerrar + fix del menú — 2026-08-31
@@ -1230,7 +1211,6 @@ Implementación del **PLAN AXIOMA v2.0** (6 fases planificadas → 5 implementad
   `python Rafael.py`. Se cierra con botón derecho → Cerrar.
 - ✅ `mic-gain.service` sigue activo (solo fija la ganancia del micrófono —
   no arranca Rafael). Nada más lo re-habilita (verificado: sin autostart,
-  sin hooks de bashrc, post_update no lo toca).
 
 ### 🟢 v0.6.8m — Widget Rafael: botón derecho → "Cerrar" — 2026-08-31
 
@@ -1425,7 +1405,6 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 
 ### 🟢 v0.6.8f — RSS de Ollama por relación padre-hijo (robustez) — 2026-08-29
 
-- ✅ **`tools/benchmark_calibration.py::_get_ollama_rss_gb()` reescrito (v2)**:
   en vez de matchear el runner por NOMBRE (`llama-server`, que no contiene
   "ollama" y puede renombrarse en el futuro — Ollama ya lo hizo antes:
   `ollama runner` → `llama-server` → `ollama_llama_server`), ahora se
@@ -1451,10 +1430,8 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
   solo el reporte más reciente (poda al crear el nuevo).
 - ✅ **`logs/code_contract_report_*.md`**: `tests/test_code_contract_e2e.py`
   conserva solo el informe más reciente.
-- ✅ **`logs/post_update_*.log`**: `tools/post_update.py` — un solo archivo
   por corrida (antes uno por línea, logs incompletos) y poda al final
   conservando solo el más reciente.
-- ✅ **`logs/optimizer_*.log`**: `tools/axioma_optimizer.sh` conserva solo el
   log de la corrida actual (poda al inicio excluyendo `$LOG_FILE`, porque
   `main()` puede hacer exit antes del final).
 - ✅ **`logs/reg_error.txt`**: sin cambios — `tools/detailed_logger.py` ya
@@ -1501,7 +1478,6 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 
 ### 🟢 v0.6.8c — Fix RSS del benchmark de calibración (memoria real) — 2026-08-29
 
-- ✅ **FIX** `tools/benchmark_calibration.py::_get_ollama_rss_gb()` — el delta
   RSS daba ~0.01GB (`delta_valid=False` en los 3 modelos) porque medía SOLO el
   primer proceso que matchea "ollama" (el server `ollama serve`, ~0.05GB). El
   footprint real del modelo cargado vive en el runner **`llama-server`** (hijo

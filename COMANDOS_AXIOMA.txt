@@ -329,21 +329,12 @@ logs/axioma_audit_report_*.md              # Reportes de auditoría completa
 ════════════════════════════════════════════════════════════════════════════════
 6. 🛠️ VERIFICACIÓN / DIAGNÓSTICO GENERAL
 ════════════════════════════════════════════════════════════════════════════════
-python tools/system_check.py all            # Diagnóstico unificado (health+setup+diagnostic)
-python tools/system_check.py health         # Health check (16+ componentes: modelos, memoria, Ollama)
-python tools/system_check.py setup          # Validación de entorno pre-ejecución
-python tools/system_check.py diagnostic     # Diagnóstico SO/hardware/IA/optimizaciones
-python tools/system_check.py verify         # Verificación integral + visión runtime (ex-verify_axioma.py)
 python axioma_auditor.py --detectors config_refs   # TaskType/Paths/settings inexistentes (ex-verify_all.py)
 python tools/security_audit.py
 
 ════════════════════════════════════════════════════════════════════════════════
 7. 📊 BENCHMARKS
 ════════════════════════════════════════════════════════════════════════════════
-python tools/benchmark_latency.py         # Benchmark p50/p95/p99 (KG/Profile)
-python tools/benchmark_response.py        # Benchmark de rendimiento/latencia
-python tools/benchmark_calibration.py     # Calibración A/B de modelos (usa CODE_TEST_CASES del bench v2)
-python tools/axioma_model_bench_v2.py     # Benchmark de modelos de CÓDIGO: velocidad, calidad
 #                                          estructural (AST), ejecución real y RAM → MD + JSON
 #                                          (migrado de la raíz a tools/ el 2026-09-01)
 
@@ -352,7 +343,6 @@ python tools/axioma_model_bench_v2.py     # Benchmark de modelos de CÓDIGO: vel
 ════════════════════════════════════════════════════════════════════════════════
 python tools/model_tester.py --all
 python tools/warmup_models.py             # Pre-carga modelos en VRAM
-python tools/optimize_ollama.py
 
 ════════════════════════════════════════════════════════════════════════════════
 9. 🧰 HERRAMIENTAS DE DIAGNÓSTICO EN tools/ (relocalizadas desde la raíz)
@@ -365,18 +355,13 @@ python tools/speedtest.py
 # Test de velocidad: latencia, descarga y subida (Cloudflare/CDN)
 # guarda historial en speedtest_history.json
 
-python tools/hardware_report.py
 # Reporte de hardware (CPU/GPU/RAM/disco) → genera un .md con el informe
 
 python lista_paquetes.py
 # Lista de paquetes instalados (pacman -Q) → genera paquetes_completos.md
 
 Otros tools útiles:
-python tools/system_check.py health         # Health check (modelos, memoria, Ollama)
-python tools/system_check.py diagnostic   # Diagnóstico general del sistema
 python tools/warmup_models.py             # Pre-carga modelos en VRAM
-python tools/benchmark_response.py        # Benchmark de rendimiento/latencia
-python tools/benchmark_latency.py         # Benchmark p50/p95/p99 (KG/Profile)
 
 ════════════════════════════════════════════════════════════════════════════════
 10. 📚 DOCUMENTACIÓN
@@ -410,30 +395,20 @@ curl http://localhost:8000/health
 # systemd de Ollama para este hardware (AMD RX 460 + 14GB RAM).
 # Usa .optimizer_manifest.json para rollback exacto.
 
-./tools/axioma_optimizer.sh --status          # estado de las optimizaciones
-./tools/axioma_optimizer.sh --apply           # aplica (o re-aplica tras update de kernel)
-./tools/axioma_optimizer.sh --rollback        # revierte todo (usa backups)
-./tools/axioma_optimizer.sh --dry-run         # muestra qué haría sin aplicar
 
 ── 13.1 DESPUÉS DE UN pacman -Syu (actualización completa del sistema) ─────────
 🚀 AUTOMÁTICO (recomendado): un solo comando hace todo el flujo:
-      python tools/post_update.py
   → Pregunta si actualizar (sudo pacman -Syu — la contraseña la ponés vos)
   → Pregunta si reiniciar → instala el auto-arranque y reinicia
   → Al volver (login), ejecuta SOLO:
-      tools/axioma_optimizer.sh --status
-      tools/axioma_optimizer.sh --apply
       sudo systemctl status ollama --no-pager
     y te muestra un resumen con los problemas detectados y la acción.
   → Se auto-limpia (quita flag y hooks del auto-arranque) al terminar.
-  Re-intento manual si algo falló: python tools/post_update.py --post-reboot
 
 Flujo manual:
 1. Terminar el update y REINICIAR (el kernel nuevo necesita reboot).
 2. Tras el reboot, verificar qué se perdió:
-      ./tools/axioma_optimizer.sh --status
 3. Re-aplicar lo perdido (idempotente, usa manifest + backups):
-      ./tools/axioma_optimizer.sh --apply
 4. Verificar que Ollama quedó bien:
       sudo systemctl status ollama --no-pager
 
@@ -450,7 +425,6 @@ Qué persiste y qué NO tras un -Syu:
   ✅ Ananicy / env / optimizer.env → persisten sin cambios.
 
 OPCIONAL: activar zram tras el update para más RAM efectiva (hoy inactivo):
-      ./tools/axioma_optimizer.sh --apply   (incluye zram como opt-in)
 
 ════════════════════════════════════════════════════════════════════════════════
 14. 🤝 SERVICIO RAFAEL (systemd --user)
