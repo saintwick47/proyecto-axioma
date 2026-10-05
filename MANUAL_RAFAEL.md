@@ -89,3 +89,34 @@ Todo está en `config/multimodal.yaml` y `.env`:
 
 ---
 *Rafael — AXIOMA v0.6.8 · CHANGELOG v0.6.8j–q*
+
+
+---
+
+## La voz con contenedor (Docker)
+
+Rafael también puede correr **dentro del contenedor**. Es un servicio aparte, detrás de un perfil, que no
+arranca salvo que lo pidas:
+
+```bash
+docker compose --profile voz up -d voz      # encender la voz
+docker compose --profile voz stop voz       # apagarla
+docker compose logs -f voz                  # ver cómo va
+```
+
+**Qué necesita** (todo ya configurado en `docker-compose.yml`; sólo hay que ajustar el id de usuario si no
+es 1000):
+
+| Pieza | Por qué |
+|---|---|
+| `devices: [/dev/snd]` y `group_add: [<gid de audio>]` | el micrófono y los parlantes del equipo |
+| El socket del servidor de sonido (`/run/user/1000/pulse`) y `PULSE_SERVER` | la vía que **funciona** para capturar: abrir la placa directo da error de frecuencia |
+| `AXIOMA_RAFAEL_DIRECTO=1` | el demonio corre **sin systemd** (dentro del contenedor no existe `systemctl`) |
+| `AXIOMA_INPUT_DEVICE` | si el nombre del dispositivo del equipo no existe adentro, se usa el del sistema |
+| `./data/registros_voz:/app/logs` | sus registros van aparte, así no ensucian el informe de salud del proyecto |
+
+**Medido**: con esa configuración el demonio arranca dentro del contenedor y **queda escuchando** la frase de
+activación (`[WakeWord] Escuchando wake word`), sin errores en el lazo de escucha.
+
+**Nota**: el widget de escritorio (que corre en tu equipo) se comunica con el demonio por archivos en `/tmp`;
+si querés verlo desde el contenedor, hay que montar `/tmp` (está comentado en el compose, con la advertencia).

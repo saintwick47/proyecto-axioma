@@ -5,6 +5,36 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Sin publicar] — AXIOMA en contenedores (instalable)
+
+### Agregado
+- **Instalación en contenedores**: imagen de dos etapas **sin modelos adentro** (~5,6 GB), CPU primero,
+  con la suite completa corriendo **dentro** de la imagen (una imagen que no pasa las pruebas no se publica).
+- **Lanzador de doble clic**: `instalar/instalar_axioma.sh` (una sola vez) y `instalar/iniciar_axioma.sh`
+  (cada vez). Decide solo si usar el **Ollama del equipo** o levantar el que viene con AXIOMA.
+- **Primer arranque guiado**: la pantalla **"Configurar AXIOMA"** se abre sola la primera vez, explica qué
+  falta y lo instala con un clic (con avance real y botón DETENER).
+- **Carga guiada de claves** (`python -m src.core.apikeys`): cada persona carga las suyas; el archivo queda
+  con permisos sólo para su usuario y **nunca se muestran los valores**.
+- **Preflight** (`python -m src.core.preflight`): informa qué le falta al equipo, con el motivo y el remedio.
+- **Memoria por niveles** (9 GB mínimo · 16 GB recomendado · 24-32 GB ideal) y **detección de placa de video**.
+- **Modo de trabajo en paralelo**: con placa suficiente, el modelo más pesado vive en la placa y el otro en
+  memoria (no se descarga al cambiar de tarea).
+- **Servicio de voz en el contenedor** (perfil `voz`), con su propio volumen de registros.
+
+### Cambiado
+- **Ningún usuario cocido**: la identidad por defecto queda **vacía** y el rol por defecto es `user`. La
+  primera vez AXIOMA **pide crear un usuario propio** (antes traía el usuario del autor).
+- Los manuales (`README.md`, `MANUAL_USUARIO.md` —nuevo, para quien no sabe programar—, `COMANDOS_AXIOMA.txt`,
+  `MANUAL_AXIOMA.md`, `MANUAL_RAFAEL.md`) están actualizados a la instalación con contenedores.
+
+### Corregido
+- Rutas absolutas del autor, `.env` relativo a la carpeta de trabajo, ruta del modelo de voz y del
+  documentador, y `tools/axioma_optimizer.sh` que asumía `$HOME/Escritorio`.
+- El chequeo del entorno ya no dice "listo" cuando falta Ollama o un modelo (explica qué falta y sale con 4).
+- El registro del CLI no se cae en los caminos de error; el paquete CLI ya no recursa al importarlo.
+- Las pruebas ya no dependen de la configuración de un equipo en particular (fallaban en un entorno limpio).
+
 **Esquema de Versionado:**
 - Versión inicial: `0.0.1`
 - Cada fix grande: `+0.0.1` (ej: 0.0.1 → 0.0.2)

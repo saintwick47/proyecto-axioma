@@ -6,7 +6,23 @@ búsqueda web, archivos y memoria persistente por usuario.
 
 ---
 
-## 1. Requisitos
+## 0. Instalación rápida (con contenedor) — la vía recomendada
+
+1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop)).
+2. Descargar el proyecto y ejecutar **una sola vez** `instalar/instalar_axioma.sh` (doble clic en Linux).
+3. De ahí en adelante, **doble clic en el icono «AXIOMA»**: se enciende y se abre en el navegador.
+4. La primera vez, AXIOMA **pide crear tu usuario** (no hay ninguno predefinido) y abre la pantalla
+   **🧩 Configurar AXIOMA**, que dice qué falta y lo instala con un clic.
+
+Para el uso diario alcanza con eso. Lo que sigue (secciones 1 en adelante) es el detalle **técnico** y la
+vía de **desarrollo** (correr AXIOMA sin contenedor, desde el código).
+
+**Memoria (RAM)**: 9 GB mínimo para funcionar · **16 GB** recomendado · 24-32 GB ideal. Con placa de video
+suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en paralelo**.
+
+---
+
+## 1. Requisitos (desarrollo, sin contenedor)
 
 - **Python** 3.10+ (el proyecto usa 3.14).
 - **Ollama** corriendo en `127.0.0.1:11434` con los modelos:

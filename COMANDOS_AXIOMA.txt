@@ -1,15 +1,58 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  AXIOMA v0.3.6 — MANUAL UNIFICADO DE COMANDOS                                ║
+║  AXIOMA — MANUAL UNIFICADO DE COMANDOS (contenedor + desarrollo)             ║
 ║  Tests · Diagnóstico · Auditoría · Sistema · Modelos · Calidad             ║
 ║  (la carpeta del proyecto es donde tengas AXIOMA instalado)                  ║
 ║  Unificado: COMANDOS_AXIOMA.txt + COMANDOS_TESTS.txt                         ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-▶ TRABAJAR SIEMPRE DESDE LA RAÍZ DEL PROYECTO:
-cd /ruta/donde/instalaste/axioma
+▶ DESARROLLO (sin contenedor) — TRABAJAR DESDE LA RAÍZ DEL PROYECTO:
+cd /ruta/al/proyecto
 (usar el venv:  source venv/bin/activate   — o anteponer venv/bin/ a python)
+Los comandos de abajo son para el proyecto en el equipo. Con contenedor, mirá la sección 0.
 
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+0. 📦 INSTALAR Y USAR CON CONTENEDOR (lo que usa quien instala AXIOMA)
 ════════════════════════════════════════════════════════════════════════════════
+No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CLIC.
+
+  ./instalar/instalar_axioma.sh       # UNA SOLA VEZ: comprueba Docker, arma la imagen,
+                                      # deja el acceso directo en el menú y arranca
+  ./instalar/iniciar_axioma.sh        # cada vez: enciende y ABRE EL NAVEGADOR
+  ./instalar/iniciar_axioma.sh --detener   # apagar todo
+  ./instalar/iniciar_axioma.sh --dry-run   # ver qué haría, sin tocar nada
+
+  · Decide solo el Ollama: si el equipo ya tiene uno andando, usa ese; si no, levanta el que
+    viene con AXIOMA (perfil `ollama-local`, modelos en un volumen).
+  · Puerto distinto:  AXIOMA_PUERTO=8090 ./instalar/iniciar_axioma.sh
+
+Contenedor (Docker Compose):
+
+  docker compose up -d --build        # encender (armando la imagen)
+  docker compose logs -f axioma       # ver qué está pasando
+  docker compose down                 # apagar
+  docker compose --profile ollama-local up -d    # Ollama DENTRO del contenedor
+  docker compose --profile voz up -d voz         # servicio de VOZ (Rafael)
+  docker compose --profile voz stop voz          # apagarlo
+
+¿Qué le falta al equipo? (lo mismo que muestra la pantalla 🧩, pero por consola)
+
+  docker compose exec axioma python -m src.core.preflight          # informe legible
+  docker compose exec axioma python -m src.core.preflight --json   # para programas
+  docker compose exec axioma python -m src.core.preflight --instalar        # baja lo que falta
+  docker compose exec axioma python -m src.core.preflight --instalar --todo # incluye opcionales
+
+Tus claves de API (son TUYAS: nunca viajan en la imagen)
+
+  docker compose exec axioma python -m src.core.apikeys            # carga guiada (una por una)
+  docker compose exec axioma python -m src.core.apikeys --listar   # estado, sin mostrar valores
+
+Verificaciones del proyecto (para quien quiera comprobar que todo está bien)
+
+  tools/verificar_imagen.sh                    # compila, MIDE el tamaño, corre la suite adentro
+  tools/verificar_imagen.sh --solo-plan        # muestra los pasos sin ejecutar
+  venv/bin/python tools/verificar_primer_arranque.py   # guía de primer arranque en navegador real
+
+════
 1. 🚀 ENTRY POINT — main.py
 ════════════════════════════════════════════════════════════════════════════════
 python main.py --check
