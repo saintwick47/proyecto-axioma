@@ -61,7 +61,10 @@ foreach ($relativo in $Guiones) {
     if ($null -eq $errores -or @($errores).Count -eq 0) {
         Bien "sintaxis de $relativo"
     } else {
-        Fallo "sintaxis de $relativo: $(@($errores).Count) error(es)"
+        # OJO: `"$relativo:"` NO es válido — PowerShell lee los dos puntos como si fuera una unidad
+        # (`$relativo:`) y el guion NI SIQUIERA ARRANCA: fue el primer error real que marcó el CI
+        # de Windows (2026-10-06). Con `${relativo}` queda claro dónde termina el nombre.
+        Fallo "sintaxis de ${relativo}: $(@($errores).Count) error(es)"
         if ($VerDetalle) { Dato ($errores | Out-String) }
         $Problemas++
     }

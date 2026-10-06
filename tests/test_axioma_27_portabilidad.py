@@ -715,4 +715,54 @@ def test_el_ci_prueba_los_instaladores_en_un_windows_de_verdad():
     # MEDIDO el 2026-10-06: con `shell: ${{ matrix.shell }}` GitHub NO valida el workflow entero: la
     # corrida queda ROJA, sin ningún trabajo (`total_count: 0`) y con el nombre del archivo en vez del
     # nombre del workflow. El `shell` tiene que ser literal.
-    assert "shell: ${{" not in ci, "una expresión en `shell:` rompe la validación de TODO el workflow"
+    # (Se miran sólo las líneas que se EJECUTAN: el comentario que explica el error contiene el texto
+    #  prohibido, y la primera versión de esta comprobación se tropezaba con su propia explicación.)
+    solo_ejecutable = "\n".join(l for l in ci.splitlines() if not l.lstrip().startswith("#"))
+    assert "shell: ${{" not in solo_ejecutable, \
+        "una expresión en `shell:` rompe la validación de TODO el workflow"
+
+
+@_sin_empaquetado
+def test_los_guiones_de_powershell_no_usan_variable_dos_puntos():
+    """`"$nombre:"` NO es válido en PowerShell: lee los dos puntos como una unidad y el guion **no
+    arranca** (error de parseo, no de ejecución).
+
+    Medido el 2026-10-06: lo marcó el trabajo de Windows del CI, con el archivo publicado:
+        Variable reference is not valid. ':' was not followed by a valid variable name character.
+    Había pasado mi comprobación de llaves balanceadas porque no es un problema de llaves. Esta guarda
+    es un aviso temprano (barato, sin Windows); la prueba de verdad sigue siendo el CI, que ejecuta el
+    guion con PowerShell de verdad. `${nombre}:` sí es válido, y los ámbitos conocidos (`$env:PATH`,
+    `$script:x`, `$global:x`, `$using:x`) también.
+    """
+    import re
+    ambitos = {"env", "script", "global", "local", "private", "using", "variable", "function", "workflow"}
+    sospechosos = []
+    for guion in (sorted((PROJECT_ROOT / "instalar").glob("*.ps1"))
+                  + sorted((PROJECT_ROOT / "tests").glob("*.ps1"))):
+        for numero, linea in enumerate(guion.read_text(encoding="utf-8-sig").splitlines(), 1):
+            if linea.lstrip().startswith("#"):
+                continue                       # los comentarios pueden explicar el error
+            for encontrado in re.finditer(r"\$([A-Za-z_][A-Za-z0-9_]*):", linea):
+                if encontrado.group(1).lower() not in ambitos:
+                    sospechosos.append(f"{guion.name}:{numero} → {encontrado.group(0)}")
+    assert sospechosos == [], (
+        "en PowerShell `$var:` es un error de PARSEO (el guion no arranca): usá `${var}:` → "
+        + ", ".join(sospechosos))
+
+
+@_sin_empaquetado
+def test_el_ci_ejecuta_los_instaladores_de_linux():
+    """Los de Linux se prueban igual que los de Windows: **ejecutándolos**, no leyéndolos.
+
+    Pedido del usuario (2026-10-06): «no sólo debemos saber si en Windows funciona, sino también en
+    Linux». En modo ensayo no tocan nada, pero recorren el camino real: comprobar Docker, decidir entre
+    el Ollama del equipo y el propio, armar el plan y decir a qué dirección abriría el navegador.
+    """
+    ci = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "instaladores-linux" in ci and "ubuntu-latest" in ci, \
+        "el CI dejó de ejecutar los instaladores de Linux"
+    for guion in ("instalar/instalar_axioma.sh --dry-run", "iniciar_axioma.sh --dry-run"):
+        assert guion in ci, f"el CI no ejecuta: {guion}"
+    for comprobacion in ("docker compose build", "abriría http://127.0.0.1:8080",
+                         "Ya tenés Ollama|Levanto el Ollama"):
+        assert comprobacion in ci, f"el CI no comprueba: {comprobacion}"

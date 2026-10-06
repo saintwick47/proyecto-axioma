@@ -182,3 +182,69 @@ jobs:
         run: |
           & .\tests\probar_instaladores_windows.ps1
           exit $LASTEXITCODE
+
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+  # INSTALADORES DE LINUX — ejecutados de verdad, en un Linux real.
+  # Los guiones de Linux se prueban igual que los de Windows: se EJECUTAN. En modo ensayo no tocan
+  # nada, pero el camino que recorren es el real (comprobar Docker, decidir entre el Ollama del equipo
+  # y el propio, armar el plan y decir a qué dirección abriría el navegador).
+  # Lo que NO cubre (necesita una máquina propia, a mano): armar la imagen de verdad (son minutos y
+  # GB), crear el acceso directo del menú, y que el navegador se abra con la pantalla de configuración.
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+  instaladores-linux:
+    name: instaladores de Linux (ejecutados de verdad)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensayo del instalador y del lanzador
+        shell: bash
+        run: |
+          set -uo pipefail
+          fallo=0
+
+          echo "▶ instalar_axioma.sh --dry-run"
+          salida=$(bash instalar/instalar_axioma.sh --dry-run 2>&1); codigo=$?
+          echo "$salida"
+          case "$codigo" in
+            0)
+              grep -q "docker compose build" <<<"$salida" \
+                || { echo "❌ el instalador no muestra que armaría la imagen"; fallo=1; }
+              ;;
+            4)
+              grep -qi "docker" <<<"$salida" \
+                || { echo "❌ salió 4 y no explica que falta Docker"; fallo=1; }
+              echo "   (el runner no tenía Docker: se comprobó el camino de «falta Docker»)"
+              ;;
+            *) echo "❌ código inesperado: $codigo"; fallo=1 ;;
+          esac
+
+          echo "▶ iniciar_axioma.sh --dry-run"
+          salida=$(bash instalar/iniciar_axioma.sh --dry-run 2>&1); codigo=$?
+          echo "$salida"
+          case "$codigo" in
+            0)
+              grep -q "docker compose" <<<"$salida" \
+                || { echo "❌ el lanzador no muestra que encendería AXIOMA"; fallo=1; }
+              grep -q "abriría http://127.0.0.1:8080" <<<"$salida" \
+                || { echo "❌ el lanzador no dice a qué dirección abriría el navegador"; fallo=1; }
+              # Tiene que haber decidido entre el Ollama del equipo y el propio, y decirlo.
+              grep -qE "Ya tenés Ollama|Levanto el Ollama" <<<"$salida" \
+                || { echo "❌ no decidió qué Ollama usar"; fallo=1; }
+              ;;
+            4)
+              grep -qi "docker" <<<"$salida" \
+                || { echo "❌ salió 4 y no explica que falta Docker"; fallo=1; }
+              echo "   (el runner no tenía Docker: se comprobó el camino de «falta Docker»)"
+              ;;
+            *) echo "❌ código inesperado: $codigo"; fallo=1 ;;
+          esac
+
+          echo "▶ un interruptor que no existe tiene que ser rechazado"
+          bash instalar/iniciar_axioma.sh --no-existe >/dev/null 2>&1
+          [ $? -eq 2 ] || { echo "❌ aceptó un interruptor que no existe (se esperaba código 2)"; fallo=1; }
+
+          if [ "$fallo" -eq 0 ]; then
+            echo "✅ los instaladores de Linux arrancan y explican lo que harían"
+          fi
+          exit $fallo
