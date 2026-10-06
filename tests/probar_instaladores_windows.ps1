@@ -23,7 +23,9 @@ param(
     [switch]$VerDetalle
 )
 
-$ErrorActionPreference = "Stop"
+# `Continue` a propósito: un comprobador tiene que SEGUIR y contar todos los problemas, no morir en el
+# primero. (Medido el 2026-10-06: con `Stop`, cualquier sorpresa cortaba el guion sin decir dónde.)
+$ErrorActionPreference = "Continue"
 
 # Sin emoji y sin dibujos: la consola de Windows (CP850/CP437) los imprime mal.
 function Bien { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundColor Green }
@@ -65,7 +67,7 @@ foreach ($relativo in $Guiones) {
         # (`$relativo:`) y el guion NI SIQUIERA ARRANCA: fue el primer error real que marcó el CI
         # de Windows (2026-10-06). Con `${relativo}` queda claro dónde termina el nombre.
         Fallo "sintaxis de ${relativo}: $(@($errores).Count) error(es)"
-        if ($VerDetalle) { Dato ($errores | Out-String) }
+        Dato (@($errores) | Out-String)
         $Problemas++
     }
     # Acentos legibles de verdad (prueba de que el BOM sirve para algo).
@@ -97,8 +99,19 @@ function CorrerGuion {
     param([string]$Relativo, [string[]]$Argumentos)
     $ruta = Join-Path $Raiz $Relativo
     # Igual que el acceso directo: powershell.exe con -ExecutionPolicy Bypass.
-    $salida = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ruta @Argumentos 2>&1 | Out-String
-    return @{ Codigo = $LASTEXITCODE; Salida = $salida }
+    # El try/catch no es adorno: MEDIDO en el CI de Windows (2026-10-06), cuando el guion rechaza un
+    # interruptor que no existe, PowerShell escribe en stderr y al juntarlo con `2>&1` eso se vuelve un
+    # `NativeCommandError` — un error que, con `$ErrorActionPreference = "Stop"`, MATABA al comprobador
+    # sin llegar a decir qué pasó. Acá se atrapa y se sigue: lo que importa es el código de salida.
+    $salida = ""
+    try {
+        $salida = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ruta @Argumentos 2>&1 | Out-String
+    } catch {
+        $salida = "$salida`n$($_.Exception.Message)"
+    }
+    $codigo = $LASTEXITCODE
+    if ($null -eq $codigo) { $codigo = -1 }
+    return @{ Codigo = $codigo; Salida = $salida }
 }
 
 Write-Host "`n> Los guiones, en modo ensayo (no toca nada)"
@@ -114,7 +127,7 @@ foreach ($caso in @(
             Bien "$($caso.Nombre): sale 0 y muestra el plan ('$($caso.Esperado)')"
         } else {
             Fallo "$($caso.Nombre): se esperaba salida 0 con '$($caso.Esperado)' y salió $($r.Codigo)"
-            if ($VerDetalle) { Dato $r.Salida }
+            Dato $r.Salida
             $Problemas++
         }
         if ($r.Salida -match "ensayo") {
@@ -130,7 +143,7 @@ foreach ($caso in @(
             Bien "$($caso.Nombre): sin Docker explica qué falta y sale con 4"
         } else {
             Fallo "$($caso.Nombre): sin Docker se esperaba salida 4 con la explicación, salió $($r.Codigo)"
-            if ($VerDetalle) { Dato $r.Salida }
+            Dato $r.Salida
             $Problemas++
         }
         if ($r.Salida -match "docker.com/products/docker-desktop") {
@@ -145,10 +158,13 @@ foreach ($caso in @(
 # ── 4. Un interruptor que no existe: lo tiene que rechazar PowerShell, no ignorarlo ───────────────
 Write-Host "`n> Un interruptor que no existe"
 $raro = CorrerGuion "instalar\instalar_axioma.ps1" @("-NoExiste")
-if ($raro.Codigo -ne 0) {
-    Bien "rechaza '-NoExiste' (salida $($raro.Codigo)) en vez de ignorarlo"
+Dato "salida $($raro.Codigo): $(($raro.Salida -split "`n" | Select-Object -First 2) -join ' / ')"
+# Lo que importa: que NO lo acepte en silencio. PowerShell lo rechaza con su propio error (código
+# distinto de 0) o nombrándolo; las dos formas sirven, ignorarlo no.
+if ($raro.Codigo -ne 0 -or $raro.Salida -match "NoExiste|parameter|parámetro") {
+    Bien "no acepta en silencio un interruptor que no existe"
 } else {
-    Fallo "aceptó un interruptor que no existe"
+    Fallo "aceptó en silencio un interruptor que no existe"
     $Problemas++
 }
 

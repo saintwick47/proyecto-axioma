@@ -175,13 +175,17 @@ jobs:
         shell: powershell
         run: |
           & .\tests\probar_instaladores_windows.ps1
-          exit $LASTEXITCODE
+          $codigo = $LASTEXITCODE
+          Write-Host "codigo del comprobador: $codigo"
+          exit $codigo
 
       - name: PowerShell 7
         shell: pwsh
         run: |
           & .\tests\probar_instaladores_windows.ps1
-          exit $LASTEXITCODE
+          $codigo = $LASTEXITCODE
+          Write-Host "codigo del comprobador: $codigo"
+          exit $codigo
 
   # ══════════════════════════════════════════════════════════════════════════════════════════════
   # INSTALADORES DE LINUX — ejecutados de verdad, en un Linux real.
@@ -200,12 +204,18 @@ jobs:
       - name: Ensayo del instalador y del lanzador
         shell: bash
         run: |
-          set -uo pipefail
+          # ⚠️ GitHub ejecuta los pasos de `bash` con `-e`: un comando que devuelve distinto de 0 CORTA
+          # el paso entero. Medido el 2026-10-06: la comprobación del interruptor inexistente (que sale
+          # con 2, y está bien que salga así) mataba el trabajo antes de poder mirar el código, y el
+          # fallo aparecía sin ningún mensaje. Acá los códigos se miran A MANO: por eso `set +e`.
+          set +e
           fallo=0
+          echo "docker: $(command -v docker || echo NO HAY) · compose: $(docker compose version 2>/dev/null | head -1 || echo NO HAY)"
 
           echo "▶ instalar_axioma.sh --dry-run"
           salida=$(bash instalar/instalar_axioma.sh --dry-run 2>&1); codigo=$?
           echo "$salida"
+          echo "   (código de salida: $codigo)"
           case "$codigo" in
             0)
               grep -q "docker compose build" <<<"$salida" \
@@ -222,6 +232,7 @@ jobs:
           echo "▶ iniciar_axioma.sh --dry-run"
           salida=$(bash instalar/iniciar_axioma.sh --dry-run 2>&1); codigo=$?
           echo "$salida"
+          echo "   (código de salida: $codigo)"
           case "$codigo" in
             0)
               grep -q "docker compose" <<<"$salida" \
@@ -241,8 +252,9 @@ jobs:
           esac
 
           echo "▶ un interruptor que no existe tiene que ser rechazado"
-          bash instalar/iniciar_axioma.sh --no-existe >/dev/null 2>&1
-          [ $? -eq 2 ] || { echo "❌ aceptó un interruptor que no existe (se esperaba código 2)"; fallo=1; }
+          salida=$(bash instalar/iniciar_axioma.sh --no-existe 2>&1); codigo=$?
+          echo "$salida"
+          [ "$codigo" -eq 2 ] || { echo "❌ aceptó un interruptor que no existe (salió $codigo, se esperaba 2)"; fallo=1; }
 
           if [ "$fallo" -eq 0 ]; then
             echo "✅ los instaladores de Linux arrancan y explican lo que harían"
