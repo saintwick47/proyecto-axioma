@@ -31,12 +31,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - **Servicio de voz en el contenedor** (perfil `voz`), con su propio volumen de registros.
 
 ### Cambiado
+  que se documenta *este* proyecto; el producto, la suite y el CI **no** lo usan (comprobado corriendo la
+  suite completa en la copia pública: 20/20). La única prueba que lo leía —la que verifica que la raíz del
+  proyecto sale del archivo y no del directorio de trabajo— sigue corriendo en el privado y se **saltea**
+  cuando la carpeta no está.
 - **Ningún usuario cocido**: la identidad por defecto queda **vacía** y el rol por defecto es `user`. La
   primera vez AXIOMA **pide crear un usuario propio** (antes traía el usuario del autor).
 - Los manuales (`README.md`, `MANUAL_USUARIO.md` —nuevo, para quien no sabe programar—, `COMANDOS_AXIOMA.txt`,
   `MANUAL_AXIOMA.md`, `MANUAL_RAFAEL.md`) están actualizados a la instalación con contenedores.
 
 ### Corregido
+- **`requirements-ci.txt` no era un subconjunto exacto de `requirements.txt`** (medido el 2026-10-06):
+  `ruff` estaba **sólo** en el archivo del CI y `psutil` —que el producto usa en 5 módulos para medir
+  memoria real— **sólo** en el completo, así que el CI corría por el camino de respaldo sin probar el
+  normal. Ahora `ruff` está en los dos, `psutil` se agregó al del CI, el encabezado dice **qué omite el CI
+  y por qué**, y una prueba fija la relación (verificada con tres mutaciones).
 - **El perfil `puente` arrancaba de más** (encontrado al probar el camino de Windows): medido el
   2026-10-06, `docker compose --profile puente up -d` levanta **también** el servicio `axioma` (no tiene
   perfil, arranca siempre). Como ése usa la red del equipo, los dos pelean por el 8080 y `axioma` queda en
@@ -115,14 +124,11 @@ corrigieron los archivos que los generan.
 
 | Artefacto / superficie | Mostraba | Ahora | Generador corregido |
 |---|---|---|---|
-| `docs/AXIOMA_COMPLETE_CONTEXT.md` (título) | `AXIOMA v0.3.6` | `AXIOMA v0.6.9` | `tools/documentador/axioma_doc_md_generator.py` → `axioma_doc_base.AXIOMA_PROJECT_VERSION` |
 | Identidad enviada al modelo | `Eres AXIOMA v0.2.0` | `Eres AXIOMA v0.6.9` | `src/prompts/base_prompts.py` |
 | `GET /api/v1/status` | `"version": "0.2.0"` | `"version": "0.6.9"` | `src/interfaces/web/routes_extended.py` |
-| Banner CLI del documentador | `v4.1.1` / `v3.9.0` / `v3.6` mezclados | `v4.2.1` (`DOCUMENTADOR_VERSION`) | `tools/documentador/*` |
 
 - ✅ **Fuente única por artefacto**: la versión del **proyecto** se lee siempre de
   `src/__init__.py` (`src.AXIOMA_VERSION` / `AXIOMA_PROJECT_VERSION`); la del
-  **documentador** vive en `axioma_doc_base.DOCUMENTADOR_VERSION` (4.2.1) y la del
 - ✅ Se conservaron como **históricos** los marcadores de cuándo se implementó
   cada cosa (`✅ v0.3.x`, `CORRECCIONES_en_v3.9.0`) y las métricas antiguas pasan
   a decir `(medido en v0.3.6)` en lugar de aparentar ser actuales.
@@ -968,7 +974,6 @@ cualquier verificación estática previa.
 
 ### 🟢 v0.6.8z — Documentador: fix de módulos conectados marcados AISLADOS — 2026-09-01
 
-- ✅ **FIX en `tools/documentador/axioma_doc_flow_mapper.py` (`_map_dependencies`,
   v3.9.9)**: los archivos NOISE (herramientas standalone en `tools/`, listadas en
   `IGNORED_PATTERNS`) se descartaban por completo como FUENTE del grafo — por eso un
   archivo no-noise importado SOLO desde una fuente noise quedaba `[⚠️ AISLADO]` pese a
@@ -981,7 +986,6 @@ cualquier verificación estática previa.
   ahora figura en `connected_modules`. Los 12 aislados restantes son CLIs autónomos /
   entry points legítimos (nadie los importa: `Rafael.py`, `ptt_axioma.py`,
   `test_autonomous.py`, `test_detect_intent.py`, `test_handoff_integration.py`).
-- Suite: **254 passed** — sin cambios de comportamiento en runtime (solo análisis del documentador).
 
 
   (único benchmark fuera de `tools/`).
@@ -1149,7 +1153,6 @@ Implementación del **PLAN AXIOMA v2.0** (6 fases planificadas → 5 implementad
 ### 🟢 v0.6.8q — Limpieza git + panel de archivos en la UI — 2026-08-31
 
   `ghp_...`). Estaba en `.gitignore` (no se subía), pero ahora tampoco existe
-  localmente. `docs/documentador.txt` actualizado (push vía `git push`).
 - ✅ **`axioma-v1.0.0.bundle`**: backup portátil del repo (git bundle,
   tag v1.0.0) — NO es necesario (el commit existe en `.git`). Des-trakkeado
   (`git rm --cached`), `*.bundle` agregado a `.gitignore`, y movido a

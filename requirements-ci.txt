@@ -1,6 +1,24 @@
-# /ruta/a/axioma/requirements.txt
-# AXIOMA v1.0.7 — Dependencias REALES del entorno (pip list 2026-08-26)
-# Generado: 2026-08-26 | Python 3.14.6 | Linux (CachyOS)
+# AXIOMA — requirements para el CI (subconjunto de requirements.txt)
+# Generado: 2026-08-26 | ✅ revisado 2026-10-06 | Python 3.12 y 3.14 (matriz del CI)
+# ═══════════════════════════════════════════════════════════════
+# QUÉ ES: este archivo es requirements.txt MENOS lo que el CI instala aparte. La prueba
+# `test_requirements_ci_es_requirements_menos_lo_documentado` (en
+# tests/test_axioma_27_portabilidad.py) fija esa relación: si alguien agrega una dependencia
+# arriba y se olvida acá, la suite lo dice.
+#
+# LO QUE EL CI INSTALA APARTE (por eso no está en este archivo):
+#   · torch / torchaudio       → con el índice CPU (`--index-url .../whl/cpu`): de PyPI bajaría
+#                                la versión con CUDA (2,5 GB inútiles en un runner sin placa)
+#   · sentence-transformers    → después, porque arrastra torch
+#
+# LO QUE EL CI **NO** INSTALA A PROPÓSITO (y por qué):
+#   · pyatspi       → necesita las libs de accesibilidad del escritorio (at-spi), que el runner
+#                     no tiene; el código lo importa con respaldo
+#   · openwakeword  → opcional (palabra de activación): `src/multimodal/wake_word.py` funciona
+#                     sin él y lo informa. Evita bajar modelos ONNX grandes en cada corrida
+#
+# ✅ 2026-10-06: se agregó `psutil`. Faltaba acá y el producto lo usa en 5 módulos para medir
+# memoria real: el CI corría siempre por el camino de respaldo (`/proc`) y no probaba el normal.
 # ═══════════════════════════════════════════════════════════════
 # === CORE WEB (FastAPI + NiceGUI) ===
 # ═══════════════════════════════════════════════════════════════
@@ -84,6 +102,8 @@ threadpoolctl==3.6.0
 # ═══════════════════════════════════════════════════════════════
 # === UTILITIES ===
 # ═══════════════════════════════════════════════════════════════
+# ✅ 2026-10-06: agregado (ver el encabezado): medir memoria es camino de uso real, no un extra.
+psutil==7.2.2
 pydantic==2.13.4
 pydantic-settings==2.14.0
 pydantic_core==2.46.4

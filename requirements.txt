@@ -214,6 +214,11 @@ pytest-mock==3.15.1
 coverage==7.14.0
 iniconfig==2.3.0
 pluggy==1.6.0
+# ✅ 2026-10-06: ruff FALTABA acá y estaba SÓLO en requirements-ci.txt, al revés de lo que
+# corresponde (el de CI es un subconjunto de este). Lo usa de verdad
+# `tests/test_axioma_01_config_domain.py::TestLinterDeNombresIndefinidos` (linter F821): si no
+# está instalado, esa prueba se saltea, así que el desfase hacía que acá NO se revisara nada.
+ruff==0.16.9
 # ═══════════════════════════════════════════════════════════════
 # === PROTOCOL BUFFERS / GRPC ===
 # ═══════════════════════════════════════════════════════════════

@@ -375,10 +375,6 @@ python tools/warmup_models.py             # Pre-carga modelos en VRAM
 ════════════════════════════════════════════════════════════════════════════════
 10. 📚 DOCUMENTACIÓN
 ════════════════════════════════════════════════════════════════════════════════
-python tools/documentador/axioma_doc_main.py
-python tools/documentador/axioma_doc_main.py --validate
-python tools/documentador/axioma_doc_main.py --clear-cache
-python tools/documentador/validate_docs.py
 
 ════════════════════════════════════════════════════════════════════════════════
 11. 🔧 GIT + COMMIT

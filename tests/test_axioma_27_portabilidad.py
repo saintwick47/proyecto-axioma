@@ -37,6 +37,9 @@ def test_la_raiz_del_proyecto_es_la_carpeta_del_archivo():
     assert Path(main.PROJECT_ROOT).is_dir()
 
 
+@pytest.mark.skipif(not (PROJECT_ROOT / "tools" / "documentador").is_dir(),
+                    reason="el documentador queda en el repositorio privado: no lo publica "
+                           "preparar_publicacion.sh y el público no lo necesita")
 def test_el_documentador_usa_la_raiz_del_proyecto():
     """B3: mismo defecto en `tools/documentador/axioma_doc_base.py`.
 
@@ -541,3 +544,46 @@ def test_el_instalador_de_windows_deja_acceso_directo_y_sintaxis_balanceada():
     assert not _ps1_balanceado("Write-Host \"texto\" )\n"), "el verificador no detecta un paréntesis de más"
     assert _ps1_balanceado("Write-Host \"un `\" entre comillas)\"  # ) suelto en un comentario"), (
         "el verificador se confunde con los escapes y los comentarios")
+
+
+# ═══════════════════════════════════════════════════════════════
+# DEPENDENCIAS: requirements-ci.txt es requirements.txt menos lo documentado
+# ═══════════════════════════════════════════════════════════════
+# Medido el 2026-10-06 (antes de esta prueba): `ruff` estaba SÓLO en el archivo del CI y `psutil`
+# (que el producto usa en 5 módulos para medir memoria) SÓLO en el completo. Los dos desfases hacían
+# que el CI no probara el camino real. La relación entre los dos archivos ahora está fijada acá.
+
+# Paquetes que están en requirements.txt y NO en el del CI, cada uno con su motivo escrito en el
+# encabezado de requirements-ci.txt.
+_OMITIDOS_A_PROPOSITO = {
+    "torch",                  # el CI lo instala aparte, desde el índice CPU
+    "torchaudio",             # ídem
+    "sentence-transformers",  # ídem (arrastra torch)
+    "pyatspi",                # necesita las libs de accesibilidad del escritorio
+    "openwakeword",           # opcional: la palabra de activación funciona sin él
+}
+
+
+def _leer_requirements(nombre):
+    import re
+    texto = (PROJECT_ROOT / nombre).read_text(encoding="utf-8")
+    return {m.group(1).lower().replace("_", "-"): m.group(2) for m in
+            (re.match(r"^([A-Za-z0-9_.\-]+)==([^\s#]+)", ln.strip()) for ln in texto.splitlines()) if m}
+
+
+def test_requirements_ci_es_requirements_menos_lo_documentado():
+    completo = _leer_requirements("requirements.txt")
+    ci = _leer_requirements("requirements-ci.txt")
+    assert completo, "requirements.txt no declara nada"
+    assert ci, "requirements-ci.txt no declara nada"
+    solo_ci = sorted(set(ci) - set(completo))
+    assert solo_ci == [], (
+        f"estos paquetes están SÓLO en el archivo del CI {solo_ci}: el de CI es un subconjunto y "
+        "tiene que declararlos también requirements.txt")
+    omitidos = set(completo) - set(ci)
+    assert omitidos == _OMITIDOS_A_PROPOSITO, (
+        f"la diferencia entre los dos archivos cambió: {sorted(omitidos ^ _OMITIDOS_A_PROPOSITO)}. "
+        "Si agregaste una dependencia al completo, agregala también al del CI (o justificá la "
+        "omisión acá y en el encabezado de requirements-ci.txt)")
+    distintas = {n: (completo[n], ci[n]) for n in set(ci) if completo[n] != ci[n]}
+    assert distintas == {}, f"misma dependencia con dos versiones: {distintas}"

@@ -17,7 +17,6 @@
 
 | Documento | Contenido |
 |---|---|
-| [docs/AXIOMA_COMPLETE_CONTEXT.md](docs/AXIOMA_COMPLETE_CONTEXT.md) | Generado por `tools/documentador/` (v1.0.9): modelos reales de `ollama list`, sin fugas ni carpetas externas. ⚠️ Las secciones enriquecidas por IA dependen del modelo usado |
 
 ---
 
@@ -254,9 +253,7 @@ axioma/
 ├── config/                  # settings.py, models.yaml, paths.py, ...
 ├── data/                    # BD SQLite, memoria vectorial, backups, salidas
 ├── tests/                   # Suite pytest (18 test_*.py: axioma integral + diagnósticos)
-├── tools/                   # Operación, verificación, diagnóstico, documentador
 ├── logs/                    # Logs del sistema
-└── docs/                    # Documentación (STRUCTURE_REPORT, AXIOMA_COMPLETE_CONTEXT, documentador)
 ```
 
 La estructura y función de **cada archivo** está en [docs/STRUCTURE_REPORT.md](docs/STRUCTURE_REPORT.md).
