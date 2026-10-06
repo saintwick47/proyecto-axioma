@@ -712,3 +712,7 @@ def test_el_ci_prueba_los_instaladores_en_un_windows_de_verdad():
     assert "probar_instaladores_windows.ps1" in ci, "el trabajo de Windows no llama al comprobador"
     for interprete in ("shell: powershell", "shell: pwsh"):
         assert interprete in ci, f"el CI no prueba con «{interprete}» (5.1 y 7 son los que hay en la calle)"
+    # MEDIDO el 2026-10-06: con `shell: ${{ matrix.shell }}` GitHub NO valida el workflow entero: la
+    # corrida queda ROJA, sin ningún trabajo (`total_count: 0`) y con el nombre del archivo en vez del
+    # nombre del workflow. El `shell` tiene que ser literal.
+    assert "shell: ${{" not in ci, "una expresión en `shell:` rompe la validación de TODO el workflow"

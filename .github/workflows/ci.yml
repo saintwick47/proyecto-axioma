@@ -161,23 +161,24 @@ jobs:
   # crear los accesos directos del menú Inicio y del Escritorio, llegar al Ollama del equipo y abrir el
   # navegador. Está anotado en DECISIONES.md (D-10).
   # ══════════════════════════════════════════════════════════════════════════════════════════════
+  # ⚠️ MEDIDO el 2026-10-06: la primera versión de este trabajo usaba una matriz y
+  # `shell: ${{ matrix.shell }}`. GitHub NO acepta una expresión ahí: el workflow entero no validó, la
+  # corrida quedó ROJA y SIN NINGÚN trabajo (`total_count: 0`, y la corrida se llamaba por el archivo
+  # `.github/workflows/ci.yml` en vez de por su nombre). Se usan dos pasos con `shell` literal.
   instaladores-windows:
-    name: instaladores de Windows (PowerShell ${{ matrix.powershell }})
+    name: instaladores de Windows (PowerShell 5.1 y 7)
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - powershell: "5.1 (el que trae Windows)"
-            shell: powershell
-          - powershell: "7"
-            shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
-      - name: Comprobar los instaladores
-        shell: ${{ matrix.shell }}
+      - name: PowerShell 5.1 (el que trae Windows)
+        shell: powershell
         run: |
-          $ErrorActionPreference = "Continue"   # el guion comprobador maneja sus propios errores
+          & .\tests\probar_instaladores_windows.ps1
+          exit $LASTEXITCODE
+
+      - name: PowerShell 7
+        shell: pwsh
+        run: |
           & .\tests\probar_instaladores_windows.ps1
           exit $LASTEXITCODE
