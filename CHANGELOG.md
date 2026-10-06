@@ -116,8 +116,6 @@ corrigieron los archivos que los generan.
 | Artefacto / superficie | Mostraba | Ahora | Generador corregido |
 |---|---|---|---|
 | `docs/AXIOMA_COMPLETE_CONTEXT.md` (título) | `AXIOMA v0.3.6` | `AXIOMA v0.6.9` | `tools/documentador/axioma_doc_md_generator.py` → `axioma_doc_base.AXIOMA_PROJECT_VERSION` |
-| `docs/STRUCTURE_REPORT.md` (nota de cabecera) | `v0.3.1` (parecía la del proyecto) | `Detector v0.3.2` (etiquetado como herramienta) | `tools/structure_detector.py` |
-| `docs/STRUCTURE_REPORT.md` (versión del detector) | `0.3.0` (código real: 0.3.2) | `0.3.2` (`DETECTOR_VERSION`, fuente única) | `tools/structure_detector.py` |
 | Identidad enviada al modelo | `Eres AXIOMA v0.2.0` | `Eres AXIOMA v0.6.9` | `src/prompts/base_prompts.py` |
 | `GET /api/v1/status` | `"version": "0.2.0"` | `"version": "0.6.9"` | `src/interfaces/web/routes_extended.py` |
 | Banner CLI del documentador | `v4.1.1` / `v3.9.0` / `v3.6` mezclados | `v4.2.1` (`DOCUMENTADOR_VERSION`) | `tools/documentador/*` |
@@ -125,7 +123,6 @@ corrigieron los archivos que los generan.
 - ✅ **Fuente única por artefacto**: la versión del **proyecto** se lee siempre de
   `src/__init__.py` (`src.AXIOMA_VERSION` / `AXIOMA_PROJECT_VERSION`); la del
   **documentador** vive en `axioma_doc_base.DOCUMENTADOR_VERSION` (4.2.1) y la del
-  **detector** en `structure_detector.DETECTOR_VERSION` (0.3.2).
 - ✅ Se conservaron como **históricos** los marcadores de cuándo se implementó
   cada cosa (`✅ v0.3.x`, `CORRECCIONES_en_v3.9.0`) y las métricas antiguas pasan
   a decir `(medido en v0.3.6)` en lugar de aparentar ser actuales.
@@ -937,7 +934,6 @@ cualquier verificación estática previa.
   - `tools/test_autonomous.py`, `tools/test_detect_intent.py`,
     `tools/test_jarvis_mode.py` — 0 tests pytest-collectables, entorno real.
   - `tools/caac_e2e_validation.py` — duplicaba `tests/test_code_contract_e2e.py`.
-  - `tools/run_diagnostic_suite.py` actualizado (`TOOLS_TESTS = []`).
 - ✅ **`tools/detailed_logger.py` v0.2.0** (usado por 59 archivos de src/):
   - Rutas portátiles derivadas de `__file__` (antes hardcodeadas a
     `/ruta/a/axioma`).
@@ -984,7 +980,6 @@ cualquier verificación estática previa.
   - los `symbol_traces` (used_in/call_sites) no se contaminan desde fuentes noise.
   ahora figura en `connected_modules`. Los 12 aislados restantes son CLIs autónomos /
   entry points legítimos (nadie los importa: `Rafael.py`, `ptt_axioma.py`,
-  `run_diagnostic_suite.py`, `run_evals.py`, `security_audit.py`, `system_diagnostic.py`,
   `test_autonomous.py`, `test_detect_intent.py`, `test_handoff_integration.py`).
 - Suite: **254 passed** — sin cambios de comportamiento en runtime (solo análisis del documentador).
 
@@ -1483,7 +1478,6 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 - ✅ **Docs corregidas (info obsoleta):**
   - `src/memory/__init__.py`: "SemanticMemory: ChromaDB" → LanceDB.
   - `src/domain/types.py` docstring: 46→47 tipos (y JARVIS 3→4).
-  - `tools/model_tester.py`: fallback `aletheia-3b:latest` → `qwen3:8b`.
   - `README.md`: links rotos a `docs/ARQUITECTURA.md` y
     `docs/REFERENCIA_ARCHIVOS.md` (no existen) → reemplazados por
     STRUCTURE_REPORT.md y AXIOMA_COMPLETE_CONTEXT.md.
@@ -1621,9 +1615,7 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 - ✅ `README.md` — Documentación completa
 - ✅ `CHANGELOG.md` — Este archivo
 - ✅ `tools/health_checker.py` — Verificación de 10+ componentes
-- ✅ `tools/model_tester.py` — Tests de latencia/capacidad por modelo
 - ✅ `tools/setup_validator.py` — Validación de entorno pre-ejecución
-- ✅ `tools/structure_detector.py` — Detector de estructura del proyecto
 - ✅ `benchmarks/reasoning.py` — Benchmarks reproducibles (seed 42)
 - ✅ `benchmarks/classification.py` — Precisión del router por TaskType
 - ⚪ `setup_structure.py` — Script de configuración (Pendiente)
@@ -1650,7 +1642,6 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 - Configuración centralizada con Pydantic Settings
 - Dominio puro: tipos, entidades, excepciones, contratos
 - Sistema de fases con criterios de aceptación verificables
-- Detector de estructura `tools/structure_detector.py` para progreso
 - Entorno virtual fish-compatible en `venv/`
 - Modelos LLM soportados: llama3.2:3b, qwen2.5-coder:7b, llava:7b, atla/selene-mini:q4_k_m
 - Sistema de memoria en 3 capas (short-term, long-term, semantic)

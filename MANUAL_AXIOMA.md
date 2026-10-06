@@ -161,8 +161,6 @@ python -m pytest tests/            # pytest directo (suite del proyecto)
 AXIOMA_VISION_E2E=1 python -m pytest tests/test_axioma_11_vision_imagenes.py -q   # visión real (requiere Ollama, ~7 min)
 python tools/vision_battery.py     # batería de visión (13 casos sintéticos)
 python tools/log_health_report.py  # health report desde logs (verdicto + anomalías)
-python tools/measure_task_config.py   # modelo y temperatura EFECTIVOS por tarea
-python tools/run_diagnostic_suite.py   # diagnóstico por fases
 python axioma_auditor.py --full    # auditoría + SCORE AXIOMA /100
 python axioma_auditor.py --format json -o logs/audit_summary.json  # resumen para el gate
 python tests/test_audio_diagnostic.py   # Diagnóstico de voz (Rafael)

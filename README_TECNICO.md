@@ -17,7 +17,6 @@
 
 | Documento | Contenido |
 |---|---|
-| [docs/STRUCTURE_REPORT.md](docs/STRUCTURE_REPORT.md) | Listado estructural auto-generado por `tools/structure_detector.py` (v0.3.1, métricas corregidas y verificadas) |
 | [docs/AXIOMA_COMPLETE_CONTEXT.md](docs/AXIOMA_COMPLETE_CONTEXT.md) | Generado por `tools/documentador/` (v1.0.9): modelos reales de `ollama list`, sin fugas ni carpetas externas. ⚠️ Las secciones enriquecidas por IA dependen del modelo usado |
 
 ---
@@ -105,8 +104,6 @@ python main.py --backup               # backup de datos
 
 # Tests
 pytest tests/ -v
-python tools/run_diagnostic_suite.py            # diagnóstico por fases
-python tools/run_diagnostic_suite.py --real     # incluye tests con Ollama
 python tools/log_health_report.py           # health report desde logs (E2; v2 detector: clasificación de errores, anomalías/verdicto, reintentos, reparaciones, delta vs previo)
 
 # Seguridad / auditoría
@@ -115,7 +112,6 @@ python axioma_auditor.py --full --run-tests     # + pytest + SCORE AXIOMA /100
 python axioma_auditor.py --format json -o logs/audit_summary.json   # resumen máquina (lo lee el gate)
 venv/bin/python tools/run_all_tests.py --timeout 150   # suite por archivo + reporte con run_id
 venv/bin/python tools/quality_gate.py           # 13 condiciones de calidad (CI/local)
-venv/bin/python tools/measure_task_config.py    # modelo + temperatura EFECTIVOS por tarea
 python axioma_auditor.py --detectors security_harness   # solo protecciones FASE 1-3
 python axioma_auditor.py --detectors plan_v2_protections # solo protecciones PLAN v2.0
 # axioma_inspector.py fue FUSIONADO en el auditor (v8.3): singletons, asyncio
@@ -169,8 +165,6 @@ python tools/run_evals.py                       # ejecuta tests/dataset_evals.ya
 # Git / commit con seguridad
 
 # Verificación / diagnóstico
-python tools/verify_axioma.py
-python tools/structure_detector.py              # regenera STRUCTURE_REPORT.md
 ```
 
 ---
@@ -231,7 +225,6 @@ test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líne
 (regla R13 — ver `docs/AGENT_GUIDE.md`). Se sumaron el canal de imágenes (visión +
 OCR híbrido, `tests/test_axioma_11_vision_imagenes.py`), calculadora y
 fuentes/citas (hoy dentro de `test_axioma_10_plan_v2.py`) y el health report v2 —
-regenerar estructura con `python tools/structure_detector.py` para métricas
 actualizadas.
 
 ---

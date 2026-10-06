@@ -239,12 +239,7 @@ ls -t logs/axioma_test_report_*.md | head -1
     python -m pytest --help
 
 ════════════════════════════════════════════════════════════════════════════════
-3. 🩺 SUITE DE DIAGNÓSTICO POR FASES (tools/run_diagnostic_suite.py)
 ════════════════════════════════════════════════════════════════════════════════
-python tools/run_diagnostic_suite.py                 # Todas las fases (0-5)
-python tools/run_diagnostic_suite.py --phase 3       # Solo la fase 3 (Agentes)
-python tools/run_diagnostic_suite.py -o MI_REPORTE   # Nombre base del reporte
-python tools/run_diagnostic_suite.py --real          # incluye tests que requieren Ollama corriendo
 # Diagnóstico completo (genera TEST_DIAGNOSTIC_REPORT.md)
 
 Fases:
@@ -298,8 +293,6 @@ python axioma_auditor.py --full --run-tests  # + pytest (test_axioma_*.py) + SCO
 # 🖼️ Batería de visión (canal de imágenes, v0.6.9p):
 #   python tools/vision_battery.py                 # 13 casos sintéticos → logs/vision_battery_*.md
 #   python tools/vision_battery.py --quick         # subconjunto rápido
-#   python tools/vision_real_probe.py --download   # fotos reales (Wikimedia Commons)
-#   python tools/vision_real_probe.py --local CARPETA   # clasifica tus fotos
 #   Tests E2E reales (requiere Ollama + qwen3-vl):
 #   AXIOMA_VISION_E2E=1 python -m pytest tests/test_axioma_11_vision_imagenes.py -q
 # ✅ v0.6.8uu: axioma_auditor.py es ahora un SHIM — la lógica vive en
@@ -337,7 +330,6 @@ Complementario — estructura/score del proyecto:
 # python axioma_auditor.py --full --run-tests   # incluye pytest + SCORE /100
 
 Herramienta de imports de tests:
-python tools/analyze_tests_imports.py      # Verifica que cada test importe
 # módulos/símbolos existentes
 
 Documentos de referencia en logs/:
@@ -360,13 +352,11 @@ python tools/security_audit.py
 ════════════════════════════════════════════════════════════════════════════════
 8. 🤖 MODELOS
 ════════════════════════════════════════════════════════════════════════════════
-python tools/model_tester.py --all
 python tools/warmup_models.py             # Pre-carga modelos en VRAM
 
 ════════════════════════════════════════════════════════════════════════════════
 9. 🧰 HERRAMIENTAS DE DIAGNÓSTICO EN tools/ (relocalizadas desde la raíz)
 ════════════════════════════════════════════════════════════════════════════════
-python tools/network_scanner.py 192.168.1.1 -r 1 1024 -w 200 --retries 2
 # Escáner de red asíncrono: IP objetivo, rango de puertos (-r INICIO FIN),
 # workers (-w), reintentos (--retries), timeout por intento (-t)
 
@@ -389,7 +379,6 @@ python tools/documentador/axioma_doc_main.py
 python tools/documentador/axioma_doc_main.py --validate
 python tools/documentador/axioma_doc_main.py --clear-cache
 python tools/documentador/validate_docs.py
-python tools/structure_detector.py               # regenera STRUCTURE_REPORT.md
 
 ════════════════════════════════════════════════════════════════════════════════
 11. 🔧 GIT + COMMIT
@@ -468,7 +457,6 @@ NODE_OPTIONS="--max-old-space-size=4096" pnpm dsh web / ollama launch dsh
 ════════════════════════════════════════════════════════════════════════════════
 16. ⚠️ NOTAS / ADVERTENCIAS
 ════════════════════════════════════════════════════════════════════════════════
-· tools/test_suite.py NO EXISTE MÁS — reemplazado por pytest + run_diagnostic_suite.py
 #   edición → fallaba "constantemente"). Ahora:
 #   Nunca hace force-push, configura el upstream si falta y da mensajes accionables
 #   para auth/red/rechazo.
@@ -496,7 +484,6 @@ venv/bin/python axioma_auditor.py --format json -o logs/audit_summary.json
 venv/bin/python tools/quality_gate.py                   # 13 condiciones (SCORE, HIGH, detectores, run_id, health)
 venv/bin/python tools/quality_gate.py --no-require-health   # modo CI (sin logs de runtime)
 venv/bin/python tools/log_health_report.py              # health report desde logs
-venv/bin/python tools/measure_task_config.py            # modelo + temperatura efectivos por tarea
 venv/bin/python tools/audit_silent_excepts.py           # inventario de except silenciosos
 #
 # API nueva:

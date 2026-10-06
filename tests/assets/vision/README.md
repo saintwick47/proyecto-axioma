@@ -12,4 +12,3 @@ persona/animal/vehículo/vegetación con el VLM local, sin sesgo de nombre).
 | `vehiculo_01.jpg` | [A Brouhot car in Paris, 1910.jpg](https://commons.wikimedia.org/wiki/File:A_Brouhot_car_in_Paris,_1910.jpg) | Dominio público | Alexandre Louis |
 | `arbol_00.jpg` | [Flame tree mali.jpg](https://commons.wikimedia.org/wiki/File:Flame_tree_mali.jpg) | CC BY 2.0 | Robin Taylor |
 
-Descargadas el 2026-09-08 con `tools/vision_real_probe.py --download`.
