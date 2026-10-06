@@ -18,6 +18,10 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 | **Sistema** | Linux, macOS o Windows con Docker | — |
 | **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop) | — |
 
+En **Windows** hace falta Docker Desktop con **WSL 2**; ahí AXIOMA usa el puerto **8080** y la **voz todavía
+no está disponible** (el chat y los modelos funcionan igual). En **macOS** el instalador todavía se ejecuta
+desde una consola.
+
 Con menos de 16 GB **igual funciona**: AXIOMA te avisa de la restricción concreta. Con una placa de video
 con memoria suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en paralelo** en vez de
 un modelo por vez. **No necesitás** placa dedicada, ni cuentas de pago, ni internet después de bajar los
@@ -30,9 +34,17 @@ modelos.
 1. **Instalá Docker** desde [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
    y abrilo una vez para que arranque.
 2. **Descargá este proyecto**: botón verde **Code → Download ZIP** y descomprimilo.
-3. **Ejecutá el instalador**: doble clic en `instalar/instalar_axioma.sh` (en Linux) o
-   `./instalar/instalar_axioma.sh` desde una consola. Comprueba Docker, arma AXIOMA, deja un **acceso directo
-   en tu menú** y lo enciende.
+3. **Ejecutá el instalador**:
+   - **Linux**: doble clic en `instalar/instalar_axioma.sh` (o `./instalar/instalar_axioma.sh` desde una
+     consola).
+   - **Windows**: clic derecho en `instalar/instalar_axioma.ps1` → **Ejecutar con PowerShell**. Si Windows
+     bloquea el guion, usá
+     `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`. Necesita Docker
+     Desktop con WSL 2.
+   - **macOS**: `./instalar/instalar_axioma.sh` desde una consola.
+
+   Comprueba Docker, arma AXIOMA, deja un **acceso directo en tu menú** (en Windows, también en el
+   Escritorio) y lo enciende.
 4. **Usalo**: cada vez, doble clic en el acceso directo: se enciende y **se abre solo en tu navegador**.
 
 ## El primer arranque

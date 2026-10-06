@@ -120,3 +120,8 @@ activación (`[WakeWord] Escuchando wake word`), sin errores en el lazo de escuc
 
 **Nota**: el widget de escritorio (que corre en tu equipo) se comunica con el demonio por archivos en `/tmp`;
 si querés verlo desde el contenedor, hay que montar `/tmp` (está comentado en el compose, con la advertencia).
+
+**Windows**: el servicio `voz` **no está disponible** ahí. Todo lo que necesita (`/dev/snd`, el socket de
+PulseAudio, los grupos de audio del equipo) es de Linux, y el contenedor de Windows corre sobre WSL 2 con un
+kernel que no expone esos dispositivos. El chat y los modelos funcionan igual; el lanzador de Windows lo
+avisa al instalar.

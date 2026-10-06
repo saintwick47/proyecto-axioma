@@ -8,8 +8,13 @@ búsqueda web, archivos y memoria persistente por usuario.
 
 ## 0. Instalación rápida (con contenedor) — la vía recomendada
 
-1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop)).
+1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop));
+   en **Windows** además **WSL 2**.
 2. Descargar el proyecto y ejecutar **una sola vez** `instalar/instalar_axioma.sh` (doble clic en Linux).
+   En **Windows** es `instalar/instalar_axioma.ps1`:
+   `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`; deja acceso
+   directo en el menú Inicio y en el Escritorio. Ahí el puerto es 8080 fijo (no hay `network_mode: host`)
+   y la voz todavía no está disponible.
 3. De ahí en adelante, **doble clic en el icono «AXIOMA»**: se enciende y se abre en el navegador.
 4. La primera vez, AXIOMA **pide crear tu usuario** (no hay ninguno predefinido) y abre la pantalla
    **🧩 Configurar AXIOMA**, que dice qué falta y lo instala con un clic.

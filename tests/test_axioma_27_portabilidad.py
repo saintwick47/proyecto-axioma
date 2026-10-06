@@ -369,3 +369,175 @@ def test_el_compose_usa_el_ollama_del_equipo_por_defecto():
     assert any("ollama_models" in v for v in propio["volumes"]), (
         "los modelos del Ollama propio van a un volumen (si no, se rebajan en cada arranque)")
     assert "ollama_models" in comp.get("volumes", {}), "falta declarar el volumen de modelos"
+
+
+# ═══════════════════════════════════════════════════════════════
+# FASE 2 — WINDOWS: instalador y lanzador (PowerShell)
+# ═══════════════════════════════════════════════════════════════
+# Medido el 2026-10-05: `command -v pwsh` no devuelve nada en el equipo del autor, así que estos
+# guiones NO se pueden ejecutar desde acá. Lo que sigue comprueba lo que sí es comprobable sin
+# Windows: que existan, que usen el perfil «puente» (en Windows `network_mode: host` no funciona),
+# que los perfiles y servicios que nombran existan en `docker-compose.yml`, que la sintaxis esté
+# balanceada, que el texto sea UTF-8 CON BOM (PowerShell 5.1 lee ANSI si no y los acentos salen
+# mal), que no lleven emoji (la consola CP850 los imprime como «?») y que no nombren la carpeta
+# del autor. La prueba en un Windows real queda pendiente y está anotada en el manual.
+_GUIONES_WINDOWS = ("instalar_axioma.ps1", "iniciar_axioma.ps1")
+
+
+def _codigo_ps1(texto: str) -> str:
+    """El guion sin las líneas de comentario.
+
+    Las comprobaciones de comportamiento se hacen sobre esto y no sobre el archivo entero:
+    medido con una mutación —al renombrar `[switch]$Detener` quedaba el «-Detener» del comentario
+    de uso y la prueba seguía pasando, o sea que no comprobaba nada—.
+    """
+    return "\n".join(ln for ln in texto.splitlines() if not ln.lstrip().startswith("#"))
+
+
+def _ps1_balanceado(texto: str) -> bool:
+    """Paréntesis, llaves y corchetes balanceados, ignorando comentarios y textos.
+
+    Se prueba a sí misma en la prueba que la usa (con un texto roto a propósito): un verificador
+    que nunca falla no verifica nada.
+    """
+    pares = {")": "(", "}": "{", "]": "["}
+    pila = []
+    i = 0
+    while i < len(texto):
+        c = texto[i]
+        if c == "`":                       # escape de PowerShell: se saltea el siguiente carácter
+            i += 2
+            continue
+        if c == "#":                       # comentario hasta el fin de línea
+            while i < len(texto) and texto[i] != "\n":
+                i += 1
+            continue
+        if c in "'\"":
+            cierre = c
+            i += 1
+            while i < len(texto):
+                if texto[i] == "`" and cierre == '"':   # `" dentro de comillas dobles
+                    i += 2
+                    continue
+                if texto[i] == cierre:
+                    if cierre == "'" and i + 1 < len(texto) and texto[i + 1] == "'":
+                        i += 2                      # en comillas simples se escapa duplicando
+                        continue
+                    break
+                i += 1
+            i += 1
+            continue
+        if c in "({[":
+            pila.append(c)
+        elif c in pares:
+            if not pila or pila.pop() != pares[c]:
+                return False
+        i += 1
+    return not pila
+
+
+@_sin_empaquetado
+def test_los_guiones_de_windows_estan_en_utf8_con_bom_y_sin_emoji():
+    for nombre in _GUIONES_WINDOWS:
+        ruta = PROJECT_ROOT / "instalar" / nombre
+        assert ruta.exists(), f"falta instalar/{nombre} (el usuario de Windows no tiene launcher)"
+        crudo = ruta.read_bytes()
+        assert crudo.startswith(b"\xef\xbb\xbf"), (
+            f"{nombre} tiene que empezar con BOM: sin BOM, PowerShell 5.1 lo lee como ANSI "
+            "y los acentos salen mal")
+        texto = crudo.decode("utf-8-sig")
+        # Permitido: latin-1 (acentos, «»), tipografía (guiones largos) y los recuadros de los
+        # títulos (U+2500–U+257F, los mismos que usan los guiones de Linux). Lo que queda afuera
+        # son justamente los emoji de los guiones de Linux (✅ ⚠ ❌), que la consola de Windows
+        # (CP850/CP437) imprime como «?»: por eso los de Windows usan [OK] / [!] / [X].
+        permitido = [(0x0000, 0x00FF), (0x2000, 0x206F), (0x2500, 0x257F)]
+        raros = sorted({ch for ch in texto
+                        if not any(a <= ord(ch) <= b for a, b in permitido)})
+        assert raros == [], (
+            f"{nombre} usa {raros}: la consola de Windows (CP850/CP437) los imprime como «?»")
+        assert "/usuario" not in texto and "saintwick" not in texto.lower(), (
+            f"{nombre} nombra al autor")
+
+
+@_sin_empaquetado
+def test_los_guiones_de_windows_nombran_perfiles_y_servicios_que_existen():
+    """En Windows `network_mode: host` no está disponible: el camino es el perfil «puente»."""
+    import re
+    import yaml
+    comp = yaml.safe_load((PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    perfiles = {p for s in comp["services"].values() for p in (s.get("profiles") or [])}
+    for nombre in _GUIONES_WINDOWS:
+        texto = (PROJECT_ROOT / "instalar" / nombre).read_bytes().decode("utf-8-sig")
+        usados = set(re.findall(r"--profile\s+([A-Za-z0-9_-]+)", texto))
+        assert usados <= perfiles, (
+            f"{nombre} usa perfiles que no existen en docker-compose.yml: {usados - perfiles}")
+        # Se miran sólo las líneas que se ejecutan: los comentarios SÍ pueden (y deben) explicar
+        # por qué en Windows no se usa `network_mode: host`.
+        codigo = _codigo_ps1(texto)
+        assert "network_mode" not in codigo, (
+            f"{nombre} no debe tocar `network_mode`: eso es de compose, no del guion")
+    # El que elige el perfil es el lanzador: el instalador sólo arma la imagen y lo llama.
+    lanzador = (PROJECT_ROOT / "instalar" / "iniciar_axioma.ps1").read_bytes().decode("utf-8-sig")
+    usados = set(re.findall(r"--profile\s+([A-Za-z0-9_-]+)", lanzador))
+    assert "puente" in usados, "el lanzador tiene que usar el perfil «puente» en Windows"
+    assert "ollama-local" in usados, "tiene que poder levantar el Ollama propio (perfil ollama-local)"
+
+
+@_sin_empaquetado
+def test_el_lanzador_de_windows_hace_lo_mismo_que_el_de_linux():
+    texto = _codigo_ps1((PROJECT_ROOT / "instalar" / "iniciar_axioma.ps1").read_bytes().decode("utf-8-sig"))
+    # 1) comprueba Docker y, si falta, lo explica (el de Linux sale con el mismo código 4)
+    assert "docker info" in texto and "exit 4" in texto, "no comprueba Docker antes de arrancar"
+    assert "docker-desktop" in texto, "si falta Docker tiene que decir de dónde bajarlo"
+    # 2) decide solo entre el Ollama del equipo y el que trae AXIOMA (misma decisión que Linux)
+    assert "/api/tags" in texto and "11434" in texto, "no busca el Ollama del equipo"
+    assert "ollama-local" in texto, "no sabe levantar el Ollama propio si no hay ninguno"
+    # 3) espera a que responda y abre el navegador
+    assert "Start-Process $Url" in texto, "no abre el navegador al terminar"
+    # 3.b) nombra el servicio UNO POR UNO. Medido en Linux el 2026-10-06: `--profile puente` a secas
+    #      levanta TAMBIÉN `axioma` (no tiene perfil, arranca siempre), que usa la red del equipo:
+    #      los dos pelean por el 8080 y `axioma` queda en bucle de reinicios. En Windows esa red no
+    #      existe, así que nombrar el servicio no es un detalle de estilo.
+    assert '"axioma-puente"' in texto and "up -d @servicios" in texto, (
+        "tiene que arrancar sólo axioma-puente (y ollama si hace falta), no todo el perfil")
+    # 4) apagado y ensayo, igual que el guion de Linux (se busca el interruptor Y su uso: si no,
+    #    renombrarlo deja la prueba pasando con el comportamiento borrado)
+    for interruptor in ("$Detener", "$Ensayo"):
+        assert f"[switch]{interruptor}" in texto, f"falta el interruptor {interruptor}"
+        assert f"if ({interruptor})" in texto, f"el interruptor {interruptor} no se usa para nada"
+    # 5) los llamados a Docker, protegidos. En PowerShell 7.4+ `$PSNativeCommandUseErrorActionPreference`
+    #    viene en $true: un `docker info` que falla LANZA excepción y, como el guion usa
+    #    `$ErrorActionPreference = "Stop"`, se cortaría en vez de decir qué falta.
+    assert "try { & docker info *> $null } catch { return $false }" in texto, \
+        "Probar-Docker tiene que proteger el llamado a Docker (PowerShell 7.4+)"
+    assert "catch { $encendido = $false }" in texto, \
+        "encender tiene que tratar el error de Docker como falla propia, no como excepción suelta"
+    # Estos NO pueden aparecer ni en los comentarios: son de Linux.
+    completo = (PROJECT_ROOT / "instalar" / "iniciar_axioma.ps1").read_bytes().decode("utf-8-sig")
+    for ajeno in ("xdg-open", "/dev/snd", "#!/usr/bin/env"):
+        assert ajeno not in completo, f"{ajeno} es de Linux y no va en el guion de Windows"
+
+
+@_sin_empaquetado
+def test_el_instalador_de_windows_deja_acceso_directo_y_sintaxis_balanceada():
+    texto = _codigo_ps1((PROJECT_ROOT / "instalar" / "instalar_axioma.ps1").read_bytes().decode("utf-8-sig"))
+    assert "docker compose build" in texto, "el instalador tiene que armar la imagen"
+    assert "iniciar_axioma.ps1" in texto, "el acceso directo tiene que arrancar AXIOMA"
+    assert "WScript.Shell" in texto, "los accesos directos se crean con WScript.Shell"
+    assert "Programs" in texto and "Desktop" in texto, "tiene que dejar acceso en menú Inicio y Escritorio"
+    # Windows recién instalado trae la ejecución de guiones deshabilitada: el acceso directo
+    # (y el mensaje de error) tienen que decir cómo saltearla.
+    assert "-ExecutionPolicy Bypass" in texto, "el acceso directo no podría ejecutarse"
+    # Los llamados a Docker, protegidos (ver el motivo en la prueba del lanzador).
+    assert "try { & docker info *> $null } catch { $hayDocker = $false }" in texto, \
+        "el chequeo de Docker tiene que protegerse (PowerShell 7.4+)"
+    assert "catch { $armado = $false }" in texto, \
+        "armar la imagen tiene que tratar el error de Docker como falla propia"
+    for nombre in _GUIONES_WINDOWS:
+        crudo = (PROJECT_ROOT / "instalar" / nombre).read_bytes().decode("utf-8-sig")
+        assert _ps1_balanceado(crudo), f"{nombre} tiene paréntesis o llaves sin cerrar"
+    # El verificador tiene que saber decir que NO (si no, la comprobación de arriba no vale nada):
+    assert not _ps1_balanceado("Write-Host 'ok'\nif ($true) {\n"), "el verificador no detecta una llave sin cerrar"
+    assert not _ps1_balanceado("Write-Host \"texto\" )\n"), "el verificador no detecta un paréntesis de más"
+    assert _ps1_balanceado("Write-Host \"un `\" entre comillas)\"  # ) suelto en un comentario"), (
+        "el verificador se confunde con los escapes y los comentarios")

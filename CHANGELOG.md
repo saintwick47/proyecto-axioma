@@ -12,6 +12,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   con la suite completa corriendo **dentro** de la imagen (una imagen que no pasa las pruebas no se publica).
 - **Lanzador de doble clic**: `instalar/instalar_axioma.sh` (una sola vez) y `instalar/iniciar_axioma.sh`
   (cada vez). Decide solo si usar el **Ollama del equipo** o levantar el que viene con AXIOMA.
+- **Windows**: `instalar/instalar_axioma.ps1` y `instalar/iniciar_axioma.ps1` (PowerShell) hacen lo mismo
+  que los de Linux y dejan acceso directo en el menú Inicio y en el Escritorio. Ahí no existe
+  `network_mode: host`, así que usan el servicio `axioma-puente` (perfil `puente`, puerto 8080 y
+  `host.docker.internal` para llegar al Ollama del equipo). La **voz** todavía no está disponible en
+  Windows. Los guiones están cubiertos por pruebas de estructura (BOM para PowerShell 5.1, sintaxis
+  balanceada, perfiles que existen, sin emoji por la consola CP850), pero **todavía no se probaron en un
+  Windows real** (en el equipo del autor no hay ninguno, medido: `command -v pwsh` no devuelve nada).
+
 - **Primer arranque guiado**: la pantalla **"Configurar AXIOMA"** se abre sola la primera vez, explica qué
   falta y lo instala con un clic (con avance real y botón DETENER).
 - **Carga guiada de claves** (`python -m src.core.apikeys`): cada persona carga las suyas; el archivo queda
@@ -29,6 +37,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   `MANUAL_AXIOMA.md`, `MANUAL_RAFAEL.md`) están actualizados a la instalación con contenedores.
 
 ### Corregido
+- **El perfil `puente` arrancaba de más** (encontrado al probar el camino de Windows): medido el
+  2026-10-06, `docker compose --profile puente up -d` levanta **también** el servicio `axioma` (no tiene
+  perfil, arranca siempre). Como ése usa la red del equipo, los dos pelean por el 8080 y `axioma` queda en
+  **bucle de reinicios** (verificado: pasó a `Restarting` mientras `axioma-puente` atendía el 8080). Ahora
+  el lanzador nombra el servicio —`up -d axioma-puente`, y `ollama` si hace falta— y hay prueba que lo exige.
 - Rutas absolutas del autor, `.env` relativo a la carpeta de trabajo, ruta del modelo de voz y del
 - El chequeo del entorno ya no dice "listo" cuando falta Ollama o un modelo (explica qué falta y sale con 4).
 - El registro del CLI no se cae en los caminos de error; el paquete CLI ya no recursa al importarlo.

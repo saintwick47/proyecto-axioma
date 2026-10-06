@@ -64,7 +64,12 @@ services:
       start_period: 40s
 
   # ── Alternativa para Docker Desktop (macOS/Windows), donde la red del equipo no funciona igual ──
-  # Se usa con:  docker compose --profile puente up -d
+  # Se usa NOMBRANDO EL SERVICIO:  docker compose --profile puente up -d axioma-puente
+  # (y `... axioma-puente ollama` si además hay que levantar el Ollama propio).
+  # OJO, medido el 2026-10-06: `docker compose --profile puente up -d` a secas levanta TAMBIÉN el
+  # servicio `axioma`, que no tiene perfil y arranca siempre. Como ése usa `network_mode: host`, los
+  # dos pelean por el puerto 8080 y `axioma` queda en bucle de reinicios (y en Windows esa red no
+  # existe). Por eso el lanzador de Windows nombra el servicio.
   axioma-puente:
     build:
       context: .

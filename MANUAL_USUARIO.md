@@ -26,6 +26,8 @@ Tres cosas importantes:
 | **Espacio en disco**: unos 15 GB libres | En Windows: Explorador → Este equipo. En Linux: `df -h` | AXIOMA te dirá cuánto falta antes de descargar |
 
 Y necesitás **Docker**, que es el programa que hace funcionar AXIOMA sin que tengas que instalar nada raro.
+En Windows, Docker Desktop necesita además **WSL 2** (una consola de administrador y `wsl --install`): si te
+falta, el instalador mismo te lo dice.
 
 ---
 
@@ -55,9 +57,23 @@ Y necesitás **Docker**, que es el programa que hace funcionar AXIOMA sin que te
 Dentro de la carpeta `proyecto-axioma` hay una carpeta **`instalar`**. Ahí está el instalador.
 
 - **Linux**: hacé **doble clic** en `instalar_axioma.sh` y elegí **Ejecutar**.
-- **Windows o macOS**: por ahora hay que abrir una consola dentro de esa carpeta y escribir
+- **Windows**: `instalar_axioma.ps1` **no se puede** ejecutar con doble clic (Windows bloquea los guiones
+  recién bajados). Hacé esto, que es una sola vez:
+  1. Abrí la carpeta `instalar`, hacé **clic derecho** en `instalar_axioma.ps1` y elegí
+     **Ejecutar con PowerShell**.
+  2. Si Windows dice que *"la ejecución de scripts está deshabilitada"*, abrí **PowerShell** en la carpeta
+     `proyecto-axioma` (clic derecho dentro de la carpeta → *Abrir en Terminal*) y pegá esto:
+     ```powershell
+     powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1
+     ```
+  3. Al terminar te deja un **acceso directo «AXIOMA»** en el menú Inicio y en el Escritorio: después
+     arrancás con doble clic ahí, sin tocar más la consola.
+- **macOS**: por ahora hay que abrir una consola dentro de esa carpeta y escribir
   `./instalar/instalar_axioma.sh` (la consola es una ventana de texto; el comando se copia y se pega, y
   Enter).
+
+> En Windows, AXIOMA usa el puerto **8080** (ahí no se puede cambiar) y la **voz todavía no está
+> disponible**: el chat y los modelos funcionan igual.
 
 Vas a ver cómo avanza:
 
@@ -150,7 +166,8 @@ docker compose --profile voz stop voz      # apagarla
 
 ## 8. Apagarlo y volver a usarlo
 
-- **Apagar**: doble clic otra vez en el lanzador (o `./instalar/iniciar_axioma.sh --detener`).
+- **Apagar**: doble clic otra vez en el lanzador (en Linux `./instalar/iniciar_axioma.sh --detener`, en
+  Windows `.\instalar\iniciar_axioma.ps1 -Detener`).
 - **Volver a usar**: doble clic en el icono «AXIOMA». Los modelos y tus conversaciones quedan guardados, no
   se bajan de nuevo.
 
@@ -162,6 +179,8 @@ docker compose --profile voz stop voz      # apagarla
 |---|---|
 | "No tenés Docker instalado" | Instalá Docker Desktop (paso 1) y volvé a intentar |
 | "Docker está instalado pero no responde" | Abrí Docker Desktop y esperá a que diga que está en ejecución |
+| Docker Desktop no arranca en Windows | Necesita WSL 2: en una consola **de administrador** escribí `wsl --install` y reiniciá |
+| "la ejecución de scripts está deshabilitada" (Windows) | Usá la forma larga del paso 3: `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1` |
 | "No encontré Ollama… levanto el que viene con AXIOMA" | Es normal: AXIOMA se encarga solo |
 | El navegador no se abre | Entrá a mano a **http://127.0.0.1:8080** |
 | "El puerto 8080 está ocupado" | Cerrá el programa que lo usa, o usá otro puerto: `AXIOMA_PUERTO=8090 ./instalar/iniciar_axioma.sh` |

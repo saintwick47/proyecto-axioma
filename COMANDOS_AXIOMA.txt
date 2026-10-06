@@ -25,6 +25,25 @@ No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CL
     viene con AXIOMA (perfil `ollama-local`, modelos en un volumen).
   · Puerto distinto:  AXIOMA_PUERTO=8090 ./instalar/iniciar_axioma.sh
 
+WINDOWS (PowerShell; hace falta Docker Desktop con WSL 2). Los mismos guiones, con otros nombres:
+
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1   # UNA VEZ
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\iniciar_axioma.ps1   # cada vez
+  .\instalar\iniciar_axioma.ps1 -Detener      # apagar todo
+  .\instalar\iniciar_axioma.ps1 -Ensayo       # ver qué haría, sin tocar nada
+
+  · El instalador deja un acceso directo «AXIOMA» en el menú Inicio y en el Escritorio (así no
+    hace falta abrir PowerShell nunca más).
+  · En Windows NO se usa `network_mode: host` (no existe ahí): va el servicio `axioma-puente`
+    (perfil `puente`, publica el 8080 y llega al Ollama del equipo por `host.docker.internal`).
+    Consecuencia: el puerto es 8080 fijo y la VOZ todavía no está disponible en Windows.
+  · El servicio se nombra UNO POR UNO: `docker compose --profile puente up -d axioma-puente`
+    (`... axioma-puente ollama` si además hay que levantar el Ollama propio). Medido el
+    2026-10-06: sin nombrarlo, `--profile puente` levanta ADEMÁS `axioma`, que usa la red del
+    equipo; los dos pelean por el 8080 y `axioma` queda en bucle de reinicios.
+  · Pendiente: los guiones de Windows están escritos y cubiertos por pruebas de estructura, pero
+    TODAVÍA NO se probaron en un Windows real (no había ninguno a mano).
+
 Contenedor (Docker Compose):
 
   docker compose up -d --build        # encender (armando la imagen)
