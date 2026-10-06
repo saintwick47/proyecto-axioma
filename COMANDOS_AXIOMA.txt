@@ -390,6 +390,17 @@ git log --oneline -10
 git diff
 
 
+# ── PUBLICAR UNA ACTUALIZACIÓN EN EL REPOSITORIO PÚBLICO (una sola orden) ────────────────────────
+# .git/info/exclude). Hace el flujo completo, EN ESTE ORDEN:
+#   1. mira qué cambió de verdad (y compara funciones/clases con el commit anterior)
+#   2. si no hay cambios reales, se detiene sin commitear (un cambio de sólo comentarios en un .py
+#      tampoco cuenta; en documentación o configuración, sí)
+#   3. COMPILA LOS CONTENEDORES antes de commitear y comprueba que la imagen levante
+#   4. documenta el cambio en data/registros_publicacion/ y arma el mensaje del commit
+#   6. arma la copia pública (preparar_publicacion.sh) y la sube a proyecto-axioma
+#   7. espera al CI de GitHub Actions y avisa VERDE o ROJO (rojo = sale con error 1)
+
+
 ════════════════════════════════════════════════════════════════════════════════
 12. 🌐 WEB SERVER
 ════════════════════════════════════════════════════════════════════════════════
