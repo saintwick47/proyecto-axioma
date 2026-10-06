@@ -373,6 +373,11 @@ def instalar_faltantes(pre: Preflight, cliente: Any, on_progress: Optional[Calla
         modelo = str(requisito.datos["modelo"])
         inicio = _time.time()
         try:
+            # NOTA (auditoría AUD-FT-001: «timeout fijo», MEDIUM, 2026-10-06): es a propósito y NO
+            # depende del hardware. Este plazo es de RED (bajar los GB del modelo), no de cómputo: en
+            # una PC potente una descarga lenta seguiría siendo lenta, y en una modesta un enlace rápido
+            # sigue siendo rápido. `hardware_fit` no aporta nada acá; el usuario ve el avance real y
+            # puede cortar con DETENER, que además cancela de verdad (`token`).
             cliente.pull_model(modelo, timeout=timeout, on_progress=on_progress, token=token)
         except GeneracionCancelada:
             resultados.append(Descarga(modelo, requisito.clave, "cancelado",
@@ -475,6 +480,11 @@ class TrabajoDeDescarga:
         self._token = TokenCancelacion()
         self._inicio = _time.time()
         self._estado = "descargando"
+        # NOTA (auditoría AUD-FF-001: «thread fire-and-forget», MEDIUM, 2026-10-06): es a propósito.
+        # No es un camino caliente: se crea UN hilo por descarga pedida a mano (no por petición ni por
+        # evento), el objeto es de UN solo uso (`iniciar()` devuelve `self` si ya hay hilo) y `detener()`
+        # lo corta. El hilo muere solo al terminar la descarga y, por ser `daemon`, no impide cerrar el
+        # programa. Un pool no aporta: la descarga la hace el cliente HTTP con su propio avance por cola.
         self._hilo = threading.Thread(target=self._correr, name=f"descarga-{self.identificador}",
                                       daemon=True)
         self._hilo.start()
