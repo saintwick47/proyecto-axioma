@@ -147,3 +147,37 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+  # INSTALADORES DE WINDOWS — se prueban en un Windows REAL (runner `windows-latest`).
+  # Por qué existe: en el equipo del autor no hay Windows (`command -v pwsh` no devuelve nada), así que
+  # los guiones de Windows sólo tenían pruebas de ESTRUCTURA (leer el archivo y comparar texto). Acá se
+  # EJECUTAN, y con los dos PowerShell que puede tener un usuario: el 5.1 que trae Windows y el 7.
+  #   · Sin BOM, PowerShell 5.1 lee el archivo como ANSI y los acentos salen mal
+  #   · En PowerShell 7.4+ un comando que falla LANZA excepción (por eso los guiones protegen los
+  #     llamados a Docker; acá se ve si la protección alcanza)
+  #   · Sin Docker, el guion tiene que explicar en castellano qué falta y salir con 4 (no quedarse mudo)
+  # Lo que NO cubre (necesita una PC con Windows y Docker Desktop, a mano): armar la imagen de verdad,
+  # crear los accesos directos del menú Inicio y del Escritorio, llegar al Ollama del equipo y abrir el
+  # navegador. Está anotado en DECISIONES.md (D-10).
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+  instaladores-windows:
+    name: instaladores de Windows (PowerShell ${{ matrix.powershell }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - powershell: "5.1 (el que trae Windows)"
+            shell: powershell
+          - powershell: "7"
+            shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar los instaladores
+        shell: ${{ matrix.shell }}
+        run: |
+          $ErrorActionPreference = "Continue"   # el guion comprobador maneja sus propios errores
+          & .\tests\probar_instaladores_windows.ps1
+          exit $LASTEXITCODE

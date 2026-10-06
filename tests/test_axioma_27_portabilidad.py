@@ -681,3 +681,34 @@ def test_la_orden_recomendar_y_la_orden_modelo_contestan_bien(capsys):
     assert codigo == 4, "un modelo que no entra tiene que salir con 4"
     assert evaluacion["modelo"] == "llama3:70b"
     assert evaluacion["nivel"] in ("no_fit", "marginal", "too_tight", "desconocido"), evaluacion
+
+
+@_sin_empaquetado
+def test_el_ci_prueba_los_instaladores_en_un_windows_de_verdad():
+    """En el equipo del autor no hay Windows, así que la prueba REAL tiene que vivir en el CI.
+
+    El comprobador (`tests/probar_instaladores_windows.ps1`) corre en un runner `windows-latest` con
+    PowerShell 5.1 y con PowerShell 7. Acá se vigila que exista, que tenga los mismos cuidados que los
+    guiones (BOM: sin él, PowerShell 5.1 lee ANSI y los acentos salen mal) y que el CI lo siga llamando
+    con los dos intérpretes.
+    """
+    comprobador = PROJECT_ROOT / "tests" / "probar_instaladores_windows.ps1"
+    assert comprobador.exists(), "falta el comprobador que corre el CI en Windows"
+    crudo = comprobador.read_bytes()
+    assert crudo.startswith(b"\xef\xbb\xbf"), "el comprobador también necesita BOM"
+    texto = crudo.decode("utf-8-sig")
+    permitido = [(0x0000, 0x00FF), (0x2000, 0x206F), (0x2500, 0x257F)]
+    raros = sorted({ch for ch in texto if not any(a <= ord(ch) <= b for a, b in permitido)})
+    assert raros == [], f"el comprobador usa {raros}: la consola de Windows los imprime mal"
+    # Tiene que ejecutar los guiones de verdad (no sólo leerlos).
+    assert 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File' in texto, \
+        "el comprobador tiene que ejecutar los guiones como lo hace el acceso directo"
+    for esperado in ("-Ensayo", "Docker Desktop no está disponible", "axioma-puente"):
+        assert esperado in texto, f"el comprobador no comprueba: {esperado}"
+
+    ci = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "instaladores-windows" in ci and "windows-latest" in ci, \
+        "el CI dejó de probar los instaladores de Windows en un Windows real"
+    assert "probar_instaladores_windows.ps1" in ci, "el trabajo de Windows no llama al comprobador"
+    for interprete in ("shell: powershell", "shell: pwsh"):
+        assert interprete in ci, f"el CI no prueba con «{interprete}» (5.1 y 7 son los que hay en la calle)"
