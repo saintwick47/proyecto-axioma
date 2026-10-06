@@ -25,6 +25,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - **Carga guiada de claves** (`python -m src.core.apikeys`): cada persona carga las suyas; el archivo queda
   con permisos sólo para su usuario y **nunca se muestran los valores**.
 - **Preflight** (`python -m src.core.preflight`): informa qué le falta al equipo, con el motivo y el remedio.
+- **¿Qué modelo me conviene?** (`preflight --recomendar`): con el hardware medido dice, **rol por rol**,
+  qué modelo conviene y **por qué** («entra con margen», «entra justo», «no entra»), cuánto ocupa, dónde
+  corre y cómo se instala. `preflight --modelo NOMBRE` contesta por **un** modelo puntual, aunque no esté
+  en el catálogo. Respeta el **mínimo medido** del proyecto (9 GB): por debajo, no promete que algo «entra
+  justo» cuando en la práctica no anda.
 - **Memoria por niveles** (9 GB mínimo · 16 GB recomendado · 24-32 GB ideal) y **detección de placa de video**.
 - **Modo de trabajo en paralelo**: con placa suficiente, el modelo más pesado vive en la placa y el otro en
   memoria (no se descarga al cambiar de tarea).

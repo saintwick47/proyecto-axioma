@@ -1,7 +1,9 @@
 # 🧠 AXIOMA — Sistema Multi-Agente de IA Local-First
 
 > **Autor:** `saintwick` · **Repositorio:** [github.com/saintwick47/axioma](https://github.com/saintwick47/axioma)
-> **Documentación verificada:** 2026-09-08 (lectura directa del código fuente + suites pytest; ver [STRUCTURE_REPORT.md](docs/STRUCTURE_REPORT.md) y [AXIOMA_COMPLETE_CONTEXT.md](docs/AXIOMA_COMPLETE_CONTEXT.md))
+> **Documentación verificada:** 2026-10-06 (código fuente + suite completa + compuerta de calidad)
+>
+> **Para quien instala** (sin saber programar): [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) · **decisiones y
 
 **AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
 
@@ -9,7 +11,7 @@
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | 314 commits · `main` · tags `v0.0.8`, `v0.1.1` | MIT | Linux / Python 3.10+ | Ollama (local) | 314 |
+| 🟢 En desarrollo activo | 451 commits · `main` · tags `v0.0.8`, `v0.1.1` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.12 (contenedor) | Ollama (local) | 451 |
 
 ---
 
@@ -51,14 +53,28 @@ Dispatcher ───────────────────────
 
 ---
 
-## 🤖 Modelos configurados (fuente: `config/settings.py` + `config/models.yaml`)
+## 🤖 Modelos (fuente única: `config/model_catalog.yaml`)
 
-| Rol | Modelo |
-|---|---|
-| Chat general (default) | `qwen3:8b` |
-| Código + fallback 1 | `qwen2.5-coder:7b` |
-| Visión (VLM) | `qwen3-vl:4b` |
-| Embeddings | `BAAI/bge-m3` |
+Esta es la lista **real**: los mismos modelos que usa `config/settings.py`, los que el preflight
+comprueba y los que ocupan disco. Los tamaños son **medidos** (`ollama list` + el archivo del modelo de
+voz), no estimados; la prueba de coherencia del catálogo falla si un rol apunta a un modelo que no está
+declarado.
+
+| Rol | Modelo | Disco | RAM en uso | ¿Obligatorio? | Para qué |
+|---|---|---|---|---|---|
+| Chat general (default) | `qwen3:8b` | 4,87 GB | 6,67 GB | **sí** | conversar y razonar |
+| Código | `qwen2.5-coder:7b` | 4,68 GB | 5,80 GB | **sí** | generar, revisar y corregir código |
+| Respaldo de código | `huihui_ai/qwen2.5-coder-abliterate:7b` | 4,68 GB | 5,80 GB | no | cuando el de código se **niega** en prosa ante pedidos legítimos de laboratorio (en código común rinde menos: por eso es respaldo) |
+| Visión (VLM) | `qwen3-vl:4b` | 3,30 GB | 3,30 GB | no | leer imágenes; medido: **0 %** en tareas de código |
+| Voz (TTS) | `piper:es_AR-daniela-high` | 0,11 GB | 0,10 GB | no | hablar sin internet (`data/piper/es_AR-daniela-high.onnx`); si falta, cae a `edge-tts` |
+| Embeddings | `BAAI/bge-m3` (sentence-transformers) | — | — | sí | memoria semántica (LanceDB); no es de Ollama, se baja sola la primera vez |
+
+**Total medido en disco**: 17,6 GB con todo (los dos obligatorios son 9,6 GB); el contenedor suma 5,58 GB.
+Con eso se entiende el «~15 GB libres» del manual: alcanza para la aplicación + los obligatorios.
+
+**¿Entra en tu PC?** No hace falta calcularlo a mano: `python -m src.core.preflight` dice qué falta y por
+qué, y la pantalla **🧩 Configurar AXIOMA** tiene la comprobación **«¿Este modelo va a andar en mi PC?»**,
+que también evalúa un modelo **que no esté en el catálogo**.
 
 `llm_judge_model` y `llm_fallback_2` están desactivados; el juez externo fue eliminado — la validación de respuestas la hace el `ValidatorAgent` local (single-pass).
 

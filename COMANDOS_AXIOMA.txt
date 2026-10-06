@@ -58,6 +58,11 @@ Contenedor (Docker Compose):
   docker compose exec axioma python -m src.core.preflight          # informe legible
   docker compose exec axioma python -m src.core.preflight --json   # para programas
   docker compose exec axioma python -m src.core.preflight --instalar        # baja lo que falta
+  docker compose exec axioma python -m src.core.preflight --recomendar      # qué modelo TE conviene,
+                                                                           # rol por rol y por qué
+  docker compose exec axioma python -m src.core.preflight --modelo qwen3:8b  # ¿va a andar ESE modelo?
+                                                                           # (sirve para uno que NO
+                                                                           #  esté en el catálogo)
   docker compose exec axioma python -m src.core.preflight --instalar --todo # incluye opcionales
 
 Tus claves de API (son TUYAS: nunca viajan en la imagen)

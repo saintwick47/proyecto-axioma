@@ -587,3 +587,97 @@ def test_requirements_ci_es_requirements_menos_lo_documentado():
         "omisión acá y en el encabezado de requirements-ci.txt)")
     distintas = {n: (completo[n], ci[n]) for n in set(ci) if completo[n] != ci[n]}
     assert distintas == {}, f"misma dependencia con dos versiones: {distintas}"
+
+
+# ═══════════════════════════════════════════════════════════════
+# RECOMENDAR UN MODELO SEGÚN EL EQUIPO (pendiente D-16 de `DECISIONES.md`)
+# ═══════════════════════════════════════════════════════════════
+# El pedido del usuario: que alguien que no sabe de modelos reciba una respuesta clara —«con tu equipo,
+# usá estos; este otro no te va a andar, y por esto»—. Se prueba con HARDWARE SIMULADO: si se probara con
+# el equipo real, la prueba diría cosas distintas según la máquina donde corra (y en el CI no hay Ollama).
+
+def _hw_simulado(ram_gb=32.0, placa=False, vram_gb=0.0):
+    from types import SimpleNamespace
+    return SimpleNamespace(ram_gb=ram_gb, gpu_vram_gb=vram_gb, cpu_threads=8, backend="cpu",
+                           is_gpu_available=placa, effective_budget_gb=vram_gb * 0.88 if placa else 1.0,
+                           gpu_name="simulada" if placa else None)
+
+
+def test_recomendar_cubre_todos_los_roles_del_catalogo():
+    """Si el catálogo agrega un rol, la recomendación no puede olvidarlo."""
+    from config.model_catalog import cargar_catalogo
+    from src.core.preflight import recomendar
+    catalogo = cargar_catalogo()
+    datos = recomendar(_hw_simulado(ram_gb=32.0))
+    roles = [f["rol"] for f in datos["recomendaciones"]]
+    assert set(roles) == set(catalogo.por_rol), f"faltan roles en la recomendación: {roles}"
+    for fila in datos["recomendaciones"]:
+        assert fila["modelo"] == catalogo.por_rol[fila["rol"]], fila
+        assert fila["veredicto"] and isinstance(fila["entra"], bool) and fila["para"], fila
+        # Cómo se instala: los de Ollama con `ollama pull`; el de voz (piper) se baja a data/piper/.
+        assert fila["instalar"].strip(), fila
+        if catalogo.modelo_de_rol(fila["rol"]).tipo == "ollama":
+            assert fila["instalar"].startswith("ollama pull"), fila
+    # Los obligatorios van primero: son los que deciden si AXIOMA puede arrancar.
+    assert [f["obligatorio"] for f in datos["recomendaciones"]] == sorted(
+        [f["obligatorio"] for f in datos["recomendaciones"]], reverse=True)
+    assert datos["nivel_de_memoria"] == "ideal", datos["nivel_de_memoria"]
+
+
+def test_recomendar_respeta_el_minimo_medido_del_proyecto():
+    """Medido: por debajo de 9 GB no entra el modelo de conversación (catálogo, decisión D-05).
+
+    La cuenta por nombre de parámetros es gruesa y puede decir «entra justo»: manda el mínimo medido,
+    no la estimación. Sin esto, un equipo de 8 GB recibía un «sí, pero justo» que en la práctica no anda.
+    """
+    from config.model_catalog import cargar_catalogo
+    from src.core.preflight import recomendar
+    minimo = cargar_catalogo().hardware.ram_para_funcionar_gb
+    datos = recomendar(_hw_simulado(ram_gb=minimo - 1))
+    assert datos["nivel_de_memoria"] == "no_alcanza", datos["nivel_de_memoria"]
+    obligatorios = {f["modelo"] for f in datos["recomendaciones"] if f["obligatorio"]}
+    assert set(datos["obligatorios_que_no_entran"]) == obligatorios, (
+        "con menos memoria que el mínimo, los modelos obligatorios tienen que quedar marcados")
+    for fila in datos["recomendaciones"]:
+        if fila["obligatorio"]:
+            assert "mínimo medido" in fila["aviso"], fila
+            assert fila["entra"] is False, fila
+    # Y con el mínimo justo, ya no se marca: la frontera se respeta en los dos sentidos.
+    datos_ok = recomendar(_hw_simulado(ram_gb=minimo))
+    assert datos_ok["nivel_de_memoria"] != "no_alcanza", datos_ok["nivel_de_memoria"]
+
+
+def test_el_catalogo_no_deja_texto_crudo_a_la_vista():
+    """Medido el 2026-10-06: el texto del respaldo estaba escrito como concatenación de Python
+    (`para: ("…" "…")`), que en YAML no existe: la pantalla mostraba los paréntesis y las comillas.
+    """
+    import yaml
+    crudo = (PROJECT_ROOT / "config" / "model_catalog.yaml").read_text(encoding="utf-8")
+    for linea in crudo.splitlines():
+        limpia = linea.strip()
+        if limpia.startswith(("para:", "si_falta:")):
+            valor = limpia.split(":", 1)[1].strip()
+            assert not valor.startswith(('("', "('")), f"texto crudo en el catálogo: {limpia}"
+    datos = yaml.safe_load(crudo)
+    for nombre, modelo in datos["modelos"].items():
+        for campo in ("para", "si_falta"):
+            texto = str(modelo[campo])
+            assert '" "' not in texto and not texto.startswith(('("', "('")), (
+                f"'{nombre}': {campo} quedó con comillas y paréntesis a la vista: {texto!r}")
+
+
+def test_la_orden_recomendar_y_la_orden_modelo_contestan_bien(capsys):
+    """Las dos formas de preguntar desde la consola, con `--json` (lo que usa un instalador)."""
+    import json as _json
+    from src.core import preflight
+
+    assert preflight.main(["--recomendar", "--json"]) in (0, 4)
+    datos = _json.loads(capsys.readouterr().out)
+    assert datos["recomendaciones"] and "nivel_de_memoria" in datos and "nota" in datos
+
+    # Un modelo que NO está en el catálogo y no entra en ninguna PC de este mundo.
+    codigo = preflight.main(["--modelo", "llama3:70b", "--json"])
+    evaluacion = _json.loads(capsys.readouterr().out)
+    assert codigo == 4, "un modelo que no entra tiene que salir con 4"
+    assert evaluacion["modelo"] == "llama3:70b"
+    assert evaluacion["nivel"] in ("no_fit", "marginal", "too_tight", "desconocido"), evaluacion

@@ -31,7 +31,12 @@ suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en par
 
 - **Python** 3.10+ (el proyecto usa 3.14).
 - **Ollama** corriendo en `127.0.0.1:11434` con los modelos:
-  - `qwen3:8b` (chat/default) · `qwen2.5-coder:7b` (código) · `qwen3-vl:4b` (visión)
+  - `qwen3:8b` (chat/default, 4,87 GB) · `qwen2.5-coder:7b` (código, 4,68 GB)
+  - `huihui_ai/qwen2.5-coder-abliterate:7b` (respaldo de código, 4,68 GB) · `qwen3-vl:4b`
+    (visión, 3,30 GB) · `piper:es_AR-daniela-high` (voz, 0,11 GB)
+  - Fuente única de esta lista: `config/model_catalog.yaml` (tamaños **medidos**). Para saber qué
+    conviene en tu equipo: `python -m src.core.preflight --recomendar` (y `--modelo NOMBRE` para
+    consultar uno que no esté en el catálogo)
   - `BAAI/bge-m3` (embeddings — se carga localmente vía sentence-transformers,
     **no** hace falta en Ollama).
 - **Tesseract** (opcional, mejora el OCR de texto en imágenes):

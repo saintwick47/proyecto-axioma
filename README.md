@@ -14,7 +14,7 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 | | Mínimo | Recomendado |
 |---|---|---|
 | **Memoria (RAM)** | 9 GB (funciona con restricciones) | **16 GB** (bien) · **24-32 GB** (ideal) |
-| **Disco libre** | ~15 GB para los modelos | 25 GB |
+| **Disco libre** | ~15 GB (la aplicación ~5,6 GB + los dos modelos que hacen falta ~9,6 GB) | 25 GB (con los opcionales) |
 | **Sistema** | Linux, macOS o Windows con Docker | — |
 | **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop) | — |
 
@@ -46,6 +46,23 @@ modelos.
    Comprueba Docker, arma AXIOMA, deja un **acceso directo en tu menú** (en Windows, también en el
    Escritorio) y lo enciende.
 4. **Usalo**: cada vez, doble clic en el acceso directo: se enciende y **se abre solo en tu navegador**.
+
+## ¿Qué se descarga?
+
+Sólo lo necesario, y **vos elegís**: AXIOMA te dice cuánto ocupa cada cosa **antes** de bajarla, con el
+avance a la vista y un botón **DETENER**.
+
+| Rol | Cuánto ocupa | ¿Hace falta? |
+|---|---|---|
+| Conversar y razonar | ~5 GB | **sí** (sin esto no puede responder) |
+| Programar (generar y revisar código) | ~4,7 GB | **sí** (las tareas de código fallan sin él; el chat sigue andando) |
+| Leer imágenes | ~3,3 GB | no (opcional) |
+| Respaldo de código | ~4,7 GB | no (opcional) |
+| Voz (hablar) | ~0,1 GB | no (opcional) |
+
+Los modelos son **abiertos y gratuitos**, quedan guardados en tu equipo y no se vuelven a bajar en cada
+arranque. **Cuál conviene** según tu memoria RAM lo decide AXIOMA solo; si querés saber si **otro** modelo
+que tengas en mente va a andar en tu PC, la pantalla **🧩 Configurar AXIOMA** tiene esa comprobación.
 
 ## El primer arranque
 

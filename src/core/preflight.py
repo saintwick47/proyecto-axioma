@@ -682,6 +682,124 @@ def evaluar_modelo_en_la_pc(nombre: str, hw: Any = None) -> Dict[str, Any]:
     return salida
 
 
+_NIVEL_MEMORIA = {
+    "no_alcanza": "❌ por debajo del mínimo: no entra el modelo de conversación",
+    "restringido": "⚠️ funciona, con restricciones (16 GB es el nivel recomendado)",
+    "bien": "✅ funciona bien",
+    "ideal": "✅ ideal",
+    "desconocido": "❔ no pude medir la memoria del equipo",
+}
+
+
+def recomendar(hw: Any = None) -> Dict[str, Any]:
+    """¿QUÉ modelo me conviene en ESTE equipo? Rol por rol, con el motivo (pedido del usuario).
+
+    Es el pendiente D-16: que alguien que no sabe de modelos reciba una respuesta clara. No inventa nada
+    nuevo: usa el catálogo medido (`config/model_catalog.yaml`) y la misma evaluación que la pantalla 🧩
+    (`evaluar_modelo_en_la_pc`), que además sabe estimar un modelo **que no esté en el catálogo**.
+    """
+    from config.model_catalog import cargar_catalogo
+    catalogo = cargar_catalogo()
+    if hw is None:
+        try:
+            from src.core.hardware_fit import detect_hardware
+            hw = detect_hardware()
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[recomendar] no se pudo detectar el hardware: {e}")
+            hw = None
+    ram_gb = float(getattr(hw, "ram_gb", 0) or 0)
+    nivel = catalogo.hardware.nivel(ram_gb)
+
+    filas: List[Dict[str, Any]] = []
+    no_entran_obligatorios: List[str] = []
+    for rol, nombre in catalogo.por_rol.items():
+        modelo = catalogo.modelo_de_rol(rol)
+        if modelo is None:                       # la prueba de coherencia del catálogo ya lo impide
+            continue
+        evaluacion = evaluar_modelo_en_la_pc(modelo.nombre, hw)
+        entra = evaluacion.get("nivel") not in ("no_fit", "desconocido")
+        aviso_minimo = ""
+        if nivel == "no_alcanza" and modelo.obligatorio:
+            # La cuenta por nombre de parámetros es gruesa y puede decir «entra justo» en un equipo que
+            # el proyecto ya midió como insuficiente: manda el mínimo medido (D-05), no la estimación.
+            entra = False
+            aviso_minimo = (f"Tu equipo está por debajo del mínimo medido para funcionar "
+                            f"({catalogo.hardware.ram_para_funcionar_gb:g} GB de memoria): no lo instales")
+        filas.append({
+            "rol": rol,
+            "modelo": modelo.nombre,
+            "obligatorio": modelo.obligatorio,
+            "para": modelo.para,
+            "disco_gb": modelo.disco_gb,
+            "entra": entra,
+            "nivel": evaluacion.get("nivel", "desconocido"),
+            "veredicto": evaluacion.get("veredicto", "❔"),
+            "detalle": evaluacion.get("detalle", ""),
+            "donde": evaluacion.get("donde", ""),
+            "instalar": modelo.instalar,
+            "si_falta": modelo.si_falta,
+            "instalado": bool(evaluacion.get("instalado")),
+            "aviso": aviso_minimo or evaluacion.get("aviso", ""),
+        })
+        if modelo.obligatorio and not entra:
+            no_entran_obligatorios.append(modelo.nombre)
+
+    # Los obligatorios primero (son los que deciden si AXIOMA arranca), después los demás.
+    filas.sort(key=lambda f: (not f["obligatorio"], f["rol"]))
+    return {
+        "ram_gb": round(ram_gb, 1),
+        "nivel_de_memoria": nivel,
+        "nivel_de_memoria_texto": _NIVEL_MEMORIA.get(nivel, nivel),
+        "recomendaciones": filas,
+        "obligatorios_que_no_entran": no_entran_obligatorios,
+        "espacio_obligatorios_gb": round(catalogo.espacio_para_descargar_gb(catalogo.obligatorios()), 2),
+        "nota": ("Los tamaños y la memoria son valores MEDIDOS del catálogo del proyecto; si un modelo "
+                 "no está descargado, la respuesta se estima y se avisa."),
+    }
+
+
+def informe_de_recomendacion(datos: Dict[str, Any]) -> str:
+    """El informe legible de `recomendar()` (lo que ve la persona, sin jerga)."""
+    lineas = ["", "AXIOMA — ¿qué modelo me conviene en este equipo?", "=" * 58,
+              f"Tu equipo: {datos['ram_gb']} GB de memoria — {datos['nivel_de_memoria_texto']}"]
+    if datos["obligatorios_que_no_entran"]:
+        lineas += ["", f"❌ OJO: no entra lo que AXIOMA necesita para arrancar: "
+                       f"{', '.join(datos['obligatorios_que_no_entran'])}"]
+    lineas += ["", f"Para empezar hacen falta {datos['espacio_obligatorios_gb']} GB LIBRES en disco "
+                   "(modelos obligatorios, con margen).", ""]
+    for fila in datos["recomendaciones"]:
+        etiqueta = "obligatorio" if fila["obligatorio"] else "opcional"
+        lineas.append(f"{fila['veredicto']}  {fila['modelo']}  —  {etiqueta} · rol: {fila['rol']}")
+        lineas.append(f"      para qué: {fila['para']}")
+        if fila["detalle"]:
+            lineas.append(f"      {fila['detalle']}")
+        if fila["donde"]:
+            lineas.append(f"      corre {fila['donde']}")
+        lineas.append("      ya está descargado ✅" if fila["instalado"]
+                      else f"      falta descargarlo: {fila['instalar']}")
+        if not fila["entra"]:
+            lineas.append(f"      si falta: {fila['si_falta']}")
+        if fila["aviso"]:
+            lineas.append(f"      ⚠️ {fila['aviso']}")
+        lineas.append("")
+    lineas.append(f"Nota: {datos['nota']}")
+    return "\n".join(lineas)
+
+
+def informe_de_modelo(evaluacion: Dict[str, Any]) -> str:
+    """Informe legible de `evaluar_modelo_en_la_pc()`, para consultar UN modelo (aunque no esté en el catálogo)."""
+    lineas = ["", f"AXIOMA — ¿va a andar {evaluacion.get('modelo') or '(sin nombre)'} en este equipo?",
+              "=" * 58, str(evaluacion.get("veredicto", ""))]
+    for clave, etiqueta in (("detalle", "detalle"), ("donde", "dónde corre"),
+                            ("memoria_gb", "memoria estimada (GB)"), ("velocidad_tps", "velocidad (tokens/s)")):
+        if evaluacion.get(clave):
+            lineas.append(f"  {etiqueta}: {evaluacion[clave]}")
+    if evaluacion.get("aviso"):
+        lineas.append(f"  ⚠️ {evaluacion['aviso']}")
+    return "\n".join(lineas)
+
+
+
 def informe(pre: Preflight) -> str:
     """Informe legible (lo que ve el usuario)."""
     lineas = ["", "AXIOMA — ¿qué hace falta para funcionar?", "=" * 58]
@@ -701,14 +819,28 @@ def main(argv: Optional[List[str]] = None) -> int:
     """Línea de órdenes.
 
     Opciones:
-        --json       salida para la interfaz o un instalador
-        --instalar   baja lo que falta (por defecto sólo los modelos obligatorios)
-        --todo       con --instalar, incluye también los opcionales (respaldo, visión, voz)
+        --json        salida para la interfaz o un instalador
+        --instalar    baja lo que falta (por defecto sólo los modelos obligatorios)
+        --todo        con --instalar, incluye también los opcionales (respaldo, visión, voz)
+        --recomendar  qué modelo conviene en ESTE equipo, rol por rol, y por qué
+        --modelo NOMBRE  ¿va a andar ESE modelo acá? (sirve para uno que no esté en el catálogo)
 
     Devuelve 0 si puede responder y 4 si le falta algo (`ISSUE-146`); con `--instalar`,
     0 sólo si después de bajar todo puede responder.
     """
     args = list(sys.argv[1:] if argv is None else argv)
+    if "--recomendar" in args:
+        datos = recomendar()
+        print(json.dumps(datos, ensure_ascii=False, indent=2) if "--json" in args
+              else informe_de_recomendacion(datos))
+        return 4 if datos["obligatorios_que_no_entran"] else 0
+    if "--modelo" in args:
+        posicion = args.index("--modelo")
+        nombre = args[posicion + 1] if len(args) > posicion + 1 else ""
+        evaluacion = evaluar_modelo_en_la_pc(nombre)
+        print(json.dumps(evaluacion, ensure_ascii=False, indent=2) if "--json" in args
+              else informe_de_modelo(evaluacion))
+        return 4 if evaluacion.get("nivel") in ("no_fit", "desconocido") else 0
     pre = revisar()
     if "--json" in args and "--instalar" not in args:
         print(json.dumps(pre.como_dict(), ensure_ascii=False, indent=2))

@@ -88,8 +88,12 @@ modelos:
     tipo: ollama
     disco_gb: 4.68
     ram_gb: 5.80
-    para: ("respaldo cuando el modelo de código se NIEGA en prosa (censura) en pedidos "
-           "legítimos de laboratorio; en código común rinde menos, por eso es respaldo")
+    # `>-` (bloque plegado): en YAML la concatenación de dos textos entre comillas NO existe; si se
+    # escribe así, el valor sale con los paréntesis y las comillas a la vista en la pantalla y en el
+    # preflight (medido el 2026-10-06). Con `>-` el texto queda en una sola línea limpia.
+    para: >-
+      respaldo cuando el modelo de código se NIEGA en prosa (censura) en pedidos legítimos de
+      laboratorio; en código común rinde menos, por eso es respaldo
     si_falta: "ante una negativa del de código se avisa en vez de reintentar"
     instalar: "ollama pull huihui_ai/qwen2.5-coder-abliterate:7b"
 
