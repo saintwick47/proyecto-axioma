@@ -79,7 +79,15 @@ if $DRY; then
 fi
 cd "$RAIZ"
 # shellcheck disable=SC2086  # PERFIL puede ir vacío a propósito
-docker compose ${PERFIL} up -d
+# El código de salida se MIRA (como en el guion de Windows): sin esto, `set -e` cortaba el guion con el
+# error crudo de Docker y la persona no sabía que hacer. Medido el 2026-10-06: pasa cuando ya hay otro
+# AXIOMA andando (el nombre del contenedor está en uso) o cuando el motor de Docker no está sano.
+if ! docker compose ${PERFIL} up -d; then
+  mal "Docker no pudo encender AXIOMA (el motivo está en las líneas de arriba)."
+  echo "     Lo más común: ya hay un AXIOMA andando (mirá con:  docker ps) o Docker no está sano."
+  echo "     Para ver el detalle:  docker compose logs --tail 40 axioma"
+  exit 4
+fi
 ok "Contenedores encendidos"
 
 # ── 3. Esperar y abrir el navegador ─────────────────────────────────────────

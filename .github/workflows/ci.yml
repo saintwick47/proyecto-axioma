@@ -256,6 +256,22 @@ jobs:
           echo "$salida"
           [ "$codigo" -eq 2 ] || { echo "❌ aceptó un interruptor que no existe (salió $codigo, se esperaba 2)"; fallo=1; }
 
+          echo "▶ si Docker falla al encender, tiene que EXPLICARLO (no morir con el error crudo)"
+          # Se le pone un `docker` falso adelante en el PATH: contesta bien a `info` y falla en
+          # `compose up`, como cuando ya hay otro AXIOMA andando. Es una prueba real del camino de
+          # error, sin tocar ningún contenedor.
+          falso=$(mktemp -d)
+          printf '#!/bin/sh\ncase "$*" in\n  "info"*) exit 0 ;;\n  *compose*up*) echo "Conflict. The container name /axioma is already in use" >&2; exit 1 ;;\n  *) exit 0 ;;\nesac\n' > "$falso/docker"
+          chmod +x "$falso/docker"
+          salida=$(PATH="$falso:$PATH" bash instalar/iniciar_axioma.sh 2>&1); codigo=$?
+          echo "$salida"
+          if [ "$codigo" -eq 4 ] && grep -q "Docker no pudo encender AXIOMA" <<<"$salida"; then
+            echo "   ✅ falla con 4 y dice qué mirar"
+          else
+            echo "❌ se esperaba código 4 con la explicación (salió $codigo)"; fallo=1
+          fi
+          rm -rf "$falso"
+
           if [ "$fallo" -eq 0 ]; then
             echo "✅ los instaladores de Linux arrancan y explican lo que harían"
           fi

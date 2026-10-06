@@ -764,5 +764,12 @@ def test_el_ci_ejecuta_los_instaladores_de_linux():
     for guion in ("instalar/instalar_axioma.sh --dry-run", "iniciar_axioma.sh --dry-run"):
         assert guion in ci, f"el CI no ejecuta: {guion}"
     for comprobacion in ("docker compose build", "abriría http://127.0.0.1:8080",
-                         "Ya tenés Ollama|Levanto el Ollama"):
+                         "Ya tenés Ollama|Levanto el Ollama",
+                         "Docker no pudo encender AXIOMA"):   # el camino de error, con un docker falso
         assert comprobacion in ci, f"el CI no comprueba: {comprobacion}"
+
+    # Y el lanzador de Linux tiene que MIRAR el código de Docker, como el de Windows: si el contenedor
+    # ya existe (u otro problema), hay que explicarlo, no morir con el error crudo de Docker.
+    lanzador = (PROJECT_ROOT / "instalar" / "iniciar_axioma.sh").read_text(encoding="utf-8")
+    assert "if ! docker compose" in lanzador, "el lanzador de Linux no comprueba si Docker pudo encender"
+    assert "Docker no pudo encender AXIOMA" in lanzador, "no explica el fallo en castellano"
