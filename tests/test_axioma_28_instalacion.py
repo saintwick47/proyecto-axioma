@@ -671,14 +671,22 @@ def test_el_servicio_de_voz_esta_listo_para_el_contenedor():
 # tenga que usar la terminal para instalar nada". El lanzador decide solo si usa el Ollama del equipo
 # o levanta el que viene con AXIOMA. Se prueba la DECISIÓN con `--dry-run` y falsos en el PATH.
 
-def _lanzador_con(tmp_path, docker_ok=True, ollama_en_el_equipo=False):
-    """Corre el lanzador en modo ensayo con `docker` y `curl` falsos."""
+def _lanzador_con(tmp_path, docker_ok=True, ollama_en_el_equipo=False, audio_gid=None):
+    """Corre el lanzador en modo ensayo con `docker` y `curl` falsos.
+
+    Con `audio_gid` se simula el grupo `audio` de OTRA distribución (Debian/Ubuntu 29, Fedora 63):
+    el lanzador tiene que usar el del equipo, no un número fijo.
+    """
     import subprocess
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     (bin_dir / "docker").write_text("#!/bin/sh\nexit %d\n" % (0 if docker_ok else 1), encoding="utf-8")
     (bin_dir / "curl").write_text("#!/bin/sh\nexit %d\n" % (0 if ollama_en_el_equipo else 1),
                                   encoding="utf-8")
+    if audio_gid is not None:
+        (bin_dir / "getent").write_text(
+            '#!/bin/sh\n[ "$1" = "group" ] && echo "audio:x:%s:"\nexit 0\n' % audio_gid,
+            encoding="utf-8")
     for f in bin_dir.iterdir():
         f.chmod(0o755)
     entorno = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)}
@@ -880,3 +888,30 @@ def test_la_pantalla_ofrece_el_chequeo_de_modelo():
     assert "_seccion_chequeo_de_modelo()" in fuente, "la pantalla no muestra el chequeo"
     seccion = inspect.getsource(pantalla._seccion_chequeo_de_modelo)
     assert "evaluar_modelo_en_la_pc" in seccion and "Revisar" in seccion, seccion
+
+
+def test_el_lanzador_usa_el_grupo_de_audio_del_equipo(tmp_path):
+    """Medido el 2026-10-07: el compose tenía 996 fijo, y el grupo `audio` NO es el mismo en todas las
+    distribuciones (Debian/Ubuntu 29 · Fedora 63 · Arch 996). Con el número fijo, la voz no ve los
+    dispositivos y el motivo no se entiende.
+    """
+    salida = _lanzador_con(tmp_path, audio_gid=29)          # como en Debian/Ubuntu
+    assert salida.returncode == 0, (salida.returncode, salida.stdout)
+    assert "grupo audio 29" in salida.stdout, salida.stdout
+    assert "grupo audio 996" not in salida.stdout, "usó el valor fijo en vez del del equipo"
+
+
+def test_el_compose_no_tiene_uid_ni_gid_de_audio_fijos():
+    """El socket del servidor de sonido lleva el UID (`/run/user/<UID>/pulse`): 1000 fijo falla si tu
+    usuario tiene otro UID (medido). Y el grupo de audio entra por `AXIOMA_AUDIO_GID`.
+    """
+    crudo = (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    codigo = "\n".join(l for l in crudo.splitlines() if not l.lstrip().startswith("#"))
+    assert "/run/user/1000" not in codigo, "quedó el UID 1000 fijo en el compose"
+    assert "/run/user/${AXIOMA_UID:-1000}" in codigo, "el socket tiene que usar el UID del equipo"
+    assert "${AXIOMA_AUDIO_GID:-996}" in codigo, "el grupo de audio tiene que venir del equipo"
+    # Y los dos guiones que arrancan AXIOMA tienen que calcularlos.
+    for guion in ("instalar/iniciar_axioma.sh", "instalar/instalar_axioma.sh"):
+        fuente = (PROJECT_ROOT / guion).read_text(encoding="utf-8")
+        for calculo in ("AXIOMA_UID=\"$(id -u)\"", "getent group audio", "export AXIOMA_AUDIO_GID"):
+            assert calculo in fuente, f"{guion} no calcula {calculo}"

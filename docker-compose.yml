@@ -129,7 +129,10 @@ services:
     devices:
       - /dev/snd                     # el micrófono y los altavoces del equipo
     group_add:
-      - "${AXIOMA_AUDIO_GID:-996}"   # el gid del grupo `audio` del equipo (id -g audio)
+      # El gid del grupo `audio` del equipo. NO es el mismo en todas las distribuciones (medido:
+      # Debian/Ubuntu 29 · Fedora 63 · Arch/CachyOS 996), y el lanzador lo calcula y lo pasa; el 996
+      # queda sólo como último recurso. A mano:  AXIOMA_AUDIO_GID=$(getent group audio | cut -d: -f3)
+      - "${AXIOMA_AUDIO_GID:-996}"
     environment:
       AXIOMA_RAFAEL_DIRECTO: "1"     # sin systemd (ISSUE-150)
       # El equipo usa `pulse` (complemento de ALSA de PulseAudio), que NO existe dentro del
@@ -139,7 +142,9 @@ services:
       OLLAMA_HOST: "http://${AXIOMA_OLLAMA_HOST:-127.0.0.1:11434}"
       AXIOMA_USER_ID: "${AXIOMA_USER_ID:-}"
       # El servidor de sonido del equipo, por su socket
-      PULSE_SERVER: "unix:/run/user/1000/pulse/native"
+      # ✅ 2026-10-07: el UID del equipo, no 1000 fijo. Medido: con un UID distinto, el socket no
+      # existe y la voz no arranca aunque los dispositivos estén bien.
+      PULSE_SERVER: "unix:/run/user/${AXIOMA_UID:-1000}/pulse/native"
     volumes:
       - ./data:/app/data
       # ✅ Registros PROPIOS del servicio de voz: van a `data/registros_voz/` en el equipo, no a
@@ -151,7 +156,7 @@ services:
       # El servidor de sonido del equipo (PipeWire/PulseAudio): es la vía que FUNCIONA para
       # capturar (medido: abrir la placa directo da "Invalid sample rate"). Ajustá el 1000 si tu
       # usuario tiene otro id (`id -u`).
-      - /run/user/1000/pulse:/run/user/1000/pulse
+      - /run/user/${AXIOMA_UID:-1000}/pulse:/run/user/${AXIOMA_UID:-1000}/pulse
       # - /tmp:/tmp                   # para que el widget de escritorio lo vea
     command: ["python", "Rafael.py", "--mode", "jarvis", "--directo"]
     # Sin chequeo de salud: es un demonio de voz (no hay endpoint que consultar). Se ve en los

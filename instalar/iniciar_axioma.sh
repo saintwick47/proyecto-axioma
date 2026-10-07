@@ -71,6 +71,19 @@ else
   ok "Levanto el Ollama que viene con AXIOMA (los modelos quedan guardados en un volumen)."
 fi
 
+# ── Los datos del equipo para el audio (UID, GID y grupo `audio`) ───────────
+# Medido el 2026-10-07: el compose tenía 996 fijo para el grupo de audio y `/run/user/1000` para el
+# socket del servidor de sonido. En Debian/Ubuntu el grupo `audio` es 29 y en Fedora 63; y si tu UID no
+# es 1000 el socket no existe. Con esos valores fijos la voz no ve los dispositivos y el motivo no se
+# entiende. Se calculan acá y se exportan: el compose los toma con `${AXIOMA_...}`.
+# (El instalador calcula los mismos tres valores: son dos guiones sueltos y NO comparten código a
+#  propósito, para que cada uno se pueda leer y ejecutar solo.)
+AXIOMA_UID="$(id -u)"; export AXIOMA_UID
+AXIOMA_GID="$(id -g)"; export AXIOMA_GID
+AXIOMA_AUDIO_GID="$(getent group audio 2>/dev/null | cut -d: -f3 || true)"
+AXIOMA_AUDIO_GID="${AXIOMA_AUDIO_GID:-996}"; export AXIOMA_AUDIO_GID
+ok "Audio del equipo: UID ${AXIOMA_UID} · GID ${AXIOMA_GID} · grupo audio ${AXIOMA_AUDIO_GID}"
+
 paso "Encendiendo AXIOMA"
 if $DRY; then
   echo "  (ensayo) cd $RAIZ && docker compose ${PERFIL} up -d"
