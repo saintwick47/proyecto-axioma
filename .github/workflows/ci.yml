@@ -58,6 +58,12 @@ jobs:
       # v0.6.9n: libs de sistema que los tests necesitan (audio/multimodal):
       # sounddevice requiere PortAudio (no trae la lib) y soundfile libsndfile.
       - name: Instalar librerías de sistema (audio)
+        # ✅ 2026-10-07: medido — un `apt-get` colgado hizo que GitHub CANCELARA el trabajo entero; el
+        # paso prometía tolerar fallas, pero sólo toleraba que el comando devolviera error, no que se
+        # quedara colgado. Con el límite de tiempo y `continue-on-error`, el peor caso es quedarse sin
+        # las librerías de audio (y los tests de voz se saltean solos), nunca perder la corrida.
+        timeout-minutes: 5
+        continue-on-error: true
         # ✅ ISSUE-149: si el espejo de paquetes falla (pasa seguido), este paso tumbaba TODOS los
         # siguientes y el error visible era un FileNotFoundError del portero. Ahora avisa y sigue:
         # los tests de audio se degradan solos si falta la librería (verificado: 10 se saltean).

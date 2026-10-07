@@ -266,15 +266,20 @@ def evaluate(audit: Dict[str, Any], tests: Dict[str, Any],
             n = counts.get(det)
             if n is None:
                 res.checks.append(Check(f"detector {det}", False,
-                                        "detector ausente del reporte"))
+                                        "detector ausente: ¿corrió la auditoría? (paso «Auditoría»)"))
             else:
                 res.checks.append(Check(f"detector {det} == 0", n == 0,
                                         f"{det}={n}"))
 
     # 4) Suite de tests: veredicto + exitstatus REAL
     if not tests.get("path"):
+        # Medido el 2026-10-07: una corrida del CI se CANCELÓ en el paso de librerías de sistema, la
+        # suite no llegó a correr, y el portero —que tiene `if: always()`— falló diciendo «sin reporte
+        # consolidado», que no explica nada. El fallo es correcto (sin suite no se puede certificar),
+        # pero el mensaje tiene que decir POR QUÉ puede faltar el reporte.
         res.checks.append(Check("suite completa PASS", False,
-                                "sin reporte consolidado de tests"))
+                                "no hay reporte de la suite: o no corrió, o el paso se canceló antes "
+                                "(mirá el paso «Suite de tests» del CI)"))
     else:
         worst = tests.get("worst_exitstatus")
         res.checks.append(Check(

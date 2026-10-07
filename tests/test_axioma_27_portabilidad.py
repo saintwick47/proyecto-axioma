@@ -773,3 +773,24 @@ def test_el_ci_ejecuta_los_instaladores_de_linux():
     lanzador = (PROJECT_ROOT / "instalar" / "iniciar_axioma.sh").read_text(encoding="utf-8")
     assert "if ! docker compose" in lanzador, "el lanzador de Linux no comprueba si Docker pudo encender"
     assert "Docker no pudo encender AXIOMA" in lanzador, "no explica el fallo en castellano"
+
+
+@_sin_empaquetado
+def test_el_paso_de_librerias_de_audio_no_puede_tumbar_la_corrida():
+    """Medido el 2026-10-07: un `apt-get` colgado hizo que GitHub **cancelara** el trabajo; el paso
+    prometía tolerar fallas, pero sólo toleraba que el comando devolviera error, no que se colgara.
+    Y como el portero corre con `if: always()`, falló después diciendo «sin reporte consolidado», que no
+    explica nada. Ahora el paso tiene límite de tiempo y `continue-on-error`, y el mensaje del portero
+    dice que el reporte puede faltar porque se canceló el paso.
+    """
+    ci = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    bloque = ci.split("Instalar librerías de sistema (audio)", 1)
+    assert len(bloque) == 2, "el paso de librerías de audio desapareció del CI"
+    encabezado = bloque[1].split("run:", 1)[0]
+    assert "timeout-minutes:" in encabezado, "el paso puede volver a colgarse y tumbar la corrida"
+    assert "continue-on-error: true" in encabezado, \
+        "si el paso se pasa de tiempo, la corrida entera no puede perderse"
+
+    portero = (PROJECT_ROOT / "tools" / "quality_gate.py").read_text(encoding="utf-8")
+    assert "o el paso se canceló antes" in portero, \
+        "el portero tiene que explicar por qué puede faltar el reporte de la suite"
