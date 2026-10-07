@@ -82,6 +82,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from config.settings import settings
 from config.paths import Paths
+from .sesion_segura import secreto_de_sesion   # ✅ 2026-10-07: secreto de sesión por equipo
 
 # ═══════════════════════════════════════════════════════════════
 # ✅ CORREGIDO: MOUNT FASTAPI ROUTER
@@ -512,7 +513,7 @@ class WebServer:
                 show=False,         # ✅ Evita doble apertura (solo webbrowser.open controla)
                 title='AXIOMA v0.1.0',
                 favicon=favicon_option,  # ✅ Path absoluto o None, NO '/static/logo.png'
-                storage_secret='axioma_secret_key_change_in_production',
+                storage_secret=secreto_de_sesion(),      # ✅ 2026-10-07: secreto propio del equipo
                 reconnect_timeout=300,   # ✅ FIX: 300s para aguantar LLM calls lentos sin desconectar
             )
 

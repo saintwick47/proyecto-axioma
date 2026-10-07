@@ -29,6 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config.paths import Paths
+from .sesion_segura import secreto_de_sesion   # ✅ secreto de sesión por equipo
 from src.domain.entities import Message
 # ✅ v0.1.6b: Import no utilizado eliminado
 from src.interfaces.components.chat import ChatComponent
@@ -1119,7 +1120,7 @@ def start_server(
         show=False,
         title='AXIOMA v0.1.8',
         favicon=favicon,
-        storage_secret='axioma_secret_key_change_in_production',
+        storage_secret=secreto_de_sesion(),      # ✅ 2026-10-07: secreto propio del equipo
         reconnect_timeout=300
     )
 

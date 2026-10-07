@@ -23,6 +23,12 @@ No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CL
 
   · Decide solo el Ollama: si el equipo ya tiene uno andando, usa ese; si no, levanta el que
     viene con AXIOMA (perfil `ollama-local`, modelos en un volumen).
+  · La interfaz escucha SÓLO en este equipo (127.0.0.1), no en la red local. Para exponerla A
+    PROPÓSITO (sabe lo que implica: no hay autenticación):
+        AXIOMA_WEB_HOST=0.0.0.0 docker compose up -d
+  · La clave con la que se firman las sesiones es propia de cada equipo: se genera sola la primera
+    vez en `data/.storage_secret` (permisos 600). Si querés gestionarla vos:
+        AXIOMA_STORAGE_SECRET=<64 caracteres> docker compose up -d
   · Puerto distinto:  AXIOMA_PUERTO=8090 ./instalar/iniciar_axioma.sh
 
 WINDOWS (PowerShell; hace falta Docker Desktop con WSL 2). Los mismos guiones, con otros nombres:

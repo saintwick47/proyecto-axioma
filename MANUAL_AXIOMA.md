@@ -8,6 +8,10 @@ búsqueda web, archivos y memoria persistente por usuario.
 
 ## 0. Instalación rápida (con contenedor) — la vía recomendada
 
+0. **La interfaz queda en tu equipo**: AXIOMA escucha en `127.0.0.1:8080` por defecto (no en la red
+   local) y la clave de las sesiones es propia de tu equipo (`data/.storage_secret`, permisos 600).
+   Para exponerlo a la red local hay que pedirlo a propósito: `AXIOMA_WEB_HOST=0.0.0.0` (hoy no hay
+   autenticación: cualquiera en esa red podría usarlo).
 1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop));
    en **Windows** además **WSL 2**.
 2. Descargar el proyecto y ejecutar **una sola vez** `instalar/instalar_axioma.sh` (doble clic en Linux).

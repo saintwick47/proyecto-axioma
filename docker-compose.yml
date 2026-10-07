@@ -35,6 +35,12 @@ services:
     restart: unless-stopped
     # Red del equipo: así ve el Ollama que ya tenés (127.0.0.1:11434) sin exponerlo a la red local.
     network_mode: host
+    # ✅ 2026-10-07: la interfaz escucha SÓLO en este equipo. Antes el contenedor arrancaba con
+    # `--host 0.0.0.0` y, como comparte la red del equipo (`network_mode: host`) y no tiene
+    # autenticación, cualquiera en la red local podía abrir AXIOMA (medido: `ss -ltn` mostraba
+    # `0.0.0.0:8080`). Para exponerlo A PROPÓSITO: AXIOMA_WEB_HOST=0.0.0.0 (y sabé lo que implica).
+    command: ["python", "main.py", "--web", "--host", "${AXIOMA_WEB_HOST:-127.0.0.1}",
+              "--port", "8080", "--no-browser"]
     env_file:
       - path: .env
         required: false          # si no existe, arranca con los valores por defecto
@@ -79,7 +85,10 @@ services:
     profiles: ["puente"]
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # ✅ 2026-10-07: sólo el propio equipo. Docker Desktop necesita que la aplicación escuche en
+      # `0.0.0.0` ADENTRO del contenedor para poder publicar un puerto, pero hacia afuera se publica en
+      # la dirección local: la interfaz no queda accesible desde la red.
+      - "127.0.0.1:8080:8080"
     environment:
       # En Docker Desktop el equipo se alcanza con este nombre, no con 127.0.0.1.
       OLLAMA_HOST: "http://${AXIOMA_OLLAMA_HOST:-host.docker.internal:11434}"

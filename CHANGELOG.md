@@ -45,6 +45,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - Los manuales (`README.md`, `MANUAL_USUARIO.md` —nuevo, para quien no sabe programar—, `COMANDOS_AXIOMA.txt`,
   `MANUAL_AXIOMA.md`, `MANUAL_RAFAEL.md`) están actualizados a la instalación con contenedores.
 
+### Seguridad
+- **La interfaz ya no queda expuesta a la red local** (medido el 2026-10-07: escuchaba en `0.0.0.0:8080`
+  **sin autenticación**). Ahora escucha en `127.0.0.1` por defecto —en el servicio con red del equipo y
+  en el puerto publicado del perfil `puente`— y para exponerla hay que pedirlo a propósito con
+  `AXIOMA_WEB_HOST=0.0.0.0`. Comprobado con `ss -ltn` después de reconstruir la imagen.
+- **La clave de las sesiones dejó de ser una constante del código**
+  (`axioma_secret_key_change_in_production`, escrita en `app.py` y `server.py`): ahora es propia de cada
+  equipo, se genera sola la primera vez y se guarda en `data/.storage_secret` con permisos `600`
+  (o se toma de `AXIOMA_STORAGE_SECRET`). Si no, cualquiera que leyera el código podía firmar una cookie
+  válida.
+
 ### Corregido
 - **`requirements-ci.txt` no era un subconjunto exacto de `requirements.txt`** (medido el 2026-10-06):
   `ruff` estaba **sólo** en el archivo del CI y `psutil` —que el producto usa en 5 módulos para medir
