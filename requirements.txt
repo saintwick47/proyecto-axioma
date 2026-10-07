@@ -4,6 +4,11 @@
 #    paquete por paquete. Python 3.14.7 | Linux (CachyOS) | 194 distribuciones.
 #
 # ── QUÉ CAMBIÓ EN ESTA REVISIÓN ──────────────────────────────────────────────
+#   ~ pandas 3.0.3 → 3.0.5 · numpy 2.4.4 → 2.5.3 (2026-10-07): actualización del usuario con `uv`,
+#     siguiendo un aviso de que pandas 3.0.4 daba cuelgues en Python 3.14. El aviso no lo pudimos
+#     verificar desde acá (no tenemos esa versión a mano), pero la subida SÍ se verifica corriendo la
+#     suite completa: si algo se rompe, se ve. Los dos archivos declaran la misma versión
+#     (`requirements-ci.txt` es un subconjunto exacto, ver tests/test_axioma_27_portabilidad.py).
 #   + openwakeword==0.4.0   → lo importa `src/multimodal/wake_word.py` (con
 #                             fallback si falta) y estaba instalado sin declarar.
 #   ~ certifi 2026.6.17 → 2026.7.22 · fpdf2 2.8.7 → 2.8.8  (versiones reales)
@@ -93,8 +98,8 @@ faster-whisper==1.2.1
 # ═══════════════════════════════════════════════════════════════
 lancedb==0.33.0
 pyarrow==24.0.0
-pandas==3.0.3
-numpy==2.4.4
+pandas==3.0.5
+numpy==2.5.3
 kubernetes==35.0.0
 lance-namespace==0.8.0
 lance-namespace-urllib3-client==0.8.0

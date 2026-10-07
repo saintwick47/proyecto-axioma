@@ -768,14 +768,15 @@ def test_el_acceso_directo_no_abre_la_terminal():
     guion = PROJECT_ROOT / "instalar" / "instalar_axioma.sh"
     salida = subprocess.run(["bash", str(guion), "--dry-run"], capture_output=True, text=True,
                             timeout=60, cwd=str(PROJECT_ROOT))
-    assert salida.returncode == 0, salida.stderr
-    assert "axioma.desktop" in salida.stdout, salida.stdout
+    # Sin Docker (por ejemplo DENTRO de la imagen) sale 4 y lo explica; con Docker, muestra el acceso.
+    assert salida.returncode in (0, 4), (salida.returncode, salida.stderr)
+    esperado = "Docker" if salida.returncode == 4 else "axioma.desktop"
+    assert esperado in salida.stdout, salida.stdout
     fuente = guion.read_text(encoding="utf-8")
     assert "Terminal=false" in fuente, "el acceso directo abriría una terminal"
     assert "iniciar_axioma.sh" in fuente, "el acceso directo tiene que arrancar AXIOMA"
     for reloj in ("iniciar_axioma.sh",):
         assert (PROJECT_ROOT / "instalar" / reloj).exists()
-
 
 
 def test_la_guia_de_primer_arranque_se_muestra_una_sola_vez(tmp_path):
