@@ -123,6 +123,22 @@ jobs:
       # exitstatus real, run_id y frescura del health report).
       # `--no-require-health`: en CI no hay logs de runtime, así que la frescura
       # se SALTA (no se finge): localmente sí se exige.
+      # ✅ 2026-10-07: cuando la suite falla en el CI, el detalle vive en un artefacto que necesita
+      # credenciales para bajarse: desde afuera no se puede saber QUÉ prueba falló. Este paso convierte
+      # los fallos en ANOTACIONES (`::error::`), que GitHub publica y que se leen por la API pública.
+      - name: Anotar qué falló (para poder verlo sin bajar artefactos)
+        if: failure()
+        shell: bash
+        run: |
+          ultimo=$(ls -t logs/axioma_test_report_batch_*.md 2>/dev/null | head -1 || true)
+          if [ -z "$ultimo" ]; then
+            echo "::error::no hay reporte consolidado: la suite no llegó a correr"
+            exit 0
+          fi
+          echo "::error::reporte: $ultimo"
+          grep -E "^- FAIL:" "$ultimo" | head -5 | sed 's/^/::error::/' || true
+          grep -E "^\s*\|.*❌" "$ultimo" | head -8 | sed 's/^/::error::/' || true
+
       - name: Quality gate
         if: always()
         env:
