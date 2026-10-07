@@ -51,6 +51,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   **sin** `continue-on-error`: si falla, se pone rojo. Medido antes y después con
   `tools/verificar_imagen.sh` (compila, mide el tamaño de la imagen y corre la suite **adentro**).
 
+### Corregido
+- **La voz ya no falla sin explicación dentro del contenedor**: `AXIOMA_SIN_AUDIO=1` (que el contenedor
+  declara porque ahí no hay dispositivos de audio) **no la leía ningún módulo**. Ahora tiene un lector
+  único (`config/multimodal_loader.audio_deshabilitado`), **no se abren dispositivos** y el preflight lo
+  dice con todas las letras: *«Audio (voz): desactivada a propósito (AXIOMA_SIN_AUDIO=1)»* (antes decía
+  «no se ven dispositivos de audio», que hacía pensar en un problema del equipo). La interfaz tampoco
+  ofrece el botón de voz, y el daemon de Rafael avisa y se retira en vez de intentarlo.
+- **`AXIOMA_EN_CONTENEDOR` se eliminó del `Dockerfile`**: se declaraba y **nadie la leía**, y lo que el
+  contenedor necesita ya se pasa explícito (`--no-browser`, `AXIOMA_RAFAEL_DIRECTO`, `AXIOMA_SIN_AUDIO`,
+  rutas de logs). Queda **una idea, una bandera** (regla R1 del proyecto).
+
 ### Seguridad
 - **La interfaz ya no queda expuesta a la red local** (medido el 2026-10-07: escuchaba en `0.0.0.0:8080`
   **sin autenticación**). Ahora escucha en `127.0.0.1` por defecto —en el servicio con red del equipo y

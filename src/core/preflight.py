@@ -315,7 +315,17 @@ def _probar_disco(catalogo: Any, faltantes: List[Requisito]) -> Requisito:
 
 
 def _probar_audio(catalogo: Any) -> Requisito:
-    """La voz es OPCIONAL: si falta el audio, el chat tiene que seguir andando."""
+    """La voz es OPCIONAL: si falta el audio, el chat tiene que seguir andando.
+
+    Si `AXIOMA_SIN_AUDIO=1` (lo que pasa dentro del contenedor), NO se sondean dispositivos: se informa
+    que está desactivada a propósito. Antes se sondeaba igual y el mensaje («no se ven dispositivos de
+    audio») hacía pensar en un problema del equipo, cuando en realidad era una decisión del contenedor.
+    """
+    from config.multimodal_loader import MOTIVO_SIN_AUDIO, audio_deshabilitado
+    if audio_deshabilitado():
+        return Requisito("audio", "Audio (voz)", AVISO, MOTIVO_SIN_AUDIO,
+                         "el chat y el texto funcionan igual; para tener voz, corré AXIOMA fuera del "
+                         "contenedor o usá el perfil `voz` en Linux")
     try:
         import sounddevice as sd
         dispositivos = len(sd.query_devices())

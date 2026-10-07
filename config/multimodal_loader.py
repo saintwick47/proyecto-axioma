@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, Optional
 
 import yaml
@@ -180,3 +181,21 @@ def get_input_device() -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════
 # ✅ ARCHIVO COMPLETO — SIN OMISIONES — PROTOCOLO CUMPLIDO
 # ═══════════════════════════════════════════════════════════════
+
+
+def audio_deshabilitado(entorno: Optional[Dict[str, str]] = None) -> bool:
+    """¿Hay que trabajar SIN audio? Lo decide `AXIOMA_SIN_AUDIO`.
+
+    Para qué existe (y por qué se lee recién ahora): el contenedor no tiene dispositivos de audio (ni
+    `/dev/snd` ni el servidor de sonido del equipo), así que la voz no puede funcionar ahí. La bandera
+    venía declarada en `docker-compose.yml` y en el `Dockerfile` **sin que ningún módulo la leyera**
+    (medido el 2026-10-07): el comentario «la voz se desactiva sola» era falso y quien la usaba no tenía
+    forma de saber por qué no andaba la voz. Ahora se lee en un solo lugar, se respeta (no se abren
+    dispositivos) y el preflight lo explica con estas palabras.
+    """
+    variables = os.environ if entorno is None else entorno
+    valor = (variables.get("AXIOMA_SIN_AUDIO") or "").strip().lower()
+    return valor in ("1", "true", "si", "sí", "yes", "on")
+
+
+MOTIVO_SIN_AUDIO = "desactivada a propósito (AXIOMA_SIN_AUDIO=1)"

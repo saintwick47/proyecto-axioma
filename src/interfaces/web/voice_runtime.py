@@ -21,10 +21,23 @@ _pipeline: Optional[Any] = None
 _running: bool = False
 
 
+def voz_posible() -> bool:
+    """¿Se puede usar la voz en este entorno? (medido: dentro del contenedor no hay audio)
+
+    La bandera `AXIOMA_SIN_AUDIO=1` la declara el contenedor porque ahí no hay dispositivos de audio.
+    Sin esto, la interfaz ofrecía el botón de voz y el fallo aparecía después, en el medio del intento.
+    """
+    from config.multimodal_loader import audio_deshabilitado
+    return not audio_deshabilitado()
+
+
 def register(pipeline: Any) -> None:
     """Registra la instancia de VoicePipeline creada por main.py cmd_web."""
     global _pipeline
     _pipeline = pipeline
+    if not voz_posible():
+        logger.warning("[VoiceRuntime] voz desactivada a propósito (AXIOMA_SIN_AUDIO=1): el pipeline "
+                       "queda registrado, pero no se va a usar")
     logger.info("[VoiceRuntime] VoicePipeline registrado")
 
 

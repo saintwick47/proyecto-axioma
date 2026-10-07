@@ -53,8 +53,11 @@ services:
       # SIN usuario por defecto: quien instala crea el suyo la primera vez desde la interfaz.
       AXIOMA_USER_ID: "${AXIOMA_USER_ID:-}"
       AXIOMA_USER_ROLE: "${AXIOMA_USER_ROLE:-user}"
-      # Dentro del contenedor no hay dispositivos de audio: la voz se desactiva sola y el chat
-      # sigue andando (verificado: el preflight avisa y no bloquea).
+      # Dentro del contenedor no hay dispositivos de audio: `AXIOMA_SIN_AUDIO=1` hace que la voz quede
+      # desactivada A PROPÓSITO (lo lee `config/multimodal_loader.audio_deshabilitado`, no se abren
+      # dispositivos y el preflight lo explica con esas palabras). El chat y el texto funcionan igual.
+      # ✅ 2026-10-07: hasta hoy esta bandera se declaraba y NADIE la leía (el comentario prometía una
+      # desactivación que no existía: ver tests/test_axioma_30_audio_opcional.py).
       AXIOMA_SIN_AUDIO: "1"
     volumes:
       # Los datos del usuario (memoria, cachés, modelo de voz) viven en el equipo, no en la imagen.

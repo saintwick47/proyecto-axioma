@@ -61,7 +61,10 @@ FROM python:${PYTHON_VERSION}-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
-    AXIOMA_EN_CONTENEDOR=1
+    # (2026-10-07) Acá se declaraba `AXIOMA_EN_CONTENEDOR=1` y NINGÚN módulo la leía: lo que el contenedor
+# necesita ya se pasa explícito (`--no-browser`, `AXIOMA_RAFAEL_DIRECTO`, `AXIOMA_SIN_AUDIO`, rutas de
+# logs). Una idea, una bandera: la que se usa es `AXIOMA_SIN_AUDIO`.
+AXIOMA_SIN_AUDIO=1
 
 # Sólo las librerías de ejecución (sin build-essential)
 RUN apt-get update && apt-get install -y --no-install-recommends \

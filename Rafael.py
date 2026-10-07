@@ -57,6 +57,12 @@ def _modo_directo(argv: Optional[list] = None) -> bool:
     return "--directo" in args or os.environ.get("AXIOMA_RAFAEL_DIRECTO") == "1"
 
 
+def _sin_audio(entorno: Optional[dict] = None) -> bool:
+    """`AXIOMA_SIN_AUDIO=1`: el equipo (o el contenedor) no tiene audio utilizable."""
+    from config.multimodal_loader import audio_deshabilitado
+    return audio_deshabilitado(entorno)
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Rafael — daemon autónomo de AXIOMA")
     parser.add_argument(
@@ -189,6 +195,11 @@ async def _main() -> None:
         return
     setup_logging()
 
+    if _sin_audio():
+        print("⚠️  AXIOMA_SIN_AUDIO=1: no hay audio utilizable en este entorno.")
+        print("    El daemon de voz no puede arrancar (el chat y el texto funcionan igual).")
+        print("    Si estás en el contenedor, la voz necesita el perfil `voz` (Linux) o correr fuera de él.")
+        return 4
     if _is_running_under_systemd() or args.directo or _modo_directo():
         # Bajo systemd, o en modo directo (contenedor): el daemon corre en ESTE proceso.
         await _run_daemon(args.mode)
