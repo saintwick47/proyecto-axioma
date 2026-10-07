@@ -89,6 +89,8 @@ def test_la_constante_vieja_no_volvio_al_codigo():
             f"{archivo.name} dejó de usar el secreto del equipo"
 
 
+@pytest.mark.skipif(not (PROJECT_ROOT / "docker-compose.yml").exists(),
+                    reason="el empaquetado no viaja dentro de la imagen: se comprueba en el código")
 def test_el_compose_no_expone_la_interfaz_a_toda_la_red():
     """Medido el 2026-10-07 (`ss -ltn`): la interfaz escuchaba en `0.0.0.0:8080` sin autenticación.
 

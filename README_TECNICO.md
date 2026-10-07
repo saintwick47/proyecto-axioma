@@ -11,7 +11,7 @@
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | 451 commits · `main` · tags `v0.0.8`, `v0.1.1` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.12 (contenedor) | Ollama (local) | 451 |
+| 🟢 En desarrollo activo | 451 commits · `main` · tags `v0.0.8`, `v0.1.1` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 451 |
 
 ---
 

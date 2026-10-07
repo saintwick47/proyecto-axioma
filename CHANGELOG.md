@@ -45,6 +45,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - Los manuales (`README.md`, `MANUAL_USUARIO.md` —nuevo, para quien no sabe programar—, `COMANDOS_AXIOMA.txt`,
   `MANUAL_AXIOMA.md`, `MANUAL_RAFAEL.md`) están actualizados a la instalación con contenedores.
 
+### Cambiado
+- **La imagen del contenedor pasó a Python 3.14**, la **misma** versión que el entorno de desarrollo y el
+  del usuario (antes: imagen 3.12, desarrollo 3.14). El CI prueba ahora **una sola** versión (3.14) y
+  **sin** `continue-on-error`: si falla, se pone rojo. Medido antes y después con
+  `tools/verificar_imagen.sh` (compila, mide el tamaño de la imagen y corre la suite **adentro**).
+
 ### Seguridad
 - **La interfaz ya no queda expuesta a la red local** (medido el 2026-10-07: escuchaba en `0.0.0.0:8080`
   **sin autenticación**). Ahora escucha en `127.0.0.1` por defecto —en el servicio con red del equipo y

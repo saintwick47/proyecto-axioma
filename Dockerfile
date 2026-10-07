@@ -6,7 +6,9 @@
 #     propio del contenedor). La imagen sólo lleva código y dependencias.
 #   · **Sólo CPU**: torch se instala del índice CPU de PyTorch, en el mismo orden que el CI
 #     (si no, PyPI arrastra la versión con CUDA y la imagen engorda varios GB).
-#   · **Python 3.12** (el mismo que el CI): el proyecto probó 3.12 y 3.14.
+#   · **Python 3.14** (el MISMO que el entorno de desarrollo y el del usuario): hasta el 2026-10-07 la
+#     imagen quedaba en 3.12 y el desarrollo corría en 3.14 — dos entornos distintos, que es justamente
+#     donde aparecen las sorpresas. Decisión del usuario (2026-10-07): una sola versión, 3.14.
 #   · **Dos etapas**: las herramientas de compilación no viajan a la imagen final.
 #   · **Sin usuario root** para ejecutar: el proceso corre como `axioma` (uid 1000).
 #
@@ -14,7 +16,7 @@
 # plan; si crece mucho, la palanca es separar torch/sentence-transformers en su propia capa.
 
 # syntax=docker/dockerfile:1
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION=3.14
 
 # ═══════════════════════════════════════════════════════════════
 # ETAPA 1 — dependencias (con herramientas de compilación)

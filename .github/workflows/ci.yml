@@ -11,22 +11,17 @@ concurrency:
 
 jobs:
   test:
-    # ✅ v0.7.3 (2026-09-28): MATRIX DE TRANSICIÓN 3.12 + 3.14.
-    # El runtime real del usuario es **3.14.7** y el CI corría en 3.12: un bug
-    # podía pasar el CI y fallar en casa (verificado: de 195 distribuciones
-    # instaladas, **0 excluyen 3.14** y todas las nativas publican wheel `cp314`
-    # o son `abi3`). Durante la transición corren las dos versiones y el job de
-    # 3.14 NO bloquea (`continue-on-error`), para comparar sin rojo falso.
-    # → A las 2-4 semanas: quitar `continue-on-error`, y después borrar 3.12.
-    # `fail-fast: false`: si una versión falla, la otra SIGUE (sirve para comparar).
+    # ✅ 2026-10-07: UNA sola versión, la que se usa de verdad (**3.14**). Antes había una matriz de
+    # transición (3.12 + 3.14, con `continue-on-error` en 3.14 para comparar sin rojo falso).
+    # Decisión del usuario: la imagen también pasa a 3.14, así que probar 3.12 era cuidar un entorno
+    # que ya no existe. Si 3.14 falla, el CI tiene que ponerse ROJO.
     name: test (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    continue-on-error: ${{ matrix.python-version == '3.14' }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12', '3.14']
+        python-version: ['3.14']
     steps:
       - uses: actions/checkout@v4
 

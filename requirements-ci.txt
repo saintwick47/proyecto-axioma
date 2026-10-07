@@ -1,5 +1,5 @@
 # AXIOMA — requirements para el CI (subconjunto de requirements.txt)
-# Generado: 2026-08-26 | ✅ revisado 2026-10-06 | Python 3.12 y 3.14 (matriz del CI)
+# Generado: 2026-08-26 | ✅ revisado 2026-10-07 | Python 3.14 (la del contenedor y el desarrollo)
 # ═══════════════════════════════════════════════════════════════
 # QUÉ ES: este archivo es requirements.txt MENOS lo que el CI instala aparte. La prueba
 # `test_requirements_ci_es_requirements_menos_lo_documentado` (en

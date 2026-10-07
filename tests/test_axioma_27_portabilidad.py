@@ -794,3 +794,23 @@ def test_el_paso_de_librerias_de_audio_no_puede_tumbar_la_corrida():
     portero = (PROJECT_ROOT / "tools" / "quality_gate.py").read_text(encoding="utf-8")
     assert "o el paso se canceló antes" in portero, \
         "el portero tiene que explicar por qué puede faltar el reporte de la suite"
+
+
+@_sin_empaquetado
+def test_la_imagen_y_el_ci_usan_la_misma_version_de_python():
+    """Decisión del usuario (2026-10-07): UNA sola versión, **3.14** — la del desarrollo y la suya.
+
+    Antes la imagen quedaba en 3.12 y el desarrollo corría en 3.14: dos entornos distintos, que es
+    justamente donde aparecen las sorpresas («en mi máquina anda»). Y el CI probaba las dos, con
+    `continue-on-error` en 3.14: un rojo que no se veía. Se descartó 3.12 porque cuidarlo es trabajo
+    perdido.
+    """
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "ARG PYTHON_VERSION=3.14" in dockerfile, \
+        "la imagen tiene que usar la MISMA versión que el desarrollo (3.14)"
+    assert "ARG PYTHON_VERSION=3.12" not in dockerfile, "la imagen volvió a 3.12"
+
+    ci = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "python-version: ['3.14']" in ci, "el CI tiene que probar la versión que se usa de verdad"
+    assert "'3.12'" not in ci, "3.12 se descartó: el CI no puede volver a probarlo"
+    assert "continue-on-error: ${{" not in ci, "sin segunda versión no hay que tolerar fallos"

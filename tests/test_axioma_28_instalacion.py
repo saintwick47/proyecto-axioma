@@ -17,8 +17,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-
-
 class _ClienteFalso:
     def __init__(self, vivo=True, modelos=()):
         self.base_url = "http://127.0.0.1:11434"
@@ -28,11 +26,9 @@ class _ClienteFalso:
     def list_models(self):
         return [{"name": m} for m in self._modelos]
 
-
 def _hw(ram_gb=32.0):
     from types import SimpleNamespace
     return SimpleNamespace(ram_gb=ram_gb, gpu_vram_gb=0.0, cpu_threads=6, backend="cpu")
-
 
 def _revisar(monkeypatch, modelos, libre_gb=500.0, ram_gb=32.0, vivo=True):
     from types import SimpleNamespace
@@ -43,11 +39,9 @@ def _revisar(monkeypatch, modelos, libre_gb=500.0, ram_gb=32.0, vivo=True):
                         lambda _c: pf.Requisito("audio", "Audio (voz)", pf.OK, "falso"))
     return pf.revisar(cliente=_ClienteFalso(vivo=vivo, modelos=modelos), hw=_hw(ram_gb))
 
-
 def _todos_los_modelos():
     from config.model_catalog import cargar_catalogo
     return [n for n, m in cargar_catalogo().modelos.items() if m.tipo == "ollama"]
-
 
 def _pre_fabricado():
     from src.core.preflight import AVISO, FALTA, Preflight, Requisito
@@ -63,14 +57,12 @@ def _pre_fabricado():
         Requisito("audio", "Audio (voz)", AVISO, "sin audio", "la voz queda desactivada"),
     ])
 
-
 def _env_temporal(tmp_path):
     archivo = tmp_path / ".env"
     archivo.write_text("# Configuración de ejemplo\nOLLAMA_HOST=http://127.0.0.1:11434\n"
                        "TAVILY_API_KEY=\n# un comentario que hay que conservar\n"
                        "LLM_DEFAULT_MODEL=qwen3:8b\n", encoding="utf-8")
     return archivo
-
 
 # ── FASE 1: descarga de modelos con progreso y cancelación (`ISSUE-148`) ──
 # Antes `pull_model` pedía `stream: false`: ni progreso ni forma de cancelar (raíz de `ISSUE-137`).
@@ -100,7 +92,6 @@ class _RespuestaFalsa:
     def close(self):
         self.cerrada = True
 
-
 def _cliente_de_descarga(monkeypatch, respuesta):
     from src.llm.client import OllamaClient
     cliente = OllamaClient.__new__(OllamaClient)
@@ -111,7 +102,6 @@ def _cliente_de_descarga(monkeypatch, respuesta):
     cliente._respuesta = respuesta
     cliente.stream = lambda *a, **k: respuesta
     return cliente
-
 
 def test_la_descarga_informa_progreso_real(monkeypatch):
     eventos = []
@@ -131,7 +121,6 @@ def test_la_descarga_informa_progreso_real(monkeypatch):
     assert eventos[0]["estado"] == "pulling manifest"
     assert eventos[-1]["modelo"] == "modelo:x"
 
-
 def test_la_descarga_se_puede_cancelar_de_verdad(monkeypatch):
     """Cancelar cierra la conexión: eso NO es una falla, es una cancelación."""
     from src.llm.client_base import GeneracionCancelada, TokenCancelacion
@@ -147,7 +136,6 @@ def test_la_descarga_se_puede_cancelar_de_verdad(monkeypatch):
         raise AssertionError("tendría que haber cortado por cancelación")
     except GeneracionCancelada:
         pass
-
 
 def test_cancelar_en_medio_de_la_descarga_no_se_reporta_como_falla_de_red(monkeypatch):
     """Cancelar cierra la conexión: eso llega como error de red y NO es una falla.
@@ -174,7 +162,6 @@ def test_cancelar_en_medio_de_la_descarga_no_se_reporta_como_falla_de_red(monkey
     except Exception as e:  # noqa: BLE001
         raise AssertionError(f"se reportó como falla en vez de cancelación: {type(e).__name__}")
 
-
 def test_si_ollama_reporta_un_error_la_descarga_falla(monkeypatch):
     from src.domain.exceptions import LLMError
     respuesta = _RespuestaFalsa([{"error": "model not found"}])
@@ -185,7 +172,6 @@ def test_si_ollama_reporta_un_error_la_descarga_falla(monkeypatch):
         raise AssertionError("tendría que haber fallado")
     except LLMError as e:
         assert "model not found" in str(e), e
-
 
 class _ClienteDeInstalacion:
     """Cliente falso: registra qué se pidió y puede fallar o cancelarse."""
@@ -203,7 +189,6 @@ class _ClienteDeInstalacion:
         if model == self.cancelar_en:
             raise GeneracionCancelada("lo pediste vos")
 
-
 def test_el_instalador_baja_solo_lo_obligatorio_que_falta(monkeypatch):
     """Los opcionales pesan GB de más: sólo entran si se piden a propósito."""
     from config.model_catalog import cargar_catalogo
@@ -218,7 +203,6 @@ def test_el_instalador_baja_solo_lo_obligatorio_que_falta(monkeypatch):
     pf.instalar_faltantes(pre, falso2, incluir_opcionales=True)
     assert catalogo.por_rol["vision"] in falso2.pedidos, falso2.pedidos
 
-
 def test_una_descarga_que_falla_no_frena_a_las_demas(monkeypatch):
     from config.model_catalog import cargar_catalogo
     from src.core import preflight as pf
@@ -230,7 +214,6 @@ def test_una_descarga_que_falla_no_frena_a_las_demas(monkeypatch):
     assert estados[chat] == "fallido", estados
     assert estados[catalogo.por_rol["codigo"]] == "instalado", estados
 
-
 def test_si_se_cancela_la_descarga_se_corta_y_no_sigue(monkeypatch):
     from config.model_catalog import cargar_catalogo
     from src.core import preflight as pf
@@ -239,7 +222,6 @@ def test_si_se_cancela_la_descarga_se_corta_y_no_sigue(monkeypatch):
     hechas = pf.instalar_faltantes(_revisar(monkeypatch, []), falso)
     assert [d.estado for d in hechas] == ["cancelado"], hechas
     assert falso.pedidos == [chat], "no debería seguir con el siguiente modelo"
-
 
 # ═══════════════════════════════════════════════════════════════
 # FASE 1 — el preflight desde la interfaz (§3.1: "CLI y API")
@@ -261,7 +243,6 @@ def test_el_preflight_se_puede_preguntar_desde_la_interfaz(monkeypatch):
     assert a_bajar["qwen3-vl:4b"]["obligatorio"] is False
     assert "requisitos" in datos and "duracion_ms" in datos
 
-
 def test_si_el_preflight_falla_la_interfaz_no_se_cae(monkeypatch):
     """Una pantalla que no carga no debe tumbar la aplicación (convención de las rutas)."""
     import asyncio
@@ -276,7 +257,6 @@ def test_si_el_preflight_falla_la_interfaz_no_se_cae(monkeypatch):
     assert datos["puede_responder"] is False
     assert "RuntimeError" in datos["error"], datos
 
-
 def test_el_catalogo_se_puede_consultar_desde_la_interfaz():
     import asyncio
     from src.interfaces.web import routes_preflight as rp
@@ -286,7 +266,6 @@ def test_el_catalogo_se_puede_consultar_desde_la_interfaz():
     chat = next(m for m in datos["modelos"] if "chat" in m["roles"])
     assert chat["instalar"].startswith("ollama pull"), chat
     assert chat["si_falta"], "el catálogo tiene que decir qué se rompe si falta"
-
 
 def test_los_puntos_de_acceso_del_preflight_quedan_registrados():
     """Cableado REAL: se inspecciona la aplicación que arma el servidor.
@@ -298,7 +277,6 @@ def test_los_puntos_de_acceso_del_preflight_quedan_registrados():
     rutas = {getattr(r, "path", "") for r in build_api_app().routes}
     assert "/api/v1/preflight" in rutas, sorted(p for p in rutas if "preflight" in p)
     assert "/api/v1/preflight/catalogo" in rutas, sorted(p for p in rutas if "preflight" in p)
-
 
 # ═══════════════════════════════════════════════════════════════
 # Memoria POR NIVELES y placa de video (decisión del usuario, 2026-10-04)
@@ -317,7 +295,6 @@ def test_la_memoria_se_informa_por_niveles_y_no_como_un_si_o_no(monkeypatch):
         assert req.estado == esperado, (ram, req.estado, req.detalle)
         assert req.datos.get("nivel") == nivel, (ram, req.datos)
 
-
 def test_con_menos_de_16_gb_dice_la_restriccion_concreta(monkeypatch):
     """No alcanza con decir "funciona con restricciones": hay que decir CUÁL."""
     from src.core import preflight as pf
@@ -327,7 +304,6 @@ def test_con_menos_de_16_gb_dice_la_restriccion_concreta(monkeypatch):
     assert "un solo modelo cargado a la vez" in req.remedio, req.remedio
     assert "16 GB es el nivel recomendado" in req.detalle, req.detalle
     assert pre.puede_responder(), "con 13 GB tiene que poder responder igual"
-
 
 def test_la_placa_de_video_se_detecta_y_no_bloquea(monkeypatch):
     from types import SimpleNamespace
@@ -356,7 +332,6 @@ def test_la_placa_de_video_se_detecta_y_no_bloquea(monkeypatch):
     assert req.estado == pf.OK, req
     assert "VRAM" in req.detalle and req.datos["vram_gb"] == 12.0, req
 
-
 def test_un_catalogo_con_los_niveles_al_reves_falla(tmp_path):
     from config.model_catalog import cargar_catalogo
     malo = tmp_path / "catalogo.yaml"
@@ -372,8 +347,6 @@ def test_un_catalogo_con_los_niveles_al_reves_falla(tmp_path):
     with pytest.raises(ValueError, match="al revés"):
         cargar_catalogo(malo, usar_cache=False)
 
-
-
 def test_las_claves_se_guardan_sin_pisar_el_resto_del_archivo(tmp_path):
     from src.core import apikeys
     archivo = _env_temporal(tmp_path)
@@ -384,7 +357,6 @@ def test_las_claves_se_guardan_sin_pisar_el_resto_del_archivo(tmp_path):
     assert "LLM_DEFAULT_MODEL=qwen3:8b" in texto and "OLLAMA_HOST=http://127.0.0.1:11434" in texto
     assert texto.count("TAVILY_API_KEY=") == 1, "la clave quedó duplicada"
 
-
 def test_una_clave_nueva_se_agrega_al_final(tmp_path):
     from src.core import apikeys
     archivo = _env_temporal(tmp_path)
@@ -392,7 +364,6 @@ def test_una_clave_nueva_se_agrega_al_final(tmp_path):
     texto = archivo.read_text(encoding="utf-8")
     assert "NEWS_API_KEY=valor-de-ejemplo-news" in texto
     assert "# un comentario que hay que conservar" in texto
-
 
 def test_el_archivo_de_claves_queda_privado_y_con_copia(tmp_path):
     import os
@@ -406,7 +377,6 @@ def test_el_archivo_de_claves_queda_privado_y_con_copia(tmp_path):
     assert "SERPER_API_KEY=valor-de-ejemplo-serper" not in respaldo.read_text(encoding="utf-8"), (
         "la copia tiene que guardar el estado ANTERIOR, sin la clave nueva")
 
-
 def test_el_estado_no_revela_los_valores(tmp_path):
     import json
     from src.core import apikeys
@@ -416,7 +386,6 @@ def test_el_estado_no_revela_los_valores(tmp_path):
     assert "valor-de-ejemplo-que-no-debe-salir" not in volcado, "el estado no puede mostrar el valor"
     assert apikeys.valores_configurados(archivo)["TAVILY_API_KEY"] is True
     assert apikeys.valores_configurados(archivo)["NEWS_API_KEY"] is False
-
 
 def test_la_carga_guiada_guarda_lo_que_escribe_el_usuario(tmp_path):
     from src.core import apikeys
@@ -435,8 +404,6 @@ def test_la_carga_guiada_guarda_lo_que_escribe_el_usuario(tmp_path):
     assert all("valor-de-ejemplo-2" not in d for d in dichos), "no puede imprimir el valor"
     assert any("Guardado en" in d for d in dichos)
 
-
-
 def _hw_con_placa(vram_gb, utilizable=True, nombre="NVIDIA RTX"):
     from types import SimpleNamespace
     margen = 0.88
@@ -444,7 +411,6 @@ def _hw_con_placa(vram_gb, utilizable=True, nombre="NVIDIA RTX"):
                            backend="nvidia" if utilizable else "amd_igpu",
                            gpu_name=nombre, is_gpu_available=utilizable,
                            effective_budget_gb=vram_gb * margen if utilizable else 1.0)
-
 
 def _pre_con_placa(monkeypatch, hw):
     from types import SimpleNamespace
@@ -454,7 +420,6 @@ def _pre_con_placa(monkeypatch, hw):
     monkeypatch.setattr(pf, "_probar_audio",
                         lambda _c: pf.Requisito("audio", "Audio (voz)", pf.OK, "falso"))
     return pf.revisar(cliente=_ClienteFalso(vivo=True, modelos=_todos_los_modelos()), hw=hw)
-
 
 def test_una_placa_grande_carga_los_modelos_y_lo_dice_por_rol(monkeypatch):
     from config.model_catalog import cargar_catalogo
@@ -470,7 +435,6 @@ def test_una_placa_grande_carga_los_modelos_y_lo_dice_por_rol(monkeypatch):
     assert catalogo.por_rol["codigo"] in gpu.datos["modelos_en_placa"], gpu.datos
     assert "código" in gpu.detalle, gpu.detalle
 
-
 def test_una_placa_justa_carga_unos_modelos_y_no_otros(monkeypatch):
     """Con 7 GB de VRAM (presupuesto 6,16 GB) entra la visión (3,3) y NO el chat (6,67)."""
     from config.model_catalog import cargar_catalogo
@@ -484,7 +448,6 @@ def test_una_placa_justa_carga_unos_modelos_y_no_otros(monkeypatch):
     chat = next(r for r in pre.requisitos if r.clave == "modelo_chat")
     assert chat.datos.get("en_placa") is False and "no entra en la placa" in chat.detalle
 
-
 def test_sin_placa_utilizable_todo_va_al_procesador_y_no_bloquea(monkeypatch):
     from src.core import preflight as pf
     pre = _pre_con_placa(monkeypatch, _hw_con_placa(2.0, utilizable=False, nombre="AMD GPU"))
@@ -496,8 +459,6 @@ def test_sin_placa_utilizable_todo_va_al_procesador_y_no_bloquea(monkeypatch):
         assert req.datos.get("en_placa") is False
         assert "procesador" in req.detalle, req.detalle
     assert pre.puede_responder(), "sin placa tiene que poder responder igual"
-
-
 
 class _ClienteLento:
     """Cliente falso que avanza hasta que lo cancelan (determinista, sin red)."""
@@ -520,7 +481,6 @@ class _ClienteLento:
         if on_progress:
             on_progress({"modelo": modelo, "estado": "success", "porcentaje": 100.0})
 
-
 def _esperar(condicion, intentos=60, pausa=0.05):
     import time
     for _ in range(intentos):
@@ -529,14 +489,12 @@ def _esperar(condicion, intentos=60, pausa=0.05):
         time.sleep(pausa)
     return False
 
-
 def test_una_descarga_sin_nada_pendiente_termina_al_instante():
     from src.core.preflight import OK, Preflight, Requisito, TrabajoDeDescarga
     pre = Preflight(requisitos=[Requisito("modelo_chat", "chat", OK, "instalado")])
     trabajo = TrabajoDeDescarga(pre, _ClienteLento()).iniciar()
     assert trabajo.estado()["estado"] == "terminado"
     assert trabajo.estado()["modelos"] == []
-
 
 def test_el_trabajo_informa_avance_real_y_no_bloquea():
     from src.core.preflight import TrabajoDeDescarga
@@ -547,7 +505,6 @@ def test_el_trabajo_informa_avance_real_y_no_bloquea():
     assert info["estado"] == "descargando" and info["puede_detenerse"] is True
     assert "descargando" in trabajo.resumen(), trabajo.resumen()
 
-
 def test_el_trabajo_se_puede_detener_de_verdad():
     from src.core.preflight import TrabajoDeDescarga
     cliente = _ClienteLento()
@@ -557,7 +514,6 @@ def test_el_trabajo_se_puede_detener_de_verdad():
     trabajo.detener()
     assert _esperar(lambda: trabajo.estado()["estado"] == "cancelado"), trabajo.estado()
     assert cliente.llamadas, "no llegó a pedir ningún modelo"
-
 
 def test_se_puede_arrancar_ver_avance_y_detener_desde_la_interfaz(monkeypatch):
     import asyncio
@@ -580,7 +536,6 @@ def test_se_puede_arrancar_ver_avance_y_detener_desde_la_interfaz(monkeypatch):
         detenido
     assert asyncio.run(rp.preflight_avance("no-existe"))["estado"] == "desconocido"
 
-
 def test_el_punto_de_acceso_de_claves_solo_guarda_las_que_el_proyecto_usa(tmp_path, monkeypatch):
     import asyncio
     import src.core.apikeys as apikeys
@@ -593,7 +548,6 @@ def test_el_punto_de_acceso_de_claves_solo_guarda_las_que_el_proyecto_usa(tmp_pa
     assert datos["ignoradas"] == ["CLAVE_INVENTADA"], datos
     assert apikeys.valores_configurados(tmp_path / ".env")["TAVILY_API_KEY"] is True
     assert "CLAVE_INVENTADA" not in (tmp_path / ".env").read_text(encoding="utf-8")
-
 
 def test_el_resumen_de_la_pantalla_traduce_los_estados():
     from src.core.preflight import AVISO, FALTA, OK, Preflight, Requisito
@@ -608,7 +562,6 @@ def test_el_resumen_de_la_pantalla_traduce_los_estados():
     assert filas[2]["remedio"] == "ollama pull qwen3:8b"
     assert filas[0]["remedio"] == "", "lo que está bien no necesita remedio"
 
-
 def test_la_pantalla_de_configuracion_esta_enganchada_en_el_encabezado():
     """Cableado: un botón que no está en la barra no existe para el usuario."""
     import inspect
@@ -619,7 +572,6 @@ def test_la_pantalla_de_configuracion_esta_enganchada_en_el_encabezado():
     assert callable(web_app._on_configurar_click)
     fuente = inspect.getsource(web_app._on_configurar_click)
     assert "abrir_configurar_axioma" in fuente, "el botón tiene que abrir la pantalla"
-
 
 # ── Servicio de VOZ en el contenedor (`ISSUE-150`) ──
 # Medido: el demonio necesitaba systemd (no hay `systemctl` en el contenedor y abortaba), el nombre
@@ -637,7 +589,6 @@ def test_el_daemon_puede_correr_sin_systemd(monkeypatch):
     assert Rafael._modo_directo([]) is False
     monkeypatch.setenv("AXIOMA_RAFAEL_DIRECTO", "1")
     assert Rafael._modo_directo([]) is True
-
 
 def test_el_daemon_en_modo_directo_no_llama_a_systemctl(monkeypatch):
     """El despacho real: con `--directo` NO tiene que intentar arrancar la unidad de systemd.
@@ -674,7 +625,6 @@ def test_el_daemon_en_modo_directo_no_llama_a_systemctl(monkeypatch):
     asyncio.run(Rafael._main())
     assert llamado.get("manual") is True, llamado
 
-
 def test_el_dispositivo_de_entrada_cae_al_del_sistema_si_el_configurado_no_existe(monkeypatch):
     """`pulse` existe en el equipo y no en el contenedor: se usa el del sistema en vez de fallar."""
     import config.multimodal_loader as ml
@@ -689,13 +639,11 @@ def test_el_dispositivo_de_entrada_cae_al_del_sistema_si_el_configurado_no_exist
         monkeypatch.setenv("AXIOMA_INPUT_DEVICE", reales[0])
         assert ml.get_input_device() == reales[0], "si el dispositivo existe, se respeta"
 
-
 # Los archivos de empaquetado (Dockerfile, compose) NO entran en la imagen: dentro del contenedor
 # esta comprobación se saltea con el motivo dicho (igual que en `test_axioma_27`).
 _sin_empaquetado = pytest.mark.skipif(
     not (PROJECT_ROOT / "Dockerfile").exists(),
     reason="los archivos de empaquetado no viajan dentro de la imagen")
-
 
 @_sin_empaquetado
 def test_el_servicio_de_voz_esta_listo_para_el_contenedor():
@@ -718,7 +666,6 @@ def test_el_servicio_de_voz_esta_listo_para_el_contenedor():
     imagen = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "libasound2-plugins" in imagen, "falta el puente de ALSA al servidor de sonido"
 
-
 # ── Lanzador para doble clic (sin terminal) ──
 # Pedido del usuario: "que sea lo más fácil para el usuario que no sabe de programación, para que no
 # tenga que usar la terminal para instalar nada". El lanzador decide solo si usa el Ollama del equipo
@@ -738,20 +685,17 @@ def _lanzador_con(tmp_path, docker_ok=True, ollama_en_el_equipo=False):
     return subprocess.run([str(PROJECT_ROOT / "instalar" / "iniciar_axioma.sh"), "--dry-run"],
                           capture_output=True, text=True, env=entorno, timeout=60)
 
-
 def test_sin_ollama_en_el_equipo_el_lanzador_levanta_el_de_axioma(tmp_path):
     salida = _lanzador_con(tmp_path, ollama_en_el_equipo=False)
     assert salida.returncode == 0, salida.stderr
     assert "ollama-local" in salida.stdout, salida.stdout
     assert "Levanto el Ollama que viene con AXIOMA" in salida.stdout, salida.stdout
 
-
 def test_con_ollama_en_el_equipo_el_lanzador_usa_ese_y_no_levanta_otro(tmp_path):
     salida = _lanzador_con(tmp_path, ollama_en_el_equipo=True)
     assert salida.returncode == 0, salida.stderr
     assert "--profile ollama-local" not in salida.stdout, salida.stdout
     assert "uso ese" in salida.stdout, salida.stdout
-
 
 def test_si_docker_no_responde_el_lanzador_lo_explica_y_no_sigue(tmp_path):
     """Dos casos: "no está instalado" y "no responde". Acá se prueba el segundo (el primero pide un
@@ -760,7 +704,6 @@ def test_si_docker_no_responde_el_lanzador_lo_explica_y_no_sigue(tmp_path):
     assert salida.returncode == 4, (salida.returncode, salida.stdout)
     assert "Docker" in salida.stdout, salida.stdout
     assert "Docker Desktop" in salida.stdout or "docker.com" in salida.stdout, salida.stdout
-
 
 def test_el_acceso_directo_no_abre_la_terminal():
     """«Que no tenga que usar la terminal»: el acceso directo tiene que arrancar sin consola."""
@@ -778,7 +721,6 @@ def test_el_acceso_directo_no_abre_la_terminal():
     for reloj in ("iniciar_axioma.sh",):
         assert (PROJECT_ROOT / "instalar" / reloj).exists()
 
-
 def test_la_guia_de_primer_arranque_se_muestra_una_sola_vez(tmp_path):
     """Se abre sola la PRIMERA vez y después no vuelve a molestar (se marca en `data/`)."""
     from src.interfaces.components.configurar_axioma import (
@@ -787,7 +729,6 @@ def test_la_guia_de_primer_arranque_se_muestra_una_sola_vez(tmp_path):
     assert es_primer_arranque(marca) is True, "la primera vez tiene que abrirse"
     marcar_primer_arranque(marca)
     assert es_primer_arranque(marca) is False, "la segunda vez ya no"
-
 
 def test_la_pantalla_principal_abre_la_guia_la_primera_vez():
     """Cableado: si la página no llama a la guía, el usuario nuevo no ve nada."""
@@ -798,7 +739,6 @@ def test_la_pantalla_principal_abre_la_guia_la_primera_vez():
     assert "abrir_configurar_axioma(primer_arranque=True)" in fuente, "no abre la guía"
     assert "once=True" in fuente, "tiene que ser un único disparo (nada de sondeo — R7)"
 
-
 # ── Modo de trabajo: de a uno o EN PARALELO (pedido del usuario) ──
 
 def _hw_simulado(vram_gb, ram_gb, utilizable=True):
@@ -806,7 +746,6 @@ def _hw_simulado(vram_gb, ram_gb, utilizable=True):
     return SimpleNamespace(is_gpu_available=utilizable, effective_budget_gb=vram_gb * 0.88,
                            ram_gb=ram_gb, gpu_vram_gb=vram_gb, backend="nvidia",
                            gpu_name="NVIDIA RTX", cpu_threads=8)
-
 
 def test_el_modo_paralelo_solo_con_placa_y_memoria_suficientes():
     """Con placa que alcanza para el modelo más pesado Y memoria para el otro: en paralelo."""
@@ -817,7 +756,6 @@ def test_el_modo_paralelo_solo_con_placa_y_memoria_suficientes():
     assert decidir_modo_de_trabajo(_hw_simulado(2.0, 32.0, utilizable=False), catalogo) == "simple"
     # Placa de sobra pero memoria justa: el otro modelo no convive ⇒ de a uno.
     assert decidir_modo_de_trabajo(_hw_simulado(12.0, 7.0), catalogo) == "simple"
-
 
 def test_en_modo_paralelo_no_se_descarga_el_modelo_anterior(monkeypatch):
     """El comportamiento que pide el usuario: no perder tiempo recargando si pueden convivir."""
@@ -844,7 +782,6 @@ def test_en_modo_paralelo_no_se_descarga_el_modelo_anterior(monkeypatch):
     de_a_uno = _swap(False)
     assert de_a_uno["descargas"] == ["modelo-viejo"], "en modo simple sí se descarga (como siempre)"
 
-
 # ── Nadie usa el usuario del autor: cada persona crea el suyo (`ISSUE-151`) ──
 # Pedido del usuario: "usuario no usará mi usuario, tendrá que crear un usuario nuevo obligatoriamente
 # antes de usarlo". Antes el producto traía mi identidad cocida (y como root).
@@ -861,7 +798,6 @@ def test_una_instalacion_nueva_no_trae_ningun_usuario_sembrado(monkeypatch):
     assert [u["username"] for u in sembrados] == ["persona"], sembrados
     assert sembrados[0]["role"] == "user", "se respeta el rol configurado"
 
-
 def test_la_identidad_por_defecto_es_vacia_y_no_de_administrador():
     """La comprobación de fábrica: sin `.env`, AXIOMA no trae identidad ni privilegios."""
     from config.settings import Settings
@@ -869,7 +805,8 @@ def test_la_identidad_por_defecto_es_vacia_y_no_de_administrador():
     assert campos["axioma_user_id"].default == "", "el usuario por defecto tiene que estar vacío"
     assert campos["axioma_user_role"].default == "user", "por defecto NO se entra como root"
 
-
+@pytest.mark.skipif(not (PROJECT_ROOT / "docker-compose.yml").exists(),
+                    reason="los archivos de empaquetado no viajan dentro de la imagen")
 def test_lo_que_se_distribuye_no_lleva_el_usuario_del_autor():
     """Guardián de la DISTRIBUCIÓN: ni el compose ni la plantilla ni los lanzadores traen mi usuario."""
     import yaml
@@ -887,7 +824,6 @@ def test_lo_que_se_distribuye_no_lleva_el_usuario_del_autor():
     entorno = comp["services"]["axioma"]["environment"]
     assert entorno["AXIOMA_USER_ID"] in ("", "${AXIOMA_USER_ID:-}"), entorno["AXIOMA_USER_ID"]
     assert entorno["AXIOMA_USER_ROLE"] == "${AXIOMA_USER_ROLE:-user}", entorno["AXIOMA_USER_ROLE"]
-
 
 def test_el_codigo_del_producto_no_tiene_un_usuario_cocido():
     """Guardián de `ISSUE-151`: ni respaldos en el código ni textos con el usuario del autor.
@@ -911,7 +847,6 @@ def test_el_codigo_del_producto_no_tiene_un_usuario_cocido():
                 ofensas.append(f"{archivo.relative_to(PROJECT_ROOT)}:{numero}")
     assert ofensas == [], f"el usuario del autor está cocido en el producto: {ofensas}"
 
-
 # ── "¿Este modelo va a andar en mi PC?" (pedido del usuario, fácil como Odysseus) ──
 
 def test_el_chequeo_de_modelo_avisa_si_no_entra_en_el_equipo():
@@ -920,7 +855,6 @@ def test_el_chequeo_de_modelo_avisa_si_no_entra_en_el_equipo():
     assert grande["nivel"] == "no_fit", grande
     assert "No" in grande["veredicto"] and "46" in grande["detalle"], grande
     assert grande.get("aviso"), "tiene que aclarar que es una estimación"
-
 
 def test_el_chequeo_de_modelo_usa_el_tamano_real_cuando_esta_instalado():
     from src.core.preflight import evaluar_modelo_en_la_pc
@@ -932,13 +866,11 @@ def test_el_chequeo_de_modelo_usa_el_tamano_real_cuando_esta_instalado():
     assert chico["memoria_gb"] and chico["donde"], chico
     assert chico["veredicto"].startswith(("✅", "⚠️")), chico
 
-
 def test_un_nombre_raro_no_inventa_un_veredicto():
     from src.core.preflight import evaluar_modelo_en_la_pc
     d = evaluar_modelo_en_la_pc("cualquier-cosa")
     assert d["nivel"] == "desconocido" and "No puedo" in d["veredicto"], d
     assert evaluar_modelo_en_la_pc("")["nivel"] == "desconocido"
-
 
 def test_la_pantalla_ofrece_el_chequeo_de_modelo():
     """Cableado: la pantalla tiene que ofrecerlo (si no, el usuario no lo encuentra)."""
