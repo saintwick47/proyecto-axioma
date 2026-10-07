@@ -62,6 +62,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   contenedor necesita ya se pasa explícito (`--no-browser`, `AXIOMA_RAFAEL_DIRECTO`, `AXIOMA_SIN_AUDIO`,
   rutas de logs). Queda **una idea, una bandera** (regla R1 del proyecto).
 
+### Corregido
+- **La voz ya no depende de números fijos que cambian entre distribuciones**: el grupo `audio` estaba
+  fijo en `996` y el socket del servidor de sonido en `/run/user/1000`. Medido: en Debian/Ubuntu el grupo
+  es **29**, en Fedora **63**; y con un UID distinto de 1000 el socket no existe. Ahora **el lanzador y el
+  instalador calculan** `AXIOMA_UID`, `AXIOMA_GID` y `AXIOMA_AUDIO_GID` del equipo y el compose los usa
+  (comprobado en el compose renderizado: con UID 1001 y grupo 29 sale `/run/user/1001/pulse` y
+  `group_add: 29`).
+
 ### Seguridad
 - **La interfaz ya no queda expuesta a la red local** (medido el 2026-10-07: escuchaba en `0.0.0.0:8080`
   **sin autenticación**). Ahora escucha en `127.0.0.1` por defecto —en el servicio con red del equipo y

@@ -56,6 +56,8 @@ Contenedor (Docker Compose):
   docker compose logs -f axioma       # ver qué está pasando
   docker compose down                 # apagar
   docker compose --profile ollama-local up -d    # Ollama DENTRO del contenedor
+  # La voz necesita los datos del equipo (los calcula el lanzador; a mano, pasalos vos):
+  #   AXIOMA_UID=$(id -u) AXIOMA_AUDIO_GID=$(getent group audio | cut -d: -f3) docker compose --profile voz up -d voz
   docker compose --profile voz up -d voz         # servicio de VOZ (Rafael)
   docker compose --profile voz stop voz          # apagarlo
 

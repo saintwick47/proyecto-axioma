@@ -104,8 +104,17 @@ docker compose --profile voz stop voz       # apagarla
 docker compose logs -f voz                  # ver cómo va
 ```
 
-**Qué necesita** (todo ya configurado en `docker-compose.yml`; sólo hay que ajustar el id de usuario si no
-es 1000):
+**Si lo corrés a mano, pasale los datos de tu equipo** (el lanzador ya los calcula solo): el grupo
+`audio` no es el mismo en todas las distribuciones (Debian/Ubuntu 29 · Fedora 63 · Arch/CachyOS 996) y el
+socket del servidor de sonido lleva tu UID:
+
+```bash
+AXIOMA_UID=$(id -u) AXIOMA_AUDIO_GID=$(getent group audio | cut -d: -f3) \
+  docker compose --profile voz up -d voz
+```
+
+**Qué necesita** (todo ya configurado en `docker-compose.yml`; los tres valores los calcula el lanzador,
+así que no hay que tocar nada a mano):
 
 | Pieza | Por qué |
 |---|---|
