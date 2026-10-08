@@ -14,6 +14,15 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Los archivos de EMPAQUETADO (`docker-compose.yml`) no viajan dentro de la imagen: la suite corre
+# adentro del contenedor y estas pruebas lo leen, así que se saltean ahí. Se comprueban en el CI y en el
+# equipo (donde el archivo existe). MEDIDO el 2026-10-08: 7 pruebas fallaban sólo dentro de la imagen
+# armada desde una copia limpia por este motivo.
+_sin_compose = pytest.mark.skipif(
+    not (PROJECT_ROOT / "docker-compose.yml").exists(),
+    reason="el empaquetado no viaja dentro de la imagen (se comprueba en el código)")
+
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -654,6 +663,7 @@ _sin_empaquetado = pytest.mark.skipif(
     reason="los archivos de empaquetado no viajan dentro de la imagen")
 
 @_sin_empaquetado
+@_sin_compose
 def test_el_servicio_de_voz_esta_listo_para_el_contenedor():
     """Guardián del diseño medido: si alguien saca una pieza, la voz deja de andar en el contenedor."""
     import yaml
@@ -909,6 +919,7 @@ def test_el_lanzador_usa_el_grupo_de_audio_del_equipo(tmp_path):
     assert "grupo audio 996" not in salida.stdout, "usó el valor fijo en vez del del equipo"
 
 
+@_sin_compose
 def test_el_compose_no_tiene_uid_ni_gid_de_audio_fijos():
     """El socket del servidor de sonido lleva el UID (`/run/user/<UID>/pulse`): 1000 fijo falla si tu
     usuario tiene otro UID (medido). Y el grupo de audio entra por `AXIOMA_AUDIO_GID`.

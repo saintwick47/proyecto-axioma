@@ -18,6 +18,15 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Los archivos de EMPAQUETADO (`docker-compose.yml`) no viajan dentro de la imagen: la suite corre
+# adentro del contenedor y estas pruebas lo leen, así que se saltean ahí. Se comprueban en el CI y en el
+# equipo (donde el archivo existe). MEDIDO el 2026-10-08: 7 pruebas fallaban sólo dentro de la imagen
+# armada desde una copia limpia por este motivo.
+_sin_compose = pytest.mark.skipif(
+    not (PROJECT_ROOT / "docker-compose.yml").exists(),
+    reason="el empaquetado no viaja dentro de la imagen (se comprueba en el código)")
+
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -76,6 +85,7 @@ def test_rafael_avisa_y_no_arranca_sin_audio():
         "el daemon tiene que avisar en castellano antes de rendirse"
 
 
+@_sin_compose
 def test_no_quedan_banderas_del_contenedor_sin_lector():
     """Regla R1 del proyecto: ninguna configuración sin quien la lea.
 

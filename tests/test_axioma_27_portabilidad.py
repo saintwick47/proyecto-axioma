@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-# ═══════════════════════════════════════════════════════════════
-# Autor: SaintWick — AXIOMA, suite integral (archivo 19/24)
-# Sección 19: CONTENEDORES — Fase 0 (portabilidad) y Fase 1 (catálogo de modelos) del
-# plan `docs/PLAN_CONTENEDORES.md`
-# ═══════════════════════════════════════════════════════════════
-# Estos chequeos existen porque el proyecto sólo se había usado en la carpeta del autor:
-# lo que sigue se rompía en otra PC o dentro de un contenedor y **no se notaba acá**
-# (las rutas existían). Ver `docs/ISSUE-147` en `docs/ISSUES_HISTORY.md`.
-#
-# Terminología del plan: B1 = raíz del proyecto, B2 = modelo de voz, B3 = documentador,
-# B5 = documentación de uso, B6 = supuestos del equipo anfitrión.
 import ast
 import json
 import sys
@@ -18,6 +7,12 @@ import pytest
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Los archivos de EMPAQUETADO (`docker-compose.yml`) no viajan dentro de la imagen: la suite corre
+_sin_compose = pytest.mark.skipif(
+    not (PROJECT_ROOT / "docker-compose.yml").exists(),
+    reason="el empaquetado no viaja dentro de la imagen (se comprueba en el código)")
+
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -31,7 +26,6 @@ def test_la_raiz_del_proyecto_es_la_carpeta_del_archivo():
     import importlib
     main = importlib.import_module("main")
     # Se compara contra la carpeta del ARCHIVO, no contra la raíz del repo: en el equipo del
-    # autor las dos coinciden y con la comparación débil la prueba no cazaba la mutación.
     assert Path(main.PROJECT_ROOT).resolve() == Path(main.__file__).resolve().parent, \
         main.PROJECT_ROOT
     assert Path(main.PROJECT_ROOT).is_dir()
@@ -123,7 +117,6 @@ def test_no_quedan_rutas_del_autor_en_codigo_ejecutable():
              if con_ruta(y.read_text(encoding="utf-8"))]
     assert yamls == [], f"rutas del autor en configuración: {yamls}"
     # `preparar_publicacion.sh` queda exceptuado a propósito: su trabajo es LIMPIAR la carpeta del
-    # autor en la copia que se publica, así que necesita nombrarla (es el único que puede).
     guiones = [g.name for g in sorted((PROJECT_ROOT / "tools").rglob("*.sh"))
                if g.name != "preparar_publicacion.sh"
                and con_ruta(g.read_text(encoding="utf-8", errors="ignore"))]
@@ -131,11 +124,6 @@ def test_no_quedan_rutas_del_autor_en_codigo_ejecutable():
 
 
 # ═══════════════════════════════════════════════════════════════
-# FASE 1 — catálogo de modelos por rol (qué hay que instalar)
-# ═══════════════════════════════════════════════════════════════
-# Es la lista que alimenta al preflight: sin ella el sistema no puede decir qué falta
-# antes de arrancar. La prueba cubre que se lea, que sea coherente con lo configurado y
-# que un catálogo mal escrito FALLE (en vez de que el preflight mienta).
 
 
 def test_el_catalogo_de_modelos_se_lee_y_es_coherente():
@@ -200,11 +188,6 @@ def test_un_catalogo_mal_escrito_falla_con_mensaje_claro(tmp_path):
 
 
 # ═══════════════════════════════════════════════════════════════
-# FASE 1 — preflight: ¿qué le falta a este equipo para funcionar?
-# ═══════════════════════════════════════════════════════════════
-# Pedido del usuario: que el sistema pueda decir qué hay que instalar ANTES de arrancar.
-# La lección de `ISSUE-146` se prueba acá como propiedad: si falta algo obligatorio, el
-# veredicto NO puede decir que puede responder.
 
 class _ClienteFalso:
     def __init__(self, vivo=True, modelos=()):
@@ -316,16 +299,10 @@ def test_el_informe_y_el_json_dicen_lo_mismo(monkeypatch, capsys):
 
 
 # ═══════════════════════════════════════════════════════════════
-# FASE 1 — empaquetado: contexto de compilación, imagen y compose
-# ═══════════════════════════════════════════════════════════════
-# Miran el ÁRBOL DE CÓDIGO (`.dockerignore`, `Dockerfile`, compose), que NO entra en la imagen:
-# dentro del contenedor se saltean con el motivo dicho.
 _sin_empaquetado = pytest.mark.skipif(
     not (PROJECT_ROOT / "Dockerfile").exists(),
     reason="los archivos de empaquetado no viajan dentro de la imagen (se comprueban en el código)")
 # No se puede compilar la imagen sin Docker instalado, pero SÍ se puede comprobar que el
-# empaquetado no arrastre lo que no debe (medido: `deepseek-harness` 1,9 GB y `venv` 11 GB
-# entrarían al contexto; `.optimizer_backups` tiene archivos de `root` que ni se pueden copiar).
 
 @_sin_empaquetado
 def test_el_contexto_de_compilacion_deja_fuera_lo_pesado_y_lo_ajeno():
@@ -339,8 +316,6 @@ def test_el_contexto_de_compilacion_deja_fuera_lo_pesado_y_lo_ajeno():
         assert necesario not in patrones, (
             f"no se puede excluir {necesario}: la imagen lo necesita para correr (y la suite)")
     # OJO: los paths excluidos (`deepseek-harness/`, `venv/`, `.optimizer_backups/`) son artefactos
-    # LOCALES de la máquina donde se desarrolla: en un clon limpio (el CI) no existen, y exigir que
-    # estén hacía fallar el CI siempre. Lo que sí tiene que existir es lo que la imagen NECESITA.
     for necesario in ("src", "config", "tests", "tools", "main.py"):
         assert (PROJECT_ROOT / necesario).exists(), f"falta {necesario} en el árbol"
 
@@ -358,6 +333,7 @@ def test_la_imagen_es_de_dos_etapas_sin_cuda_y_sin_root():
 
 
 @_sin_empaquetado
+@_sin_compose
 def test_el_compose_usa_el_ollama_del_equipo_por_defecto():
     """Decisión del usuario (§5-A): soportar los dos, con el del equipo por defecto."""
     import yaml
@@ -375,15 +351,6 @@ def test_el_compose_usa_el_ollama_del_equipo_por_defecto():
 
 
 # ═══════════════════════════════════════════════════════════════
-# FASE 2 — WINDOWS: instalador y lanzador (PowerShell)
-# ═══════════════════════════════════════════════════════════════
-# Medido el 2026-10-05: `command -v pwsh` no devuelve nada en el equipo del autor, así que estos
-# guiones NO se pueden ejecutar desde acá. Lo que sigue comprueba lo que sí es comprobable sin
-# Windows: que existan, que usen el perfil «puente» (en Windows `network_mode: host` no funciona),
-# que los perfiles y servicios que nombran existan en `docker-compose.yml`, que la sintaxis esté
-# balanceada, que el texto sea UTF-8 CON BOM (PowerShell 5.1 lee ANSI si no y los acentos salen
-# mal), que no lleven emoji (la consola CP850 los imprime como «?») y que no nombren la carpeta
-# del autor. La prueba en un Windows real queda pendiente y está anotada en el manual.
 _GUIONES_WINDOWS = ("instalar_axioma.ps1", "iniciar_axioma.ps1")
 
 
@@ -450,9 +417,6 @@ def test_los_guiones_de_windows_estan_en_utf8_con_bom_y_sin_emoji():
             "y los acentos salen mal")
         texto = crudo.decode("utf-8-sig")
         # Permitido: latin-1 (acentos, «»), tipografía (guiones largos) y los recuadros de los
-        # títulos (U+2500–U+257F, los mismos que usan los guiones de Linux). Lo que queda afuera
-        # son justamente los emoji de los guiones de Linux (✅ ⚠ ❌), que la consola de Windows
-        # (CP850/CP437) imprime como «?»: por eso los de Windows usan [OK] / [!] / [X].
         permitido = [(0x0000, 0x00FF), (0x2000, 0x206F), (0x2500, 0x257F)]
         raros = sorted({ch for ch in texto
                         if not any(a <= ord(ch) <= b for a, b in permitido)})
@@ -463,6 +427,7 @@ def test_los_guiones_de_windows_estan_en_utf8_con_bom_y_sin_emoji():
 
 
 @_sin_empaquetado
+@_sin_compose
 def test_los_guiones_de_windows_nombran_perfiles_y_servicios_que_existen():
     """En Windows `network_mode: host` no está disponible: el camino es el perfil «puente»."""
     import re
@@ -475,7 +440,6 @@ def test_los_guiones_de_windows_nombran_perfiles_y_servicios_que_existen():
         assert usados <= perfiles, (
             f"{nombre} usa perfiles que no existen en docker-compose.yml: {usados - perfiles}")
         # Se miran sólo las líneas que se ejecutan: los comentarios SÍ pueden (y deben) explicar
-        # por qué en Windows no se usa `network_mode: host`.
         codigo = _codigo_ps1(texto)
         assert "network_mode" not in codigo, (
             f"{nombre} no debe tocar `network_mode`: eso es de compose, no del guion")
@@ -498,19 +462,13 @@ def test_el_lanzador_de_windows_hace_lo_mismo_que_el_de_linux():
     # 3) espera a que responda y abre el navegador
     assert "Start-Process $Url" in texto, "no abre el navegador al terminar"
     # 3.b) nombra el servicio UNO POR UNO. Medido en Linux el 2026-10-06: `--profile puente` a secas
-    #      levanta TAMBIÉN `axioma` (no tiene perfil, arranca siempre), que usa la red del equipo:
-    #      los dos pelean por el 8080 y `axioma` queda en bucle de reinicios. En Windows esa red no
-    #      existe, así que nombrar el servicio no es un detalle de estilo.
     assert '"axioma-puente"' in texto and "up -d @servicios" in texto, (
         "tiene que arrancar sólo axioma-puente (y ollama si hace falta), no todo el perfil")
     # 4) apagado y ensayo, igual que el guion de Linux (se busca el interruptor Y su uso: si no,
-    #    renombrarlo deja la prueba pasando con el comportamiento borrado)
     for interruptor in ("$Detener", "$Ensayo"):
         assert f"[switch]{interruptor}" in texto, f"falta el interruptor {interruptor}"
         assert f"if ({interruptor})" in texto, f"el interruptor {interruptor} no se usa para nada"
     # 5) los llamados a Docker, protegidos. En PowerShell 7.4+ `$PSNativeCommandUseErrorActionPreference`
-    #    viene en $true: un `docker info` que falla LANZA excepción y, como el guion usa
-    #    `$ErrorActionPreference = "Stop"`, se cortaría en vez de decir qué falta.
     assert "try { & docker info *> $null } catch { return $false }" in texto, \
         "Probar-Docker tiene que proteger el llamado a Docker (PowerShell 7.4+)"
     assert "catch { $encendido = $false }" in texto, \
@@ -529,7 +487,6 @@ def test_el_instalador_de_windows_deja_acceso_directo_y_sintaxis_balanceada():
     assert "WScript.Shell" in texto, "los accesos directos se crean con WScript.Shell"
     assert "Programs" in texto and "Desktop" in texto, "tiene que dejar acceso en menú Inicio y Escritorio"
     # Windows recién instalado trae la ejecución de guiones deshabilitada: el acceso directo
-    # (y el mensaje de error) tienen que decir cómo saltearla.
     assert "-ExecutionPolicy Bypass" in texto, "el acceso directo no podría ejecutarse"
     # Los llamados a Docker, protegidos (ver el motivo en la prueba del lanzador).
     assert "try { & docker info *> $null } catch { $hayDocker = $false }" in texto, \
@@ -547,14 +504,8 @@ def test_el_instalador_de_windows_deja_acceso_directo_y_sintaxis_balanceada():
 
 
 # ═══════════════════════════════════════════════════════════════
-# DEPENDENCIAS: requirements-ci.txt es requirements.txt menos lo documentado
-# ═══════════════════════════════════════════════════════════════
-# Medido el 2026-10-06 (antes de esta prueba): `ruff` estaba SÓLO en el archivo del CI y `psutil`
-# (que el producto usa en 5 módulos para medir memoria) SÓLO en el completo. Los dos desfases hacían
-# que el CI no probara el camino real. La relación entre los dos archivos ahora está fijada acá.
 
 # Paquetes que están en requirements.txt y NO en el del CI, cada uno con su motivo escrito en el
-# encabezado de requirements-ci.txt.
 _OMITIDOS_A_PROPOSITO = {
     "torch",                  # el CI lo instala aparte, desde el índice CPU
     "torchaudio",             # ídem
@@ -590,11 +541,6 @@ def test_requirements_ci_es_requirements_menos_lo_documentado():
 
 
 # ═══════════════════════════════════════════════════════════════
-# RECOMENDAR UN MODELO SEGÚN EL EQUIPO (pendiente D-16 de `DECISIONES.md`)
-# ═══════════════════════════════════════════════════════════════
-# El pedido del usuario: que alguien que no sabe de modelos reciba una respuesta clara —«con tu equipo,
-# usá estos; este otro no te va a andar, y por esto»—. Se prueba con HARDWARE SIMULADO: si se probara con
-# el equipo real, la prueba diría cosas distintas según la máquina donde corra (y en el CI no hay Ollama).
 
 def _hw_simulado(ram_gb=32.0, placa=False, vram_gb=0.0):
     from types import SimpleNamespace
@@ -713,10 +659,6 @@ def test_el_ci_prueba_los_instaladores_en_un_windows_de_verdad():
     for interprete in ("shell: powershell", "shell: pwsh"):
         assert interprete in ci, f"el CI no prueba con «{interprete}» (5.1 y 7 son los que hay en la calle)"
     # MEDIDO el 2026-10-06: con `shell: ${{ matrix.shell }}` GitHub NO valida el workflow entero: la
-    # corrida queda ROJA, sin ningún trabajo (`total_count: 0`) y con el nombre del archivo en vez del
-    # nombre del workflow. El `shell` tiene que ser literal.
-    # (Se miran sólo las líneas que se EJECUTAN: el comentario que explica el error contiene el texto
-    #  prohibido, y la primera versión de esta comprobación se tropezaba con su propia explicación.)
     solo_ejecutable = "\n".join(l for l in ci.splitlines() if not l.lstrip().startswith("#"))
     assert "shell: ${{" not in solo_ejecutable, \
         "una expresión en `shell:` rompe la validación de TODO el workflow"
@@ -769,7 +711,6 @@ def test_el_ci_ejecuta_los_instaladores_de_linux():
         assert comprobacion in ci, f"el CI no comprueba: {comprobacion}"
 
     # Y el lanzador de Linux tiene que MIRAR el código de Docker, como el de Windows: si el contenedor
-    # ya existe (u otro problema), hay que explicarlo, no morir con el error crudo de Docker.
     lanzador = (PROJECT_ROOT / "instalar" / "iniciar_axioma.sh").read_text(encoding="utf-8")
     assert "if ! docker compose" in lanzador, "el lanzador de Linux no comprueba si Docker pudo encender"
     assert "Docker no pudo encender AXIOMA" in lanzador, "no explica el fallo en castellano"
@@ -817,14 +758,8 @@ def test_la_imagen_y_el_ci_usan_la_misma_version_de_python():
 
 
 # ═══════════════════════════════════════════════════════════════
-# PERMISOS: el contenedor tiene que poder correr con el UID del EQUIPO (fase 5)
-# ═══════════════════════════════════════════════════════════════
-# Medido el 2026-10-08: el contenedor corría siempre con el usuario 1000 que trae la imagen. En un equipo
-# donde tu usuario tiene otro UID, lo que AXIOMA escribe en `data/` y `logs/` queda de un usuario que no
-# existe en tu máquina (no lo podés leer ni borrar). Al poner `user:` en el compose apareció el problema
-# de enfrente, medido con `docker run --user 1001`: el contenedor NO podía escribir en ninguna carpeta y
-# tampoco podía **leer** el código, porque 1622 archivos del proyecto estaban en modo 600.
 
+@_sin_compose
 def test_el_compose_corre_con_el_usuario_del_equipo():
     """`user:` en los servicios de la app, con los valores que calcula el lanzador."""
     import yaml
@@ -933,6 +868,7 @@ def test_el_guion_de_maquina_limpia_no_puede_tocar_la_instalacion_del_usuario():
 
 
 @_sin_empaquetado
+@_sin_compose
 def test_el_modelo_de_la_memoria_no_se_vuelve_a_bajar():
     """MEDIDO el 2026-10-08: `BAAI/bge-m3` ocupa **4,3 GB** y su caché quedaba DENTRO del contenedor, así
     que se volvía a bajar en cada recreación (y el primer arranque tardaba minutos: la copia limpia no
