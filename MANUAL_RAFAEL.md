@@ -130,7 +130,30 @@ activación (`[WakeWord] Escuchando wake word`), sin errores en el lazo de escuc
 **Nota**: el widget de escritorio (que corre en tu equipo) se comunica con el demonio por archivos en `/tmp`;
 si querés verlo desde el contenedor, hay que montar `/tmp` (está comentado en el compose, con la advertencia).
 
-**Windows**: el servicio `voz` **no está disponible** ahí. Todo lo que necesita (`/dev/snd`, el socket de
+### Windows: Rafael nativo (voz del sistema, sin instalar nada)
+
+En Windows la voz **no** va dentro del contenedor: Docker Desktop corre sobre WSL 2, que no expone el
+micrófono ni el servidor de sonido. En su lugar hay un **demonio nativo** que usa la voz que **ya trae
+Windows** y le manda el texto al AXIOMA del contenedor:
+
+```powershell
+# comprobar que todo esté listo (voz, micrófono, AXIOMA) sin escuchar nada:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\rafael_windows.ps1 -Ensayo
+
+# hablar con Rafael:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\rafael_windows.ps1
+```
+
+- **No hay que instalar Python** ni nada: usa `System.Speech`, la voz de Windows.
+- **Cómo se usa**: hablás y hacés una pausa para terminar la frase; Rafael contesta y te lo **lee en voz
+  alta**. Para salir, decí «salir».
+- **Sin micrófono o sin el idioma instalado**: `-SoloTexto` (escribís, y te contesta por voz). Para dictar
+  en castellano hay que agregar el idioma en *Configuración → Hora e idioma → Voz*.
+- **Si AXIOMA está en otro puerto u otra máquina**: `-Url http://127.0.0.1:8090`.
+
+---
+
+**Windows (contenedor)**: el servicio `voz` **no está disponible** ahí. Todo lo que necesita (`/dev/snd`, el socket de
 PulseAudio, los grupos de audio del equipo) es de Linux, y el contenedor de Windows corre sobre WSL 2 con un
 kernel que no expone esos dispositivos. El chat y los modelos funcionan igual; el lanzador de Windows lo
 avisa al instalar.

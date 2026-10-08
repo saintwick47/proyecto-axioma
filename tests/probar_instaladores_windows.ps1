@@ -33,7 +33,8 @@ function Fallo { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundCol
 function Dato { param([string]$Texto) Write-Host "       $Texto" -ForegroundColor DarkGray }
 
 $Raiz = Split-Path -Parent $PSScriptRoot          # tests\ -> raíz del proyecto
-$Guiones = @("instalar\instalar_axioma.ps1", "instalar\iniciar_axioma.ps1")
+$Guiones = @("instalar\instalar_axioma.ps1", "instalar\iniciar_axioma.ps1",
+             "instalar\rafael_windows.ps1")
 $Problemas = 0
 
 Write-Host ""
@@ -153,6 +154,28 @@ foreach ($caso in @(
             $Problemas++
         }
     }
+}
+
+# ── 3.b El demonio de voz de Windows: tiene que arrancar y explicar qué le falta ──────────────────
+Write-Host "`n> Rafael para Windows (voz nativa, sin Python)"
+$rafael = CorrerGuion "instalar\rafael_windows.ps1" @("-Ensayo")
+Dato "salida $($rafael.Codigo): $(($rafael.Salida -split "`n" | Select-Object -First 3) -join ' / ')"
+if ($rafael.Codigo -eq 0) {
+    Bien "arranca, encuentra la voz de Windows y AXIOMA contesta"
+} elseif ($rafael.Codigo -eq 4 -and $rafael.Salida -match "AXIOMA no contesta") {
+    # En el runner de CI no hay AXIOMA andando: lo que se comprueba es que el guion ARRANQUE, use la voz
+    # nativa de Windows y explique con claridad que no encuentra AXIOMA.
+    Bien "arranca y explica que AXIOMA no está encendido (en el CI no hay contenedor)"
+} else {
+    Fallo "rafael_windows.ps1 no arrancó como corresponde (salida $($rafael.Codigo))"
+    Dato $rafael.Salida
+    $Problemas++
+}
+if ($rafael.Salida -match "System.Speech") {
+    Bien "usa la voz NATIVA de Windows (System.Speech): no hace falta instalar Python"
+} else {
+    Fallo "no está usando la voz nativa de Windows"
+    $Problemas++
 }
 
 # ── 4. Un interruptor que no existe: lo tiene que rechazar PowerShell, no ignorarlo ───────────────

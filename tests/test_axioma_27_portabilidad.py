@@ -865,3 +865,41 @@ def test_el_codigo_que_va_a_la_imagen_es_legible_para_cualquiera():
     assert ilegibles == [], (
         "estos archivos sólo los puede leer su dueño y romperían el contenedor con otro UID: "
         + ", ".join(ilegibles[:5]))
+
+
+@_sin_empaquetado
+def test_el_demonio_de_voz_de_windows_es_nativo_y_habla_con_el_contenedor():
+    """Decisión del usuario (2026-10-08): en Windows la voz va en un **demonio nativo** que le manda el
+    texto al AXIOMA del contenedor.
+
+    Por qué así (medido el 2026-10-08): Docker Desktop en Windows corre sobre WSL 2, que **no** expone el
+    micrófono ni el servidor de sonido (el servicio `voz` del compose no puede funcionar ahí). La
+    alternativa a este guion sería pedirle al usuario que instale Python y sus dependencias en Windows,
+    justo lo que el proyecto evita. Usa la voz que **ya trae Windows** (`System.Speech`).
+
+    Y la ruta del endpoint: MEDIDA contra el AXIOMA andando, es `/api/api/v1/chat` porque el router tiene
+    prefijo `/api/v1` y además se monta bajo `/api` (queda duplicado). El guion prueba las dos rutas, así
+    sigue funcionando el día que se arregle el prefijo.
+    """
+    guion = PROJECT_ROOT / "instalar" / "rafael_windows.ps1"
+    assert guion.exists(), "falta el demonio de voz para Windows"
+    crudo = guion.read_bytes()
+    assert crudo.startswith(b"\xef\xbb\xbf"), "los .ps1 necesitan BOM (PowerShell 5.1 y los acentos)"
+    texto = crudo.decode("utf-8-sig")
+
+    # Nativo: la voz de Windows, sin instalar nada.
+    assert "System.Speech" in texto, "tiene que usar la voz nativa de Windows"
+    for prohibido in ("import sounddevice", "pip install", "python "):
+        assert prohibido not in texto, f"no puede depender de {prohibido!r}: tiene que ser nativo"
+
+    # Las dos rutas del endpoint (la real medida y la que corresponde si se arregla el prefijo).
+    assert '"/api/v1/chat", "/api/api/v1/chat"' in texto, \
+        "tiene que probar las dos rutas del endpoint de chat"
+    # Y el modo ensayo, para poder comprobarlo sin micrófono.
+    assert "-Ensayo" in texto, "tiene que poder comprobarse en seco"
+
+    # El CI de Windows lo ejecuta de verdad.
+    comprobador = (PROJECT_ROOT / "tests" / "probar_instaladores_windows.ps1").read_bytes().decode("utf-8-sig")
+    assert "rafael_windows.ps1" in comprobador, \
+        "el comprobador que corre el CI en Windows tiene que validar también este guion"
+    assert "System.Speech" in comprobador, "el comprobador tiene que verificar que use la voz nativa"
