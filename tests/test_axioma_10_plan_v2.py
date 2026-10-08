@@ -262,9 +262,6 @@ class TestFase2Traces:
         from src.interfaces.web import routes_extended as RE
 
         section(SECTION)
-        # ✅ 2026-10-08: se mira la dirección PÚBLICA (prefijo del montaje `/api` + el del router), que
-        # es la que usa cualquiera desde afuera. Antes esta prueba miraba las rutas del router, así que
-        # pasaba aunque la dirección pública estuviera duplicada (`/api/api/v1/...`).
         paths = [f"/api{getattr(r, 'path', '')}" for r in RE.router.routes]
         check("endpoint GET /api/v1/traces existe en la dirección publica",
               "/api/v1/traces" in paths, str([p for p in paths if "trace" in p]), SECTION)

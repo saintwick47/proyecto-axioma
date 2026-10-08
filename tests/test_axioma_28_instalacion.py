@@ -275,6 +275,9 @@ def test_los_puntos_de_acceso_del_preflight_quedan_registrados():
     """
     from src.interfaces.web.server import build_api_app
     rutas = {getattr(r, "path", "") for r in build_api_app().routes}
+    # ✅ 2026-10-08: la dirección PÚBLICA (el `/api` lo pone el montaje; el router aporta `/v1`). Antes
+    # esta prueba miraba las rutas del router, que pasaban aunque la pública estuviera duplicada.
+    rutas = {f"/api{p}" for p in rutas}
     assert "/api/v1/preflight" in rutas, sorted(p for p in rutas if "preflight" in p)
     assert "/api/v1/preflight/catalogo" in rutas, sorted(p for p in rutas if "preflight" in p)
 

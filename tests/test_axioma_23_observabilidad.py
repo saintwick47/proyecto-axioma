@@ -266,7 +266,7 @@ class TestObservabilityEndpoints:
         return r
 
     def test_endpoints_registered(self):
-        paths = [getattr(r, "path", "") for r in self._routes().router.routes]
+        paths = [f"/api{getattr(r, 'path', '')}" for r in self._routes().router.routes]
         for ep in ("/api/v1/metrics/degradation", "/api/v1/feedback/stats"):
             check(f"endpoint registrado {ep}", ep in paths, str(len(paths)), SECTION)
             assert ep in paths

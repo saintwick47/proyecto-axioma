@@ -549,7 +549,10 @@ class TestMiddlewareWiring:
     def test_critical_endpoints_registered(self):
         from src.interfaces.web.server import build_api_app
         app = build_api_app()
-        paths = [getattr(r, "path", "") for r in app.routes]
+        # ✅ 2026-10-08: dirección PÚBLICA (`/api` del montaje + `/v1` del router); antes miraba sólo el
+        # router y pasaba aunque la pública estuviera duplicada.
+        paths = [f"/api{getattr(r, 'path', '')}" if str(getattr(r, "path", "")).startswith("/v1")
+                 else getattr(r, "path", "") for r in app.routes]
         for ep in ("/api/v1/health", "/api/v1/chat", "/api/v1/stats",
                    "/api/v1/metrics/degradation", "/api/v1/feedback/stats"):
             check(f"endpoint crítico presente {ep}", ep in paths, str(len(paths)), SECTION_2)
