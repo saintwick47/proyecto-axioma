@@ -101,6 +101,20 @@ RUN mkdir -p /app/data /app/logs /app/docs /app/cache \
     && chown -R axioma:axioma /app
 
 USER axioma
+# ✅ 2026-10-08: la imagen se puede correr con el UID del equipo (`user:` en el compose) para que los
+# archivos de `data/` y `logs/` queden TUYOS y no de otro usuario. Medido: sin esto, con un UID distinto
+# de 1000 el contenedor no podía escribir en ninguna carpeta (`/app/data`, `/app/logs`, `/app/cache`) ni
+# en `src/` (Python no podía dejar su `__pycache__` y la configuración no se importaba).
+# Se abren SÓLO las carpetas de datos, no el código.
+RUN mkdir -p data logs cache && chmod -R 0777 data logs cache
+# Python no escribe `__pycache__` en el código: evita ensuciar el árbol y el error de permisos.
+ENV PYTHONDONTWRITEBYTECODE=1
+# ✅ 2026-10-08: el código tiene que ser LEGIBLE para cualquier UID. Medido: 1622 archivos del proyecto
+# estaban en modo 600 (los escribe así la herramienta del autor) y al copiarse a la imagen quedaban
+# ilegibles para un contenedor que corre con otro UID → `import config.settings` explotaba con
+# `PermissionError` sobre `src/utils/degradation.py` y AXIOMA no arrancaba. Esto lo garantiza en la
+# imagen sin depender de cómo estén los permisos en el equipo donde se compila.
+RUN chmod -R a+rX /app
 
 # La interfaz web escucha en 8080 (el puerto de la configuración es 8000; en el contenedor se
 # publica el 8080 para no chocar con el del equipo).

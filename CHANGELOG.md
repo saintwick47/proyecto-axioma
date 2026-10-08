@@ -70,6 +70,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   (comprobado en el compose renderizado: con UID 1001 y grupo 29 sale `/run/user/1001/pulse` y
   `group_add: 29`).
 
+### Corregido
+- **Los archivos que AXIOMA escribe en tu equipo ahora son TUYOS**: el contenedor corría siempre con el
+  usuario `1000` que trae la imagen, así que en un equipo donde tu usuario tiene otro UID lo que se
+  escribía en `data/` y `logs/` quedaba de un usuario inexistente en tu máquina (no lo podías leer ni
+  borrar). Ahora los tres servicios de la aplicación corren con **tu UID y tu GID**.
+- **Y el contenedor puede correr con cualquier UID** (lo que hizo falta para lo anterior): medido con
+  `docker run --user 1001`, antes **no podía escribir en ninguna carpeta** y **no podía ni leer el
+  código** —1622 archivos del proyecto estaban en modo 600— y AXIOMA no arrancaba. La imagen ahora abre
+  las carpetas de datos y garantiza que el código sea legible, y Python no escribe `__pycache__` en el
+  árbol. Hay una prueba que impide que vuelva a pasar.
+
 ### Seguridad
 - **La interfaz ya no queda expuesta a la red local** (medido el 2026-10-07: escuchaba en `0.0.0.0:8080`
   **sin autenticación**). Ahora escucha en `127.0.0.1` por defecto —en el servicio con red del equipo y

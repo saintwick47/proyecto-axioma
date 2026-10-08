@@ -814,3 +814,54 @@ def test_la_imagen_y_el_ci_usan_la_misma_version_de_python():
     assert "python-version: ['3.14']" in ci, "el CI tiene que probar la versión que se usa de verdad"
     assert "'3.12'" not in ci, "3.12 se descartó: el CI no puede volver a probarlo"
     assert "continue-on-error: ${{" not in ci, "sin segunda versión no hay que tolerar fallos"
+
+
+# ═══════════════════════════════════════════════════════════════
+# PERMISOS: el contenedor tiene que poder correr con el UID del EQUIPO (fase 5)
+# ═══════════════════════════════════════════════════════════════
+# Medido el 2026-10-08: el contenedor corría siempre con el usuario 1000 que trae la imagen. En un equipo
+# donde tu usuario tiene otro UID, lo que AXIOMA escribe en `data/` y `logs/` queda de un usuario que no
+# existe en tu máquina (no lo podés leer ni borrar). Al poner `user:` en el compose apareció el problema
+# de enfrente, medido con `docker run --user 1001`: el contenedor NO podía escribir en ninguna carpeta y
+# tampoco podía **leer** el código, porque 1622 archivos del proyecto estaban en modo 600.
+
+def test_el_compose_corre_con_el_usuario_del_equipo():
+    """`user:` en los servicios de la app, con los valores que calcula el lanzador."""
+    import yaml
+    comp = yaml.safe_load((PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    for servicio in ("axioma", "axioma-puente", "voz"):
+        usuario = comp["services"][servicio].get("user")
+        assert usuario == "${AXIOMA_UID:-1000}:${AXIOMA_GID:-1000}", \
+            f"el servicio `{servicio}` tiene que correr con el UID/GID del equipo, y tiene {usuario!r}"
+    assert "user" not in (comp["services"]["ollama"] or {}), \
+        "el Ollama propio es una imagen ajena: no se le cambia el usuario"
+
+
+@_sin_empaquetado
+def test_la_imagen_deja_escribir_y_leer_con_cualquier_uid():
+    """La imagen tiene que servir para el UID de cualquier equipo (medido con `--user 1001`)."""
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "chmod -R 0777 data logs cache" in dockerfile, \
+        "las carpetas donde AXIOMA escribe tienen que ser escribibles por el UID del equipo"
+    assert "chmod -R a+rX /app" in dockerfile, \
+        "el código tiene que ser legible con cualquier UID (medido: 1622 archivos en 600 rompían el import)"
+    assert "PYTHONDONTWRITEBYTECODE=1" in dockerfile, \
+        "Python no tiene que intentar escribir `__pycache__` en el código"
+
+
+def test_el_codigo_que_va_a_la_imagen_es_legible_para_cualquiera():
+    """Guarda temprana del defecto medido: un archivo en modo 600 rompe el contenedor con otro UID.
+
+    La herramienta del autor escribe archivos con permisos sólo para su usuario; si eso entra a la
+    imagen, el contenedor que corre con el UID del equipo no puede ni importar la configuración.
+    """
+    import os
+    ilegibles = []
+    for carpeta in ("src", "config", "tools", "tests", "instalar"):
+        for archivo in sorted((PROJECT_ROOT / carpeta).rglob("*")):
+            if archivo.is_file() and not archivo.is_symlink():
+                if os.stat(archivo).st_mode & 0o044 != 0o044:
+                    ilegibles.append(str(archivo.relative_to(PROJECT_ROOT)))
+    assert ilegibles == [], (
+        "estos archivos sólo los puede leer su dueño y romperían el contenedor con otro UID: "
+        + ", ".join(ilegibles[:5]))

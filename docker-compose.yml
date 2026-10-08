@@ -35,6 +35,10 @@ services:
     restart: unless-stopped
     # Red del equipo: así ve el Ollama que ya tenés (127.0.0.1:11434) sin exponerlo a la red local.
     network_mode: host
+    # ✅ 2026-10-08: corre con TU usuario (UID/GID del equipo), no con el que trae la imagen. Así lo que
+    # AXIOMA escribe en `data/` y `logs/` te pertenece: en otro equipo, con el usuario fijo de la imagen
+    # (1000), esos archivos quedaban de un usuario que no existe en tu máquina y no los podías ni borrar.
+    user: "${AXIOMA_UID:-1000}:${AXIOMA_GID:-1000}"
     # ✅ 2026-10-07: la interfaz escucha SÓLO en este equipo. Antes el contenedor arrancaba con
     # `--host 0.0.0.0` y, como comparte la red del equipo (`network_mode: host`) y no tiene
     # autenticación, cualquiera en la red local podía abrir AXIOMA (medido: `ss -ltn` mostraba
@@ -87,6 +91,8 @@ services:
     container_name: axioma-puente
     profiles: ["puente"]
     restart: unless-stopped
+    # ✅ 2026-10-08: mismo criterio que el servicio de Linux (tus archivos, tu usuario).
+    user: "${AXIOMA_UID:-1000}:${AXIOMA_GID:-1000}"
     ports:
       # ✅ 2026-10-07: sólo el propio equipo. Docker Desktop necesita que la aplicación escuche en
       # `0.0.0.0` ADENTRO del contenedor para poder publicar un puerto, pero hacia afuera se publica en
@@ -126,6 +132,8 @@ services:
     profiles: ["voz"]
     restart: unless-stopped
     network_mode: host
+    # ✅ 2026-10-08: el UID del equipo también acá (el socket de Pulse y los registros de voz son tuyos).
+    user: "${AXIOMA_UID:-1000}:${AXIOMA_GID:-1000}"
     devices:
       - /dev/snd                     # el micrófono y los altavoces del equipo
     group_add:
