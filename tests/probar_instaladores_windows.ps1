@@ -171,10 +171,14 @@ if ($rafael.Codigo -eq 0) {
     Dato $rafael.Salida
     $Problemas++
 }
-if ($rafael.Salida -match "System.Speech") {
-    Bien "usa la voz NATIVA de Windows (System.Speech): no hace falta instalar Python"
+# OJO: se mira el ARCHIVO, no la salida. Medido en el CI (2026-10-08): la salida del guion no dice
+# "System.Speech" (lo dice sólo si falla), así que comprobar la salida hacía fallar el trabajo de Windows
+# sin motivo. Lo que importa es que el guion USE la voz nativa, no que lo cuente.
+$fuente = Get-Content -Raw -Encoding UTF8 (Join-Path $Raiz "instalar\rafael_windows.ps1")
+if ($fuente -match "System.Speech" -and $fuente -notmatch "pip install") {
+    Bien "usa la voz NATIVA de Windows (System.Speech) y no pide instalar Python"
 } else {
-    Fallo "no está usando la voz nativa de Windows"
+    Fallo "el demonio de voz no está usando la voz nativa de Windows"
     $Problemas++
 }
 

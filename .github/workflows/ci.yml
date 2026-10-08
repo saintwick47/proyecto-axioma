@@ -196,6 +196,12 @@ jobs:
           Write-Host "codigo del comprobador: $codigo"
           exit $codigo
 
+      - name: Anotar qué falló (si falló)
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "::error::el comprobador de los instaladores de Windows falló: mirá el paso anterior"
+
       - name: PowerShell 7
         shell: pwsh
         run: |

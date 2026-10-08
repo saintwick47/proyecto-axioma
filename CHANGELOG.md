@@ -25,6 +25,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - **Carga guiada de claves** (`python -m src.core.apikeys`): cada persona carga las suyas; el archivo queda
   con permisos sólo para su usuario y **nunca se muestran los valores**.
 - **Preflight** (`python -m src.core.preflight`): informa qué le falta al equipo, con el motivo y el remedio.
+- **Voz en Windows, sin instalar nada**: `instalar/rafael_windows.ps1` es un **demonio nativo** que usa la
+  voz del sistema (`System.Speech`) para escuchar y hablar, y le manda el texto al AXIOMA del contenedor
+  por HTTP. En Windows la voz no puede ir dentro del contenedor (Docker Desktop corre sobre WSL 2, que no
+  expone el micrófono). Tiene modo `-Ensayo` (comprueba voz, micrófono y AXIOMA sin escuchar) y
+  `-SoloTexto` para escribir. El CI lo ejecuta en un Windows real.
 - **¿Qué modelo me conviene?** (`preflight --recomendar`): con el hardware medido dice, **rol por rol**,
   qué modelo conviene y **por qué** («entra con margen», «entra justo», «no entra»), cuánto ocupa, dónde
   corre y cómo se instala. `preflight --modelo NOMBRE` contesta por **un** modelo puntual, aunque no esté
