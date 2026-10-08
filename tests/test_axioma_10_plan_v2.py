@@ -262,11 +262,14 @@ class TestFase2Traces:
         from src.interfaces.web import routes_extended as RE
 
         section(SECTION)
-        paths = [getattr(r, "path", "") for r in RE.router.routes]
-        check("endpoint GET /api/v1/traces existe en la tabla de rutas",
+        # ✅ 2026-10-08: se mira la dirección PÚBLICA (prefijo del montaje `/api` + el del router), que
+        # es la que usa cualquiera desde afuera. Antes esta prueba miraba las rutas del router, así que
+        # pasaba aunque la dirección pública estuviera duplicada (`/api/api/v1/...`).
+        paths = [f"/api{getattr(r, 'path', '')}" for r in RE.router.routes]
+        check("endpoint GET /api/v1/traces existe en la dirección publica",
               "/api/v1/traces" in paths, str([p for p in paths if "trace" in p]), SECTION)
         ep = next((r.endpoint for r in RE.router.routes
-                   if getattr(r, "path", "") == "/api/v1/traces"), None)
+                   if f"/api{getattr(r, 'path', '')}" == "/api/v1/traces"), None)
         check("el endpoint resuelve por import (existe el callable)", ep is not None,
               type(ep).__name__, SECTION)
         # mode=stats es comportamiento real: se ejecuta y se mira la respuesta.

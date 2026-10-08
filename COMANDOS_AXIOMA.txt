@@ -501,9 +501,9 @@ venv/bin/python tools/log_health_report.py              # health report desde lo
 venv/bin/python tools/audit_silent_excepts.py           # inventario de except silenciosos
 #
 # API nueva:
-#   GET /api/api/v1/metrics/degradation   → contrato vs degradación esperada (+alertas)
-#   GET /api/api/v1/feedback/stats        → feedback agregado + señal ROUTED
-#   GET /api/api/v1/stats                 → requests/latencia/uptime reales, storage, degradación
+#   GET /api/v1/metrics/degradation   → contrato vs degradación esperada (+alertas)
+#   GET /api/v1/feedback/stats        → feedback agregado + señal ROUTED
+#   GET /api/v1/stats                 → requests/latencia/uptime reales, storage, degradación
 #
 # Exportación: 📄 → Investigación (con citas) o CONVERSACIÓN completa (usuario +
 #   asistente + fuentes + código generado) en MD / HTML (imprimible a PDF) / JSON.

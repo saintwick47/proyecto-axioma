@@ -83,7 +83,12 @@ def _log_error(error: Exception, context: str, extra: dict = None):
 # ═══════════════════════════════════════════════════════════════
 # ROUTER PRINCIPAL
 # ═══════════════════════════════════════════════════════════════
-router = APIRouter(prefix="/api/v1", tags=["AXIOMA"])
+# ✅ 2026-10-08: el prefijo era `/api/v1` y este router se MONTA bajo `/api` (server.py:
+# `nicegui_app.mount('/api', _fastapi_app)`), así que la dirección pública quedaba DUPLICADA:
+# `/api/api/v1/...`. MEDIDO contra el servidor andando: `/api/v1/chat` daba 404 y `/api/api/v1/chat` 200
+# —o sea que la ruta que documenta el README y la que usa todo el mundo estaba rota—. Con `/v1` acá, la
+# dirección pública es la que se quería: **`/api/v1/...`**.
+router = APIRouter(prefix="/v1", tags=["AXIOMA"])
 
 # ═══════════════════════════════════════════════════════════════
 # MODELOS DE REQUEST/RESPONSE (Compartidos con routes_extended)

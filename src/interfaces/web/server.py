@@ -124,8 +124,13 @@ def build_api_app():
 
         app.include_router(router)
 
-        critical_paths = ["/api/v1/health", "/api/v1/chat"]
-        registered = [r.path for r in router.routes if hasattr(r, 'path')]
+        # ✅ 2026-10-08: antes se comparaba contra las rutas del ROUTER (`/api/v1/...`), que siempre
+        # existen, así que la comprobación pasaba aunque la dirección pública estuviera duplicada
+        # (`/api/api/v1/...`: medido, 404 en la que todos esperaban). Ahora se compara contra la
+        # dirección PÚBLICA: el prefijo del montaje (`/api`) + el del router.
+        montaje = "/api"
+        critical_paths = [f"{montaje}/v1/health", f"{montaje}/v1/chat"]
+        registered = [f"{montaje}{r.path}" for r in router.routes if hasattr(r, 'path')]
         missing = [p for p in critical_paths if p not in registered]
         if missing:
             logger.error(f"❌ Endpoints críticos faltantes: {missing}")

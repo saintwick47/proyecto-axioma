@@ -128,3 +128,30 @@ def test_la_configuracion_de_la_web_se_lee_del_entorno_no_del_codigo(tmp_path):
     ignorados = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
     assert ".storage_secret" in ignorados or "data/" in ignorados, \
         "el secreto del equipo no puede terminar en el repositorio"
+
+
+def test_la_direccion_publica_de_la_api_no_se_duplica():
+    """MEDIDO el 2026-10-08 contra el servidor andando: la API quedaba en `/api/api/v1/chat`.
+
+    El router tenía prefijo `/api/v1` y además se monta bajo `/api`, así que la dirección se duplicaba:
+    `/api/v1/chat` daba **404** (la que documenta el README y la que espera cualquiera) y
+    `/api/api/v1/chat` daba 200. La auto-comprobación del arranque no lo veía porque comparaba contra
+    las rutas del ROUTER, que siempre existen. Ahora la dirección pública es `/api/v1/...`.
+    """
+    from src.interfaces.web.routes import router
+    fuente_servidor = (PROJECT_ROOT / "src" / "interfaces" / "web" / "server.py").read_text(encoding="utf-8")
+
+    # El router no puede volver a llevar el `/api` que ya pone el montaje.
+    assert router.prefix == "/v1", (
+        f"el prefijo del router tiene que ser `/v1` (el `/api` lo pone el montaje), y es {router.prefix!r}")
+    assert "mount('/api'" in fuente_servidor, "el montaje de la API cambió de lugar: revisá esta prueba"
+
+    # La dirección pública es la esperada y no está duplicada.
+    publicas = [f"/api{getattr(r, 'path', '')}" for r in router.routes]
+    assert "/api/v1/health" in publicas and "/api/v1/chat" in publicas, publicas[:10]
+    assert not [p for p in publicas if p.startswith("/api/api/")], \
+        f"la dirección pública volvió a duplicarse: {[p for p in publicas if p.startswith('/api/api/')]}"
+
+    # Y la comprobación del arranque mira la dirección PÚBLICA (antes miraba el router y no lo veía).
+    assert 'critical_paths = [f"{montaje}/v1/health", f"{montaje}/v1/chat"]' in fuente_servidor, \
+        "la comprobación de endpoints críticos tiene que usar la dirección pública"

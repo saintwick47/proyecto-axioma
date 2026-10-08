@@ -80,6 +80,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   usuario `1000` que trae la imagen, así que en un equipo donde tu usuario tiene otro UID lo que se
   escribía en `data/` y `logs/` quedaba de un usuario inexistente en tu máquina (no lo podías leer ni
   borrar). Ahora los tres servicios de la aplicación corren con **tu UID y tu GID**.
+- **La dirección pública de la API estaba duplicada**: el router tenía prefijo `/api/v1` y además se
+  monta bajo `/api`, así que la API quedaba en **`/api/api/v1/...`**. Medido contra el servidor andando:
+  `/api/v1/chat` (la que dice el README y la que espera cualquiera) daba **404**, y sólo funcionaba la
+  duplicada. Ahora la dirección es la correcta, **`/api/v1/...`** (comprobado después del arreglo:
+  `/api/v1/chat` contesta y `/api/api/v1/chat` da 404). La auto-comprobación del arranque **no lo
+  detectaba** porque comparaba contra las rutas internas del router: ahora compara contra la dirección
+  pública, y hay una prueba que impide que vuelva a duplicarse.
 - **Y el contenedor puede correr con cualquier UID** (lo que hizo falta para lo anterior): medido con
   `docker run --user 1001`, antes **no podía escribir en ninguna carpeta** y **no podía ni leer el
   código** —1622 archivos del proyecto estaban en modo 600— y AXIOMA no arrancaba. La imagen ahora abre
