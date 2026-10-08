@@ -81,6 +81,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   las carpetas de datos y garantiza que el código sea legible, y Python no escribe `__pycache__` en el
   árbol. Hay una prueba que impide que vuelva a pasar.
 
+### Agregado
+- **Un Ollama de mentira para las pruebas** (`tests/conftest.py`): un servidor HTTP **de verdad** de la
+  biblioteca estándar que contesta lo mismo que Ollama (`/api/tags`, `/api/chat`, `/api/pull`, con
+  progreso y con la opción de fallar a propósito) y escucha en un puerto libre de `127.0.0.1`. Sirve para
+  probar **los caminos reales del cliente** (peticiones HTTP reales, descarga con progreso) sin depender
+  de que haya un servidor en la máquina —que es lo que hoy hace que algunas pruebas se salteen en el CI—.
+  Sin dependencias nuevas (el plan proponía `respx`).
+
 ### Seguridad
 - **La interfaz ya no queda expuesta a la red local** (medido el 2026-10-07: escuchaba en `0.0.0.0:8080`
   **sin autenticación**). Ahora escucha en `127.0.0.1` por defecto —en el servicio con red del equipo y

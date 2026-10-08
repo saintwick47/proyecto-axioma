@@ -115,3 +115,108 @@ def mock_ollama_response():
     r.eval_duration     = 1.4
     r.raw               = {}
     return r
+
+
+# ═══════════════════════════════════════════════════════════════
+# OLLAMA FALSO — para poder probar los caminos reales sin servidor (fase 6)
+# ═══════════════════════════════════════════════════════════════
+# Medido el 2026-10-07/08: en el CI, `OLLAMA_HOST` apunta a un puerto muerto
+# (`http://127.0.0.1:1`), así que las pruebas que necesitan el servidor se SALTAN (por ejemplo
+# `test_axioma_02_core.py::restore_default()`) y el camino real del cliente nunca se ejercita.
+#
+# En vez de agregar una dependencia (como `respx`, que propuso el plan), este falso es un servidor HTTP
+# de verdad de la biblioteca estándar: contesta lo mismo que Ollama y **el código del proyecto hace
+# pedidos HTTP reales** contra él (mejor prueba que reemplazar el cliente por un doble). No necesita
+# red externa ni puertos fijos: escucha en un puerto libre de `127.0.0.1` y se apaga al terminar.
+
+class _OllamaFalso:
+    """Servidor que imita a Ollama: `/api/tags`, `/api/chat` y `/api/pull`."""
+
+    def __init__(self, fallar: bool = False) -> None:
+        import json as _json
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        self.pedidos: list = []          # (método, camino, cuerpo) de lo que le pidieron
+        self.fallar = fallar             # si está en True, contesta 500 (para probar el error)
+        falso = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):    # sin ruido en la salida de las pruebas
+                pass
+
+            def _responder(self, datos, lineas_ndjson=False):
+                cuerpo = (b"".join(_json.dumps(l).encode() + b"\n" for l in datos)
+                          if lineas_ndjson else _json.dumps(datos).encode())
+                self.send_response(200)
+                self.send_header("Content-Type", "application/x-ndjson" if lineas_ndjson
+                                 else "application/json")
+                self.send_header("Content-Length", str(len(cuerpo)))
+                self.end_headers()
+                self.wfile.write(cuerpo)
+
+            def _leer_cuerpo(self):
+                largo = int(self.headers.get("Content-Length") or 0)
+                return _json.loads(self.rfile.read(largo) or b"{}")
+
+            def do_GET(self):
+                falso.pedidos.append(("GET", self.path, {}))
+                if falso.fallar:
+                    self.send_error(500, "falso: fallo a propósito")
+                    return
+                if self.path.startswith("/api/tags"):
+                    self._responder({"models": [{"name": "falso:1b", "size": 1}]})
+                elif self.path.startswith("/api/version"):
+                    self._responder({"version": "0.0.0-falso"})
+                else:
+                    self.send_error(404)
+
+            def do_POST(self):
+                cuerpo = self._leer_cuerpo()
+                falso.pedidos.append(("POST", self.path, cuerpo))
+                if falso.fallar:
+                    self.send_error(500, "falso: fallo a propósito")
+                    return
+                if self.path.startswith("/api/chat"):
+                    self._responder({"model": cuerpo.get("model", ""),
+                                     "message": {"role": "assistant",
+                                                 "content": "respuesta del Ollama falso"},
+                                     "done": True})
+                elif self.path.startswith("/api/pull"):
+                    # Igual que Ollama: varios eventos y el último con el estado final.
+                    self._responder([{"status": "pulling manifest"},
+                                     {"status": "downloading", "total": 100, "completed": 50},
+                                     {"status": "downloading", "total": 100, "completed": 100},
+                                     {"status": "success"}], lineas_ndjson=True)
+                else:
+                    self.send_error(404)
+
+        self._servidor = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._servidor.daemon_threads = True
+        self.url = f"http://127.0.0.1:{self._servidor.server_address[1]}"
+        self._hilo = threading.Thread(target=self._servidor.serve_forever, daemon=True)
+        self._hilo.start()
+
+    def parar(self) -> None:
+        self._servidor.shutdown()
+        self._servidor.server_close()
+
+
+@pytest.fixture
+def ollama_falso():
+    """Un Ollama de mentira, por HTTP de verdad (ver el comentario de arriba)."""
+    falso = _OllamaFalso()
+    try:
+        yield falso
+    finally:
+        falso.parar()
+
+
+@pytest.fixture
+def ollama_falso_que_falla():
+    """El mismo falso, pero contestando error: para probar los caminos de falla."""
+    falso = _OllamaFalso(fallar=True)
+    try:
+        yield falso
+    finally:
+        falso.parar()
