@@ -109,6 +109,9 @@ USER axioma
 RUN mkdir -p data logs cache && chmod -R 0777 data logs cache
 # Python no escribe `__pycache__` en el código: evita ensuciar el árbol y el error de permisos.
 ENV PYTHONDONTWRITEBYTECODE=1
+# ✅ 2026-10-08: lo que baja HuggingFace (el modelo de embeddings, medido 4,3 GB) va a `cache/`, que en
+# el compose es volumen del equipo: se baja UNA vez y sobrevive a recrear el contenedor.
+ENV HF_HOME=/app/cache/huggingface
 # ✅ 2026-10-08: el código tiene que ser LEGIBLE para cualquier UID. Medido: 1622 archivos del proyecto
 # estaban en modo 600 (los escribe así la herramienta del autor) y al copiarse a la imagen quedaban
 # ilegibles para un contenedor que corre con otro UID → `import config.settings` explotaba con

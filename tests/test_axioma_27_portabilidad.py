@@ -930,3 +930,20 @@ def test_el_guion_de_maquina_limpia_no_puede_tocar_la_instalacion_del_usuario():
     for excluido in ("venv/", "data/", "logs/", ".env", ".git/"):
         assert excluido in fuente, f"la copia tiene que excluir {excluido}"
     assert "--solo-plan" in fuente, "tiene que poder mostrarse el plan sin tocar nada"
+
+
+@_sin_empaquetado
+def test_el_modelo_de_la_memoria_no_se_vuelve_a_bajar():
+    """MEDIDO el 2026-10-08: `BAAI/bge-m3` ocupa **4,3 GB** y su caché quedaba DENTRO del contenedor, así
+    que se volvía a bajar en cada recreación (y el primer arranque tardaba minutos: la copia limpia no
+    respondía en un minuto). Ahora va a `cache/`, que es volumen del equipo.
+    """
+    import yaml
+    comp = yaml.safe_load((PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    axioma = comp["services"]["axioma"]
+    assert any("cache" in v and "/app/cache" in v for v in axioma["volumes"]), \
+        "falta el volumen de `cache/`: el modelo de la memoria se bajaría de nuevo cada vez"
+    assert axioma["environment"].get("HF_HOME") == "/app/cache/huggingface", \
+        "la caché de HuggingFace tiene que apuntar a `cache/` (que es volumen)"
+    assert "HF_HOME" in (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8"), \
+        "la imagen también tiene que saberlo, por si se corre sin compose"

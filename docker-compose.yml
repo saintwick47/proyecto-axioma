@@ -63,10 +63,17 @@ services:
       # ✅ 2026-10-07: hasta hoy esta bandera se declaraba y NADIE la leía (el comentario prometía una
       # desactivación que no existía: ver tests/test_axioma_30_audio_opcional.py).
       AXIOMA_SIN_AUDIO: "1"
+      # Lo que baja HuggingFace (el modelo de embeddings: medido 4,3 GB) va a `cache/`, que es volumen.
+      HF_HOME: "/app/cache/huggingface"
     volumes:
       # Los datos del usuario (memoria, cachés, modelo de voz) viven en el equipo, no en la imagen.
       - ./data:/app/data
       - ./logs:/app/logs
+      # ✅ 2026-10-08: el modelo de embeddings (medido: **4,3 GB** para `BAAI/bge-m3`) también vive en el
+      # equipo. Sin esto quedaba dentro del contenedor y se VOLVÍA A BAJAR cada vez que se recreaba (y el
+      # primer arranque tardaba minutos: medido, la copia no respondía en un minuto). Con el volumen se
+      # baja una sola vez.
+      - ./cache:/app/cache
       # La configuración es la del usuario y se puede editar sin recompilar.
       - ./config:/app/config
     healthcheck:
@@ -102,6 +109,8 @@ services:
       # En Docker Desktop el equipo se alcanza con este nombre, no con 127.0.0.1.
       OLLAMA_HOST: "http://${AXIOMA_OLLAMA_HOST:-host.docker.internal:11434}"
       AXIOMA_SIN_AUDIO: "1"
+      # Lo que baja HuggingFace (el modelo de embeddings: medido 4,3 GB) va a `cache/`, que es volumen.
+      HF_HOME: "/app/cache/huggingface"
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

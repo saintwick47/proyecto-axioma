@@ -617,6 +617,11 @@ def test_el_daemon_en_modo_directo_no_llama_a_systemctl(monkeypatch):
     monkeypatch.setattr(Rafael, "setup_logging", lambda: None)
     monkeypatch.delenv("INVOCATION_ID", raising=False)
     monkeypatch.delenv("AXIOMA_RAFAEL_DIRECTO", raising=False)
+    # ✅ 2026-10-08: DENTRO de la imagen `AXIOMA_SIN_AUDIO=1` viene puesta (el Dockerfile la declara: el
+    # contenedor no tiene audio). Medido: sin borrarla, `Rafael._main()` se retira antes de despachar y
+    # esta prueba fallaba SÓLO adentro del contenedor (`assert None == 'silent'`). Acá se prueba el
+    # DESPACHO, no el guardián del audio: se limpia la bandera a propósito.
+    monkeypatch.delenv("AXIOMA_SIN_AUDIO", raising=False)
     monkeypatch.setattr(sys, "argv", ["Rafael.py", "--mode", "silent", "--directo"])
     asyncio.run(Rafael._main())
     assert llamado.get("modo") == "silent", llamado

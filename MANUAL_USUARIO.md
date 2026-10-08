@@ -122,6 +122,10 @@ avisos (podés usarlo igual) y los ❌ son cosas que hay que resolver.
 
 ### 6.3 Descargá los modelos (10-20 minutos, según tu internet)
 
+> **La primera vez también se baja el modelo de la memoria** (el que le permite *recordar* lo que
+> hablaste): unos **4,3 GB**, una sola vez. Necesita internet y unos minutos; después queda guardado en tu
+> carpeta `cache/` y no se vuelve a bajar.
+
 En esa misma pantalla, tocá **⬇️ Descargar los que faltan**. Vas a ver el avance real y un botón
 **⏹️ DETENER** por si querés parar (podés continuar más tarde: lo que ya se bajó no se pierde).
 

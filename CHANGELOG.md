@@ -57,6 +57,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   `tools/verificar_imagen.sh` (compila, mide el tamaño de la imagen y corre la suite **adentro**).
 
 ### Corregido
+- **El modelo de la memoria se volvía a bajar en cada recreación del contenedor**: la caché de
+  HuggingFace quedaba adentro y son **4,3 GB** (medido). Ahora vive en `cache/` del equipo (volumen) y se
+  baja una sola vez.
 - **La voz ya no falla sin explicación dentro del contenedor**: `AXIOMA_SIN_AUDIO=1` (que el contenedor
   declara porque ahí no hay dispositivos de audio) **no la leía ningún módulo**. Ahora tiene un lector
   único (`config/multimodal_loader.audio_deshabilitado`), **no se abren dispositivos** y el preflight lo
