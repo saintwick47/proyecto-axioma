@@ -18,6 +18,8 @@
 #   tools/probar_instalacion_limpia.sh --con-imagen   # además arma la imagen y corre la suite ADENTRO
 #   tools/probar_instalacion_limpia.sh --encender     # además la enciende en otro puerto y mide
 #   tools/probar_instalacion_limpia.sh --solo-plan    # muestra qué haría, sin tocar nada
+#   tools/probar_instalacion_limpia.sh --con-cache    # encender usando la caché de modelos del equipo
+#                                                     # (evita los 4,3 GB de la primera descarga)
 #   tools/probar_instalacion_limpia.sh --conservar    # no borra la carpeta temporal al terminar
 #
 # Códigos de salida: 0 = todo bien · 1 = algo falló · 4 = falta algo (Docker, por ejemplo)
@@ -32,12 +34,14 @@ CON_IMAGEN=false
 ENCENDER=false
 SOLO_PLAN=false
 CONSERVAR=false
+CON_CACHE=false
 for arg in "$@"; do
   case "$arg" in
     --con-imagen) CON_IMAGEN=true ;;
     --encender)   ENCENDER=true; CON_IMAGEN=true ;;
     --solo-plan)  SOLO_PLAN=true ;;
     --conservar)  CONSERVAR=true ;;
+    --con-cache)  CON_CACHE=true; CON_IMAGEN=true ;;
     *) echo "Opción no reconocida: $arg"; exit 2 ;;
   esac
 done
@@ -167,10 +171,17 @@ YAML
   if (cd "$DESTINO" && docker compose -p "$PROYECTO_PRUEBA" -f docker-compose.yml \
         -f docker-compose.prueba.yml up -d >/tmp/axioma_limpia_up.log 2>&1); then
     ok "contenedor $CONTENEDOR_PRUEBA encendido"
+    # La primera vez, AXIOMA baja el modelo de la memoria (medido: 4,3 GB) y eso son MINUTOS. Se espera
+    # 5 minutos y se va contando lo que dice el contenedor, para no confundir «está bajando» con «no
+    # arrancó» (fue el error que tuvo este guion: esperaba 60 s y avisaba un fallo que no lo era).
     listo=false
-    for _ in $(seq 1 30); do
+    for intento in $(seq 1 60); do
       if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PUERTO_AJENO/" || true)" = "200" ]; then listo=true; break; fi
-      sleep 2
+      if [ $((intento % 5)) -eq 0 ]; then
+        aviso="$(docker logs --tail 3 "$CONTENEDOR_PRUEBA" 2>&1 | tr '\n' ' ' | tail -c 160)"
+        dato "esperando ($((intento * 5))s)... ${aviso:-arrancando}"
+      fi
+      sleep 5
     done
     if $listo; then
       ok "la copia responde en http://127.0.0.1:$PUERTO_AJENO (medido)"
@@ -187,9 +198,16 @@ YAML
         mal "tu AXIOMA (8080) dejó de responder durante la prueba"; FALLOS=$((FALLOS+1))
       fi
     else
-      mal "la copia no respondió en $PUERTO_AJENO (registro: /tmp/axioma_limpia_up.log)"
-      dato "$(tail -3 /tmp/axioma_limpia_up.log)"
-      FALLOS=$((FALLOS+1))
+      ultimo="$(docker logs --tail 20 "$CONTENEDOR_PRUEBA" 2>&1 | tr '\n' ' ' | tail -c 300)"
+      if grep -qiE "download|descarg|huggingface|bge" <<<"$ultimo"; then
+        aviso "la copia no respondió en 5 minutos porque está BAJANDO el modelo de la memoria (4,3 GB)."
+        dato "Es la primera vez (sin caché): no es un fallo. Para probar el arranque sin esperar:"
+        dato "  tools/probar_instalacion_limpia.sh --encender --con-cache"
+      else
+        mal "la copia no respondió en $PUERTO_AJENO en 5 minutos"
+        dato "últimas líneas: ${ultimo:-sin salida}"
+        FALLOS=$((FALLOS+1))
+      fi
     fi
   else
     mal "no se pudo encender la copia"; dato "$(tail -3 /tmp/axioma_limpia_up.log)"; FALLOS=$((FALLOS+1))
