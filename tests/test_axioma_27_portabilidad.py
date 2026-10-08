@@ -903,3 +903,30 @@ def test_el_demonio_de_voz_de_windows_es_nativo_y_habla_con_el_contenedor():
     assert "rafael_windows.ps1" in comprobador, \
         "el comprobador que corre el CI en Windows tiene que validar también este guion"
     assert "System.Speech" in comprobador, "el comprobador tiene que verificar que use la voz nativa"
+
+
+@_sin_empaquetado
+def test_el_guion_de_maquina_limpia_no_puede_tocar_la_instalacion_del_usuario():
+    """Pedido del usuario (2026-10-08): probar la instalación en una copia limpia **sin tocar** la suya.
+
+    Lo que se exige (cada cosa es una forma de pisar la instalación que ya funciona):
+      · trabajar en una carpeta TEMPORAL y borrarla al final;
+      · usar OTRO nombre de imagen, OTRO nombre de contenedor y OTRO puerto (el 8080 es el del usuario);
+      · tomar una FOTO de la instalación del usuario antes y después y COMPARARLA (y fallar si cambió).
+    """
+    guion = PROJECT_ROOT / "tools" / "probar_instalacion_limpia.sh"
+    assert guion.exists(), "falta el guion de prueba en máquina limpia"
+    fuente = guion.read_text(encoding="utf-8")
+
+    assert "mktemp -d" in fuente and "rm -rf \"$DESTINO\"" in fuente, \
+        "tiene que trabajar en una carpeta temporal y borrarla"
+    assert "axioma-limpia:prueba" in fuente, "tiene que usar OTRO nombre de imagen (no pisar axioma:local)"
+    assert "axioma-prueba" in fuente, "tiene que usar OTRO nombre de contenedor"
+    assert 'PUERTO_AJENO="${AXIOMA_PUERTO_PRUEBA:-8099}"' in fuente, \
+        "tiene que encender en OTRO puerto (el 8080 es el del usuario)"
+    assert "ANTES=" in fuente and "DESPUES=" in fuente and '[ "$ANTES" = "$DESPUES" ]' in fuente, \
+        "tiene que comparar la instalación del usuario antes y después"
+    assert "'--exclude'" in fuente or "--exclude" in fuente, "tiene que copiar sin el entorno del usuario"
+    for excluido in ("venv/", "data/", "logs/", ".env", ".git/"):
+        assert excluido in fuente, f"la copia tiene que excluir {excluido}"
+    assert "--solo-plan" in fuente, "tiene que poder mostrarse el plan sin tocar nada"
