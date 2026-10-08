@@ -84,6 +84,10 @@ AXIOMA_AUDIO_GID="$(getent group audio 2>/dev/null | cut -d: -f3 || true)"
 AXIOMA_AUDIO_GID="${AXIOMA_AUDIO_GID:-996}"; export AXIOMA_AUDIO_GID
 ok "Audio del equipo: UID ${AXIOMA_UID} · GID ${AXIOMA_GID} · grupo audio ${AXIOMA_AUDIO_GID}"
 
+# ✅ 2026-10-08: las carpetas que el contenedor escribe tienen que existir ANTES de encenderlo y ser
+# TUYAS. Medido: en una instalación nueva, Docker las crea como `root`, y como el contenedor corre con tu
+# UID (fase 5) no puede escribir → `PermissionError: /app/data/memory` y AXIOMA no arranca.
+mkdir -p data logs cache
 paso "Encendiendo AXIOMA"
 if $DRY; then
   echo "  (ensayo) cd $RAIZ && docker compose ${PERFIL} up -d"

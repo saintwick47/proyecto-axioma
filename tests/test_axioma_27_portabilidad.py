@@ -883,3 +883,15 @@ def test_el_modelo_de_la_memoria_no_se_vuelve_a_bajar():
         "la caché de HuggingFace tiene que apuntar a `cache/` (que es volumen)"
     assert "HF_HOME" in (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8"), \
         "la imagen también tiene que saberlo, por si se corre sin compose"
+
+
+def test_los_guiones_crean_las_carpetas_antes_de_encender():
+    """MEDIDO el 2026-10-08 con el guion de máquina limpia: en una instalación NUEVA, `data/` y `logs/` no
+    existen; Docker las crea como `root` al montarlas, y como el contenedor corre con el UID del equipo
+    (fase 5) no puede escribir → `PermissionError: /app/data/memory` y AXIOMA no arranca.
+    Los dos guiones tienen que crearlas ANTES de encender, así quedan del usuario.
+    """
+    for guion in ("instalar/instalar_axioma.sh", "instalar/iniciar_axioma.sh"):
+        fuente = (PROJECT_ROOT / guion).read_text(encoding="utf-8")
+        assert "mkdir -p data logs cache" in fuente, \
+            f"{guion} no crea data/logs/cache antes de encender (en una máquina nueva no arrancaría)"
