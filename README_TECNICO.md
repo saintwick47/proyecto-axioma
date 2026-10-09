@@ -204,7 +204,7 @@ GET /api/v1/stats                 → requests/latencia/uptime reales + storage 
 GET /api/v1/hwfit/{hardware,rank,check,compatible}
 ```
 > ⚠️ La API se monta bajo `/api` y el router ya trae `/api/v1`: la URL real es
-> **`/api/api/v1/...`**.
+> **`/api/v1/...`**.
 
 ---
 

@@ -155,3 +155,46 @@ def test_la_direccion_publica_de_la_api_no_se_duplica():
     # Y la comprobación del arranque mira la dirección PÚBLICA (antes miraba el router y no lo veía).
     assert 'critical_paths = [f"{montaje}/v1/health", f"{montaje}/v1/chat"]' in fuente_servidor, \
         "la comprobación de endpoints críticos tiene que usar la dirección pública"
+
+
+def test_las_rutas_documentadas_existen_de_verdad():
+    """Vigilancia del prefijo de la API (D-28): lo que dice la documentación tiene que existir.
+
+    MEDIDO el 2026-10-08: `COMANDOS_AXIOMA.txt` documentaba `/api/api/v1/...` (la dirección duplicada) y
+    el README decía `/api/v1/...` (la rota entonces). Ahora se comprueba que **cada ruta que nombran los
+    documentos exista de verdad** y que nadie vuelva a documentar la duplicada.
+    """
+    import re
+    # MEDIDO al escribir esta prueba: las rutas de `routes_extended`, `routes_hwfit` y `routes_preflight`
+    # se registran AL IMPORTAR sus módulos (el arranque de la app los importa). Si no se importan, la
+    # lista queda incompleta y la prueba marca como «faltantes» rutas que sí existen.
+    from src.interfaces.web import routes, routes_extended, routes_hwfit, routes_preflight  # noqa: F401
+    from src.interfaces.web.routes import router
+
+    publicas = [f"/api{getattr(r, 'path', '')}" for r in router.routes]
+    # CHANGELOG y DECISIONES NARRAN el cambio: ahí la dirección duplicada se nombra como historia (y
+    # tiene que poder nombrarse). El resto de la documentación describe cómo se usa HOY.
+    historicos = {"CHANGELOG.md", "DECISIONES.md"}
+    documentos = [p for p in PROJECT_ROOT.glob("*.md") if p.name not in historicos] \
+        + [PROJECT_ROOT / "COMANDOS_AXIOMA.txt"]
+    revisadas, faltantes, duplicadas = 0, [], []
+    for documento in documentos:
+        if not documento.exists():
+            continue
+        for numero, linea in enumerate(documento.read_text(encoding="utf-8").splitlines(), 1):
+            if "/api/api/" in linea:
+                duplicadas.append(f"{documento.name}:{numero}")
+            for ruta in re.findall(r"/api/v1/[A-Za-z0-9_/]*", linea):
+                ruta = ruta.rstrip("/")
+                if not ruta or ruta.endswith("/v1"):
+                    continue
+                revisadas += 1
+                # Se compara por prefijo: las rutas con parámetros llevan `{...}` en el router.
+                if not any(p == ruta or p.startswith(ruta + "/") or p.startswith(ruta + "{")
+                           for p in publicas):
+                    faltantes.append(f"{documento.name}:{numero} → {ruta}")
+    assert revisadas > 0, "no encontré rutas de la API en la documentación (¿cambió el formato?)"
+    assert duplicadas == [], f"volvió a documentarse la dirección DUPLICADA: {duplicadas}"
+    assert faltantes == [], (
+        "estas rutas están documentadas y no existen (revisá el prefijo de la API): "
+        + ", ".join(sorted(set(faltantes))[:5]))
