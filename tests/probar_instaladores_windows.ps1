@@ -188,6 +188,17 @@ $raro = CorrerGuion "instalar\instalar_axioma.ps1" @("-NoExiste")
 Dato "salida $($raro.Codigo): $(($raro.Salida -split "`n" | Select-Object -First 2) -join ' / ')"
 # Lo que importa: que NO lo acepte en silencio. PowerShell lo rechaza con su propio error (código
 # distinto de 0) o nombrándolo; las dos formas sirven, ignorarlo no.
+# 2026-10-09: los guiones tienen que DEJAR REGISTRO en `logs\`. Medido: antes sólo imprimían en
+# pantalla y, si algo fallaba al instalar, no quedaba nada para mirar después.
+$logs = Join-Path $Raiz "logs"
+$deEstaCorrida = @(Get-ChildItem -Path $logs -Filter "*_windows_*.log" -ErrorAction SilentlyContinue)
+if ($deEstaCorrida.Count -gt 0) {
+    Bien "los guiones dejan registro en logs\ ($($deEstaCorrida.Count) archivo(s))"
+} else {
+    Fallo "los guiones no dejaron registro en logs\ (¿se quitó el Start-Transcript?)"
+    $Problemas++
+}
+
 if ($raro.Codigo -ne 0 -or $raro.Salida -match "NoExiste|parameter|parámetro") {
     Bien "no acepta en silencio un interruptor que no existe"
 } else {

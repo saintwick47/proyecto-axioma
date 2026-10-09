@@ -31,6 +31,7 @@ param(
     [switch]$Ensayo
 )
 
+$NOMBRE_REGISTRO = "lanzador_windows"
 $ErrorActionPreference = "Stop"
 
 # Marcadores sin emoji/dibujos: la consola de Windows (CP850/CP437) los imprime mal.
@@ -38,6 +39,24 @@ function paso  { param([string]$Texto) Write-Host "`n> $Texto" -ForegroundColor 
 function ok    { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundColor Green }
 function aviso { param([string]$Texto) Write-Host "  [!]  $Texto" -ForegroundColor Yellow }
 function mal   { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundColor Red }
+
+# ── Registro en archivo ─────────────────────────────────────────────────────────────────────────
+# 2026-10-09: MEDIDO: estos guiones sólo imprimían en pantalla, así que si algo fallaba al instalar la
+# evidencia se perdía con la ventana (y sin Windows a mano, no había forma de mirar qué pasó). Ahora TODO
+# lo que se imprime queda en `logs\`, al lado de los registros de AXIOMA.
+$CarpetaRegistros = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
+try { New-Item -ItemType Directory -Force -Path $CarpetaRegistros | Out-Null } catch { }
+$Registro = Join-Path $CarpetaRegistros ("{0}_{1}.log" -f $NOMBRE_REGISTRO,
+                                          (Get-Date -Format "yyyyMMdd_HHmmss"))
+try { Start-Transcript -Path $Registro -Append | Out-Null } catch { $Registro = $null }
+if ($Registro) { Write-Host "  [i]  Registro de esta corrida: $Registro" -ForegroundColor DarkGray }
+
+function Salir {
+    param([int]$Codigo = 0)
+    if ($Registro) { try { Stop-Transcript | Out-Null } catch { } }
+    if ($Registro) { Write-Host "  [i]  Quedo guardado en: $Registro" -ForegroundColor DarkGray }
+    Salir $Codigo
+}
 
 $Raiz = Split-Path -Parent $PSScriptRoot
 $Puerto = 8080                     # el mapeo del servicio `axioma-puente` (Windows no tiene red de equipo)
@@ -87,7 +106,7 @@ if ($Detener) {
         catch { aviso "Docker devolvió un error al apagar: revisá que Docker Desktop esté abierto." }
     } finally { Pop-Location }
     ok "AXIOMA apagado. Tus datos y tus claves quedan guardados en la carpeta del proyecto."
-    exit 0
+    Salir 0
 }
 
 # ── 1. ¿Está Docker? ────────────────────────────────────────────────────────
@@ -122,7 +141,7 @@ paso "Encendiendo AXIOMA"
 if ($Ensayo) {
     Write-Host "  (ensayo) cd $Raiz; docker compose --profile puente $($perfilOllama -join ' ') up -d $($servicios -join ' ')"
     Write-Host "  (ensayo) abriría $Url cuando responda"
-    exit 0
+    Salir 0
 }
 Push-Location $Raiz
 try {
@@ -131,7 +150,7 @@ try {
     if ($encendido) { $encendido = ($LASTEXITCODE -eq 0) }
     if (-not $encendido) {
         mal "Docker no pudo encender AXIOMA (mirá los mensajes de arriba)."
-        exit 4
+        Salir 4
     }
 } finally { Pop-Location }
 ok "Contenedores encendidos"
@@ -152,10 +171,10 @@ for ($intento = 1; $intento -le 30; $intento++) {
         paso "Listo"
         Write-Host "  Si en la pantalla dice que falta algo (modelos, claves), AXIOMA mismo lo explica y lo instala."
         Write-Host "  Para apagarlo: .\instalar\iniciar_axioma.ps1 -Detener"
-        exit 0
+        Salir 0
     }
     Start-Sleep -Seconds 2
 }
 mal "AXIOMA no respondió en un minuto."
 Write-Host "     Mirá qué dice con:  docker compose logs --tail 40 axioma-puente"
-exit 4
+Salir 4

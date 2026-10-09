@@ -8,6 +8,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 ## [Sin publicar] — AXIOMA en contenedores (instalable)
 
 ### Agregado
+- **Los instaladores y el demonio de voz de Windows dejan un registro en `logs\`**: antes sólo mostraban los
+  mensajes en pantalla, así que si algo fallaba al instalar no quedaba nada para revisar después. El
+  registro se anuncia al empezar y al terminar cada corrida.
 - **Instalación en contenedores**: imagen de dos etapas **sin modelos adentro** (~5,6 GB), CPU primero,
   con la suite completa corriendo **dentro** de la imagen (una imagen que no pasa las pruebas no se publica).
 - **Lanzador de doble clic**: `instalar/instalar_axioma.sh` (una sola vez) y `instalar/iniciar_axioma.sh`

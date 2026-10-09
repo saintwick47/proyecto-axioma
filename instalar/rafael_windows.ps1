@@ -29,12 +29,31 @@ param(
     [string]$FraseDeActivacion = ""
 )
 
+$NOMBRE_REGISTRO = "rafael_windows"
 $ErrorActionPreference = "Continue"     # el guion se explica solo: no muere en el primer tropiezo
 
 function paso  { param([string]$Texto) Write-Host "`n> $Texto" -ForegroundColor Cyan }
 function ok    { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundColor Green }
 function aviso { param([string]$Texto) Write-Host "  [!]  $Texto" -ForegroundColor Yellow }
 function mal   { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundColor Red }
+
+# ── Registro en archivo ─────────────────────────────────────────────────────────────────────────
+# 2026-10-09: MEDIDO: estos guiones sólo imprimían en pantalla, así que si algo fallaba al instalar la
+# evidencia se perdía con la ventana (y sin Windows a mano, no había forma de mirar qué pasó). Ahora TODO
+# lo que se imprime queda en `logs\`, al lado de los registros de AXIOMA.
+$CarpetaRegistros = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
+try { New-Item -ItemType Directory -Force -Path $CarpetaRegistros | Out-Null } catch { }
+$Registro = Join-Path $CarpetaRegistros ("{0}_{1}.log" -f $NOMBRE_REGISTRO,
+                                          (Get-Date -Format "yyyyMMdd_HHmmss"))
+try { Start-Transcript -Path $Registro -Append | Out-Null } catch { $Registro = $null }
+if ($Registro) { Write-Host "  [i]  Registro de esta corrida: $Registro" -ForegroundColor DarkGray }
+
+function Salir {
+    param([int]$Codigo = 0)
+    if ($Registro) { try { Stop-Transcript | Out-Null } catch { } }
+    if ($Registro) { Write-Host "  [i]  Quedo guardado en: $Registro" -ForegroundColor DarkGray }
+    Salir $Codigo
+}
 
 # ── Las rutas del endpoint ──────────────────────────────────────────────────────────────────────
 # MEDIDO el 2026-10-08 contra el AXIOMA andando: el router tiene prefijo `/api/v1` y además se monta
@@ -92,11 +111,11 @@ try {
         }
     } else {
         mal "Windows no tiene ninguna voz instalada (Configuración -> Hora e idioma -> Voz)"
-        exit 4
+        Salir 4
     }
 } catch {
     mal "No pude usar la voz de Windows (System.Speech): $($_.Exception.Message)"
-    exit 4
+    Salir 4
 }
 
 # ── 2. El micrófono (opcional: si no hay, se escribe) ───────────────────────────────────────────
@@ -124,14 +143,14 @@ paso "Buscando AXIOMA en $Url"
 $endpoint = Buscar-Endpoint -Base $Url
 if (-not $endpoint) {
     mal "AXIOMA no contesta en $Url (¿está encendido? probá: docker compose ps)"
-    exit 4
+    Salir 4
 }
 ok "AXIOMA contesta en $endpoint"
 
 if ($Ensayo) {
     paso "Ensayo terminado (no escuché nada)"
     Write-Host "  Todo listo: la voz de Windows anda, AXIOMA contesta y el micrófono $(if ($reconocedor) { 'está' } else { 'no está (modo texto)' })."
-    exit 0
+    Salir 0
 }
 
 # ── 4. El lazo: escuchar -> preguntar -> hablar ───────────────────────────────────────────────────
@@ -178,4 +197,4 @@ while ($true) {
 
 paso "Listo"
 try { $voz.Speak("Hasta luego.") } catch { }
-exit 0
+Salir 0
