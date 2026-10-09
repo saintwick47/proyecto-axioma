@@ -18,7 +18,7 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 | **Sistema** | Linux, macOS o Windows con Docker | — |
 | **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop) | — |
 
-En **Windows** hace falta Docker Desktop con **WSL 2**; ahí AXIOMA usa el puerto **8080** y la **voz todavía
+En **Windows** hace falta Docker Desktop con **WSL 2**; los instaladores y el demonio de voz se prueban en cada cambio sobre un Windows real (runner de GitHub Actions). Ahí AXIOMA usa el puerto **8080** y la **voz todavía
 no está disponible** (el chat y los modelos funcionan igual). En **macOS** el instalador todavía se ejecuta
 desde una consola.
 

@@ -839,6 +839,14 @@ def test_el_demonio_de_voz_de_windows_es_nativo_y_habla_con_el_contenedor():
         "el comprobador que corre el CI en Windows tiene que validar también este guion"
     assert "System.Speech" in comprobador, "el comprobador tiene que verificar que use la voz nativa"
 
+    # Y el CI tiene que probar, en un Windows real, que el demonio ENCUENTRA el endpoint de chat: sin una
+    # máquina Windows a mano, esto es lo que cubre esa parte (con un AXIOMA falso).
+    ci = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "axioma_falso_http.py" in ci, \
+        "el CI tiene que levantar el AXIOMA falso para probar el demonio de voz en Windows"
+    assert "rafael_windows.ps1 -Ensayo -Url" in ci, \
+        "el CI tiene que correr el demonio de voz contra el AXIOMA falso"
+
 
 @_sin_empaquetado
 def test_el_guion_de_maquina_limpia_no_puede_tocar_la_instalacion_del_usuario():

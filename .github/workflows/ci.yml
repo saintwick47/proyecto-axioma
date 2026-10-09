@@ -196,6 +196,26 @@ jobs:
           Write-Host "codigo del comprobador: $codigo"
           exit $codigo
 
+      - name: El demonio de voz encuentra el endpoint (con un AXIOMA de mentira)
+        shell: pwsh
+        run: |
+          # En el runner no hay AXIOMA, así que se levanta uno FALSO (servidor mínimo de la biblioteca
+          # estándar) y el demonio tiene que encontrarle el endpoint de chat e informarlo. Es la parte que
+          # no se puede probar sin Windows: la elección de la ruta y el pedido real.
+          $falso = Start-Process python -ArgumentList "tests/axioma_falso_http.py", "8098" -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 3
+          try {
+            & .\instalar\rafael_windows.ps1 -Ensayo -Url http://127.0.0.1:8098
+            $codigo = $LASTEXITCODE
+          } finally {
+            Stop-Process -Id $falso.Id -Force -ErrorAction SilentlyContinue
+          }
+          if ($codigo -ne 0) {
+            Write-Host "::error::el demonio de voz no encontró el AXIOMA falso (salida $codigo)"
+            exit 1
+          }
+          Write-Host "OK: el demonio de voz encontró el endpoint y avisó"
+
       - name: Anotar qué falló (si falló)
         if: failure()
         shell: pwsh
