@@ -24,7 +24,6 @@ param(
     [switch]$Ensayo
 )
 
-$NOMBRE_REGISTRO = "instalacion_windows"
 $ErrorActionPreference = "Stop"
 
 # Marcadores sin emoji/dibujos: la consola de Windows (CP850/CP437) los imprime mal.
@@ -32,24 +31,6 @@ function paso  { param([string]$Texto) Write-Host "`n> $Texto" -ForegroundColor 
 function ok    { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundColor Green }
 function aviso { param([string]$Texto) Write-Host "  [!]  $Texto" -ForegroundColor Yellow }
 function mal   { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundColor Red }
-
-# ── Registro en archivo ─────────────────────────────────────────────────────────────────────────
-# 2026-10-09: MEDIDO: estos guiones sólo imprimían en pantalla, así que si algo fallaba al instalar la
-# evidencia se perdía con la ventana (y sin Windows a mano, no había forma de mirar qué pasó). Ahora TODO
-# lo que se imprime queda en `logs\`, al lado de los registros de AXIOMA.
-$CarpetaRegistros = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
-try { New-Item -ItemType Directory -Force -Path $CarpetaRegistros | Out-Null } catch { }
-$Registro = Join-Path $CarpetaRegistros ("{0}_{1}.log" -f $NOMBRE_REGISTRO,
-                                          (Get-Date -Format "yyyyMMdd_HHmmss"))
-try { Start-Transcript -Path $Registro -Append | Out-Null } catch { $Registro = $null }
-if ($Registro) { Write-Host "  [i]  Registro de esta corrida: $Registro" -ForegroundColor DarkGray }
-
-function Salir {
-    param([int]$Codigo = 0)
-    if ($Registro) { try { Stop-Transcript | Out-Null } catch { } }
-    if ($Registro) { Write-Host "  [i]  Quedo guardado en: $Registro" -ForegroundColor DarkGray }
-    Salir $Codigo
-}
 
 $Raiz = Split-Path -Parent $PSScriptRoot
 
@@ -69,7 +50,7 @@ if (-not $hayDocker) {
     Write-Host "     Instalalo desde https://www.docker.com/products/docker-desktop"
     Write-Host "     En Windows necesita WSL 2: si te lo pide, corré 'wsl --install' en una consola de administrador y reiniciá."
     Write-Host "     Después volvé a ejecutar este guion."
-    Salir 4
+    exit 4
 }
 ok "Docker responde ($(& docker --version))"
 
@@ -123,8 +104,8 @@ if (-not $SinAcceso) {
 paso "Arrancando AXIOMA"
 if ($Ensayo) {
     Write-Host "  (ensayo) powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\iniciar_axioma.ps1`""
-    Salir 0
+    exit 0
 }
 aviso "En Windows la voz todavía no está disponible (el micrófono del equipo no llega al contenedor): el chat y los modelos funcionan igual."
 & "$PSScriptRoot\iniciar_axioma.ps1"
-Salir $LASTEXITCODE
+exit $LASTEXITCODE

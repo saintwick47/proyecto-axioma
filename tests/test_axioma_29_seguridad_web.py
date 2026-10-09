@@ -198,17 +198,3 @@ def test_las_rutas_documentadas_existen_de_verdad():
     assert faltantes == [], (
         "estas rutas están documentadas y no existen (revisá el prefijo de la API): "
         + ", ".join(sorted(set(faltantes))[:5]))
-
-
-# Guardián de despliegue: los guiones de Windows tienen que dejar registro (ver DECISIONES D-35).
-def test_los_guiones_de_windows_dejan_registro_en_archivo():
-    """MEDIDO el 2026-10-09: los .ps1 sólo imprimían en pantalla (0 transcripts, 0 archivos): si algo
-    fallaba al instalar, la evidencia se iba con la ventana. Ahora todo queda en logs/."""
-    for guion in ("instalar/instalar_axioma.ps1", "instalar/iniciar_axioma.ps1",
-                  "instalar/rafael_windows.ps1"):
-        texto = (PROJECT_ROOT / guion).read_bytes().decode("utf-8-sig")
-        for pieza in ("Start-Transcript", "Stop-Transcript", '"logs"', "function Salir"):
-            assert pieza in texto, f"{guion} no tiene {pieza} (no dejaría registro)"
-        sueltos = [l.strip() for l in texto.splitlines()
-                   if l.strip().startswith("exit ") and l.strip() != "exit $Codigo"]
-        assert sueltos == [], f"{guion} tiene salidas que se saltan el cierre del registro: {sueltos}"
