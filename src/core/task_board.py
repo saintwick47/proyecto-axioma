@@ -26,7 +26,11 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-class TaskStatus:
+# ⚠️ NO unificar con el `QueueTaskStatus` de `task_queue.py` (ni con el de netron): son máquinas de
+# estado de cosas DISTINTAS. Ésta es del TABLERO DE COORDINACIÓN y tiene estados que las otras no tienen
+# (`WAITING_MODEL`, `WAITING_RESULT`, `REFUSED_OOM`). Medido el 2026-10-09: unificarlas obligaría a la
+# unión de todos los estados y cada consumidor tendría que defenderse de estados imposibles.
+class BoardTaskStatus:
     """Estados canónicos de una tarea de coordinación."""
     QUEUED = "queued"
     RUNNING = "running"
@@ -43,7 +47,7 @@ class Task:
     task_id: str
     name: str
     model: str
-    status: str = TaskStatus.QUEUED
+    status: str = BoardTaskStatus.QUEUED
     depends_on: List[str] = field(default_factory=list)
     result: Any = None
     error: str = ""
@@ -115,7 +119,7 @@ class TaskBoard:
             return task
 
     def store_result(self, task_id: str, result: Any) -> Optional[Task]:
-        return self.update(task_id, status=TaskStatus.DONE, result=result)
+        return self.update(task_id, status=BoardTaskStatus.DONE, result=result)
 
     # ── Lectura ─────────────────────────────────────────────────────────────
 
@@ -136,12 +140,12 @@ class TaskBoard:
             tasks = list(self._tasks.values())
         ready = []
         for t in tasks:
-            if t.status != TaskStatus.QUEUED:
+            if t.status != BoardTaskStatus.QUEUED:
                 continue
             deps = t.depends_on or []
             if all(
                 self._tasks.get(d) is not None
-                and self._tasks.get(d).status == TaskStatus.DONE
+                and self._tasks.get(d).status == BoardTaskStatus.DONE
                 for d in deps
             ):
                 ready.append(t)
@@ -155,7 +159,7 @@ class TaskBoard:
                 return None
             for d in task.depends_on or []:
                 dep = self._tasks.get(d)
-                if dep is None or dep.status != TaskStatus.DONE:
+                if dep is None or dep.status != BoardTaskStatus.DONE:
                     return d
             return None
 

@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover
 SECTION = "2. Núcleo (core)"
 CORE_API = {
     "src.core.dependency_resolver": ["DependencyResolver", "get_dependency_resolver"],
-    "src.core.task_queue": ["TaskPriority", "TaskStatus", "Task", "TaskQueue", "TaskMetrics", "TaskError"],
+    "src.core.task_queue": ["TaskPriority", "QueueTaskStatus", "Task", "TaskQueue", "TaskMetrics", "TaskError"],
     "src.core.load_balancer": ["Worker", "LoadBalancer", "get_load_balancer", "reset_load_balancer"],
     "src.core.model_swap": ["ModelSwap"],
     "src.core.vram_lock": ["acquire_vram_lock", "release_vram_lock", "is_vram_locked",
@@ -58,10 +58,10 @@ class TestCoreImportsYApi:
 
 class TestTaskQueue:
     def test_prioridades_y_estados(self):
-        from src.core.task_queue import TaskPriority, TaskStatus
+        from src.core.task_queue import TaskPriority, QueueTaskStatus
         check("TaskPriority contiene HIGH", TaskPriority.HIGH.value > TaskPriority.LOW.value, "HIGH>LOW", SECTION)
-        check("TaskStatus.COMPLETED.is_terminal", TaskStatus.COMPLETED.is_terminal is True, "OK", SECTION)
-        check("TaskStatus.PENDING.is_active", TaskStatus.PENDING.is_active is True, "OK", SECTION)
+        check("QueueTaskStatus.COMPLETED.is_terminal", QueueTaskStatus.COMPLETED.is_terminal is True, "OK", SECTION)
+        check("QueueTaskStatus.PENDING.is_active", QueueTaskStatus.PENDING.is_active is True, "OK", SECTION)
 
     def test_task_queue_operaciones(self):
         from src.core.task_queue import TaskQueue, TaskPriority, Task

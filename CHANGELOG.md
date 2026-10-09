@@ -41,6 +41,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - **Servicio de voz en el contenedor** (perfil `voz`), con su propio volumen de registros.
 
 ### Cambiado
+- **Los dos `TaskStatus` se renombraron** a `BoardTaskStatus` (tablero de coordinación) y
+  `QueueTaskStatus` (cola de trabajo): son **máquinas de estado distintas**, no una duplicada, y el nombre
+  repetido hacía que se propusiera «unificarlas» (lo que sería peor). Cambio interno, sin efecto para
+  quien usa AXIOMA, con una prueba que impide que las vuelvan a confundir.
   que se documenta *este* proyecto; el producto, la suite y el CI **no** lo usan (comprobado corriendo la
   suite completa en la copia pública: 20/20). La única prueba que lo leía —la que verifica que la raíz del
   proyecto sale del archivo y no del directorio de trabajo— sigue corriendo en el privado y se **saltea**

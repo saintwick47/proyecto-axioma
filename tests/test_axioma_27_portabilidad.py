@@ -895,3 +895,40 @@ def test_los_guiones_crean_las_carpetas_antes_de_encender():
         fuente = (PROJECT_ROOT / guion).read_text(encoding="utf-8")
         assert "mkdir -p data logs cache" in fuente, \
             f"{guion} no crea data/logs/cache antes de encender (en una máquina nueva no arrancaría)"
+
+
+# ⚠️ Candado de diseño: las dos máquinas de estado NO son duplicados (ver DECISIONES D-33).
+def test_las_dos_maquinas_de_estado_son_distintas_y_no_se_unifican():
+    """MEDIDO el 2026-10-09: hay dos `TaskStatus` con el mismo nombre viejo y **no** son la misma cosa.
+
+    - `BoardTaskStatus` (tablero de coordinación): `WAITING_MODEL`, `WAITING_RESULT`, `REFUSED_OOM`…
+    - `QueueTaskStatus` (cola de trabajo): `COMPLETED`, `CANCELLED`, `TIMEOUT`…
+
+    Se renombraron a propósito para que nadie (persona o modelo) vuelva a proponer «unificarlas»: unificar
+    forzaría la unión de los estados y cada consumidor tendría que defenderse de estados imposibles.
+    Esta prueba es el candado: si alguien las iguala, falla.
+    """
+    from src.core.task_board import BoardTaskStatus
+    from src.core.task_queue import QueueTaskStatus
+
+    assert BoardTaskStatus is not QueueTaskStatus, "son dos clases distintas, no la misma"
+
+    def estados(clase):
+        """Los nombres de estado, sea una clase simple (tablero) o un Enum (cola).
+
+        MEDIDO al escribir esta prueba: el tablero es una clase con atributos de texto y la cola es un
+        `Enum`, así que no se pueden recorrer igual. Asumirlo fue mi primer error acá.
+        """
+        if hasattr(clase, "__members__"):
+            return set(clase.__members__)
+        return {k for k in vars(clase) if k.isupper()}
+
+    del_tablero = estados(BoardTaskStatus)
+    de_la_cola = estados(QueueTaskStatus)
+    assert del_tablero, "el tablero tiene que declarar estados"
+    assert de_la_cola, "la cola tiene que declarar estados"
+    assert del_tablero - de_la_cola, (
+        "el tablero tiene estados que la cola no tiene (WAITING_MODEL/WAITING_RESULT/REFUSED_OOM): "
+        f"{sorted(del_tablero)}")
+    assert de_la_cola - del_tablero, (
+        f"la cola tiene estados que el tablero no tiene: {sorted(de_la_cola)}")

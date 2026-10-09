@@ -69,8 +69,6 @@ class TestMemoryGuard:
               g.required_gb("foo:13b") > g.required_gb("qwen3:8b"),
               f"{g.required_gb('foo:13b'):.1f} vs {g.required_gb('qwen3:8b'):.1f}", SECTION)
         # ✅ FIX 2026-08-29: el default se escala con `memory_guard_overhead_ratio`
-        # (required = DEFAULT_MODEL_SIZE_GB * ratio); `== DEFAULT` quedó obsoleto al
-        # calibrar el ratio (1.17 → 1.10) y fallaba en cada corrida (4.68 vs 4.4).
         check("sin tag usa default escalado",
               g.required_gb("modelo-raro") == g.DEFAULT_MODEL_SIZE_GB * g._overhead_ratio,
               str(g.required_gb("modelo-raro")), SECTION)
@@ -143,7 +141,7 @@ class TestMemoryGuard:
 
 class TestTaskBoard:
     def test_ciclo_estados(self):
-        from src.core.task_board import TaskBoard, TaskStatus
+        from src.core.task_board import TaskBoard, BoardTaskStatus
         board = TaskBoard()
         a = board.add("paso A", "qwen3:8b")
         b = board.add("paso B", "qwen2.5-coder:7b", depends_on=[a])
@@ -153,7 +151,7 @@ class TestTaskBoard:
         check("waiting_on resuelto", board.waiting_on(b) is None, str(board.waiting_on(b)), SECTION)
         check("B ahora ready", [t.name for t in board.ready_tasks()] == ["paso B"],
               str([t.name for t in board.ready_tasks()]), SECTION)
-        board.update(b, status=TaskStatus.REFUSED_OOM, error="ram")
+        board.update(b, status=BoardTaskStatus.REFUSED_OOM, error="ram")
         stats = board.get_stats()
         check("refused_oom registrado",
               stats["by_status"].get("refused_oom") == 1,
@@ -241,7 +239,7 @@ class TestCoordinatorSwap:
 
     def test_taskboard_refused_oom(self):
         from src.core.agent_coordinator import AgentCoordinator
-        from src.core.task_board import TaskBoard, TaskStatus
+        from src.core.task_board import TaskBoard, BoardTaskStatus
         class GuardOOM:
             def required_gb(self, m):
                 return 4.0
@@ -253,7 +251,7 @@ class TestCoordinatorSwap:
         coord = AgentCoordinator(swap=FakeSwap(), guard=GuardOOM(), board=board,
                                  allow_parallel=False)
         out = coord.run_on_model("qwen3:8b", lambda m: 1, caller="oom_task")
-        tasks = board.list_by_status(TaskStatus.REFUSED_OOM)
+        tasks = board.list_by_status(BoardTaskStatus.REFUSED_OOM)
         check("tarea marcada refused_oom en tablero", len(tasks) == 1,
               str([t.name for t in tasks]), SECTION)
 
@@ -373,8 +371,6 @@ class TestParallelFuture:
         total = 16.0
         monkeypatch.setattr(g, "ram_total_gb", lambda: total)
         # ✅ FIX 2026-08-29: "RAM casi llena" (total-0.5) rechazaba también el PRIMER
-        # modelo (used + required + headroom ya excede el límite). Con used = 40% un
-        # modelo cabe (≈12.9GB < 15.2) y dos no (≈18.9GB > 15.2): intención real.
         monkeypatch.setattr(g, "ram_used_gb", lambda: total * 0.4)  # un modelo cabe, dos no
         fs = FakeSwap()
         coord = AgentCoordinator(swap=fs, guard=g, board=None, allow_parallel=True)
@@ -408,8 +404,6 @@ class TestMemoryRetention:
         from types import SimpleNamespace
         from src.memory.gateway import MemoryGateway
         # ✅ v0.6.9p: ids relativos a HOY — antes usaba fechas fijas y el
-        # test se rompía solo al pasar el tiempo (saintwick_20260905 dejaba
-        # de ser "reciente" y el prune con days=2 la borraba).
         hoy = datetime.now()
         vieja = f"saintwick_{(hoy - timedelta(days=10)):%Y%m%d}"
         reciente = f"saintwick_{(hoy - timedelta(days=1)):%Y%m%d}"
@@ -764,8 +758,6 @@ class TestLogStaleness:
         assert _staleness_hours(None) is None
 
 
-# ════════════════════════════════════════════════════════════════
-# ISSUE-130: el chat deja de ser aislado — ventana reciente + historial
 # ════════════════════════════════════════════════════════════════
 
 def _gateway_con_mensajes(tmp_path, n: int = 30):

@@ -14,7 +14,7 @@
 # - Type hints corregidos: metadata en lugar de meta (reserved word)
 # - Eliminados imports incorrectos de excepciones no existentes
 # ✅ NUEVO v0.6.0:
-# - Task, TaskStatus, TaskPriority enums para tipado fuerte
+# - Task, QueueTaskStatus, TaskPriority enums para tipado fuerte
 # - TaskQueue con asyncio.Queue + asyncio.Lock para concurrencia
 # - Prioridades: HIGH > NORMAL > LOW (LRU dentro de misma prioridad)
 # - Timeout configurable por tarea con cancelación automática
@@ -148,7 +148,10 @@ class TaskPriority(IntEnum):
         return mapping.get(value.lower().strip(), cls.NORMAL)
 
 
-class TaskStatus(Enum):
+# ⚠️ NO unificar con el `BoardTaskStatus` de `task_board.py`: ésta es la cola de trabajo GENÉRICA y sus
+# estados son otros (`PENDING`, `COMPLETED`, `CANCELLED`, `TIMEOUT`). Ver el comentario del tablero
+# (medido el 2026-10-09: son máquinas de estado distintas, no una duplicada).
+class QueueTaskStatus(Enum):
     """
     Estados del ciclo de vida de una tarea.
 
@@ -205,7 +208,7 @@ class Task:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    status: TaskStatus = TaskStatus.PENDING
+    status: QueueTaskStatus = QueueTaskStatus.PENDING
     result: Optional[Any] = None
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -554,7 +557,7 @@ class TaskQueue:
             # Deduplicación opcional
             if self._deduplicate:
                 for existing in self._pending.values():
-                    if existing._hash == task._hash and existing.status == TaskStatus.PENDING:
+                    if existing._hash == task._hash and existing.status == QueueTaskStatus.PENDING:
                         logger.debug(f"Duplicate task detected: {task.name}")
                         _log_task("ENQUEUE", task_id=task.id, status="duplicate", success=False)
                         raise TaskError(f"Duplicate task: {task.name}")
@@ -631,7 +634,7 @@ class TaskQueue:
                         continue
 
                     task = self._pending.pop(task_id)
-                    task.status = TaskStatus.RUNNING
+                    task.status = QueueTaskStatus.RUNNING
                     task.started_at = datetime.now(timezone.utc)
                     self._running[task_id] = task
 
@@ -681,7 +684,7 @@ class TaskQueue:
                 return None
 
             task = self._pending.pop(candidate.id)
-            task.status = TaskStatus.RUNNING
+            task.status = QueueTaskStatus.RUNNING
             task.started_at = datetime.now(timezone.utc)
             self._running[task.id] = task
 
@@ -729,7 +732,7 @@ class TaskQueue:
                 return False
 
             old_status = task.status
-            task.status = TaskStatus.CANCELLED
+            task.status = QueueTaskStatus.CANCELLED
             task.completed_at = datetime.now(timezone.utc)
             task.error = reason
 
@@ -778,14 +781,14 @@ class TaskQueue:
         start = time.perf_counter()
         # Variables locales para el finally — evitan acceder a task.status
         # después de que el lock fue liberado y otro coroutine pudo modificarla.
-        _final_status: Optional[TaskStatus] = None
+        _final_status: Optional[QueueTaskStatus] = None
         _final_latency: float = 0.0
         _cancelled_error: Optional[asyncio.CancelledError] = None
 
         try:
             # Verificar timeout antes de empezar
             if task.is_expired:
-                task.status = TaskStatus.TIMEOUT
+                task.status = QueueTaskStatus.TIMEOUT
                 task.error = f"Task expired before execution (timeout={task.timeout_seconds}s)"
                 task.completed_at = datetime.now(timezone.utc)
                 _final_status = task.status
@@ -802,24 +805,24 @@ class TaskQueue:
                 result = await handler(task)
 
             # Éxito
-            task.status = TaskStatus.COMPLETED
+            task.status = QueueTaskStatus.COMPLETED
             task.result = result
             _final_latency = (time.perf_counter() - start) * 1000
 
         except asyncio.TimeoutError:
-            task.status = TaskStatus.TIMEOUT
+            task.status = QueueTaskStatus.TIMEOUT
             task.error = f"Execution timeout ({task.timeout_seconds}s)"
             _final_latency = (time.perf_counter() - start) * 1000
 
         except asyncio.CancelledError as e:
-            task.status = TaskStatus.CANCELLED
+            task.status = QueueTaskStatus.CANCELLED
             task.error = "Execution cancelled"
             _final_latency = (time.perf_counter() - start) * 1000
             # Guardamos para re-raise después del finally completo
             _cancelled_error = e
 
         except Exception as e:
-            task.status = TaskStatus.FAILED
+            task.status = QueueTaskStatus.FAILED
             task.error = f"{type(e).__name__}: {e}"
             _final_latency = (time.perf_counter() - start) * 1000
             _log_error(e, f"Task.execute[{task.name}]", extra={"task_id": task.id})
@@ -828,7 +831,7 @@ class TaskQueue:
         finally:
             task.completed_at = datetime.now(timezone.utc)
             _final_status = task.status
-            _success = _final_status == TaskStatus.COMPLETED
+            _success = _final_status == QueueTaskStatus.COMPLETED
 
             # ── Bloque 1: cleanup de estructuras (con self._lock) ──────────
             # NUNCA llamar a _metrics.record() aquí — usa su propio lock
@@ -917,7 +920,7 @@ class TaskQueue:
             "tasks": {
                 "by_status": {
                     status.value: sum(1 for t in tasks_snapshot.values() if t.status == status)
-                    for status in TaskStatus
+                    for status in QueueTaskStatus
                 },
                 "by_priority": {
                     p.name: sum(1 for t in tasks_snapshot.values() if t.priority == p)

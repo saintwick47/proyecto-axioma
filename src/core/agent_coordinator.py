@@ -54,7 +54,7 @@ except ImportError:
     _MEMORY_GUARD_AVAILABLE = False
 
 try:
-    from src.core.task_board import TaskBoard, TaskStatus
+    from src.core.task_board import TaskBoard, BoardTaskStatus
     _TASK_BOARD_AVAILABLE = True
 except ImportError:
     _TASK_BOARD_AVAILABLE = False
@@ -276,8 +276,8 @@ class AgentCoordinator:
             if self._board is not None and task_id is not None:
                 self._board.update(
                     task_id,
-                    status=TaskStatus.REFUSED_OOM if res.reason == "refused_ram"
-                    else TaskStatus.FAILED,
+                    status=BoardTaskStatus.REFUSED_OOM if res.reason == "refused_ram"
+                    else BoardTaskStatus.FAILED,
                     error=res.reason,
                     **{"acquire_details": res.details},
                 )
@@ -287,7 +287,7 @@ class AgentCoordinator:
             return {"success": False, "reason": res.reason, "details": res.details}
 
         if self._board is not None and task_id is not None:
-            self._board.update(task_id, status=TaskStatus.RUNNING)
+            self._board.update(task_id, status=BoardTaskStatus.RUNNING)
 
         try:
             result = fn(model_name, *args, **kwargs)
@@ -298,7 +298,7 @@ class AgentCoordinator:
         except Exception as exc:
             logger.error(f"[Coordinator] {caller} falló en {model_name}: {exc}")
             if self._board is not None and task_id is not None:
-                self._board.update(task_id, status=TaskStatus.FAILED, error=str(exc))
+                self._board.update(task_id, status=BoardTaskStatus.FAILED, error=str(exc))
             return {"success": False, "model": model_name, "error": str(exc),
                     "task_id": task_id}
         finally:
