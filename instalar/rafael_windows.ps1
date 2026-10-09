@@ -29,31 +29,12 @@ param(
     [string]$FraseDeActivacion = ""
 )
 
-$NOMBRE_REGISTRO = "rafael_windows"
 $ErrorActionPreference = "Continue"     # el guion se explica solo: no muere en el primer tropiezo
 
-function paso  { param([string]$Texto) Write-Host "`n> $Texto" -ForegroundColor Cyan; Registrar "> $Texto" }
-function ok    { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundColor Green; Registrar "[OK] $Texto" }
-function aviso { param([string]$Texto) Write-Host "  [!]  $Texto" -ForegroundColor Yellow; Registrar "[!] $Texto" }
-Registrar "AXIOMA — registro de la corrida ($(Get-Date))"
-function mal   { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundColor Red; Registrar "[X] $Texto" }
-
-# ── Registro en archivo (sin Start-Transcript) ──────────────────────────────────────────────────
-# 2026-10-09: se probó con `Start-Transcript` y el CI se puso rojo en PowerShell 5.1 sin poder ver el
-# detalle. BUSCADO: `Start-Transcript` falla en hosts que NO soportan transcripción (por ejemplo cuando
-# la salida está redirigida/capturada, que es como el CI ejecuta estos guiones).
-#   · https://stackoverflow.com/questions/5032075  ("This host does not support transcription")
-#   · https://github.com/PowerShell/PowerShell/discussions/25174  (alternativas robustas: escribir uno mismo)
-# Así que el registro lo escribe el propio guion: todos los mensajes pasan por paso/ok/aviso/mal, y esas
-# funciones además AGREGAN la línea al archivo. No depende del host ni de la consola.
-$CARPETA_REGISTRO = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
-try { New-Item -ItemType Directory -Force -Path $CARPETA_REGISTRO | Out-Null } catch { }
-$ARCHIVO_REGISTRO = Join-Path $CARPETA_REGISTRO ("{0}_{1}.log" -f $NOMBRE_REGISTRO,
-                                                 (Get-Date -Format "yyyyMMdd_HHmmss"))
-function Registrar {
-    param([string]$Texto)
-    try { Add-Content -Path $ARCHIVO_REGISTRO -Value $Texto -Encoding UTF8 } catch { }
-}
+function paso  { param([string]$Texto) Write-Host "`n> $Texto" -ForegroundColor Cyan }
+function ok    { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundColor Green }
+function aviso { param([string]$Texto) Write-Host "  [!]  $Texto" -ForegroundColor Yellow }
+function mal   { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundColor Red }
 
 # ── Las rutas del endpoint ──────────────────────────────────────────────────────────────────────
 # MEDIDO el 2026-10-08 contra el AXIOMA andando: el router tiene prefijo `/api/v1` y además se monta
