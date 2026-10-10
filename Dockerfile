@@ -84,7 +84,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=dependencias /opt/venv /opt/venv
 
 WORKDIR /app
-# El código. `data/`, `logs/`, `docs/`, `venv/`, `.git/` quedan fuera por
+# El código. `data/`, `logs/`, `docs/`, `venv/`, `.git/` y `deepseek-harness/` quedan fuera por
 # `.dockerignore`; los datos entran como volúmenes (ver docker-compose.yml).
 COPY --chown=axioma:axioma . .
 

@@ -3,6 +3,7 @@
 # ═══════════════════════════════════════════════════════════════
 # Fase 1 del plan de contenedores (`docs/PLAN_CONTENEDORES.md` §3.3 y §9.5).
 # Medido el 2026-10-04 en el equipo del autor:
+#   · `deepseek-harness/` = 1,9 GB (otro proyecto, ignorado por git, pero está adentro)
 #   · `venv/` = 11 GB (es un artefacto de compilación: las dependencias se instalan en la imagen)
 #   · `.git/` = 250 MB            · `data/` = 246 MB (memoria, cachés, modelo de voz)
 #   · `.optimizer_backups/` tiene archivos de `root` que NO se pueden ni copiar
@@ -12,6 +13,7 @@
 # igual que `src/`, `config/` y `tools/`.
 
 # --- Otros proyectos y artefactos de la máquina ---
+deepseek-harness/
 venv/
 .venv/
 env/
