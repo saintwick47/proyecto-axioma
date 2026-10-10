@@ -51,6 +51,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   `QueueTaskStatus` (cola de trabajo): son **máquinas de estado distintas**, no una duplicada, y el nombre
   repetido hacía que se propusiera «unificarlas» (lo que sería peor). Cambio interno, sin efecto para
   quien usa AXIOMA, con una prueba que impide que las vuelvan a confundir.
+- **El documentador ya no viaja al repositorio público**: queda en el privado. Es la herramienta con la
   que se documenta *este* proyecto; el producto, la suite y el CI **no** lo usan (comprobado corriendo la
   suite completa en la copia pública: 20/20). La única prueba que lo leía —la que verifica que la raíz del
   proyecto sale del archivo y no del directorio de trabajo— sigue corriendo en el privado y se **saltea**
@@ -137,6 +138,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   **bucle de reinicios** (verificado: pasó a `Restarting` mientras `axioma-puente` atendía el 8080). Ahora
   el lanzador nombra el servicio —`up -d axioma-puente`, y `ollama` si hace falta— y hay prueba que lo exige.
 - Rutas absolutas del autor, `.env` relativo a la carpeta de trabajo, ruta del modelo de voz y del
+  documentador, y `tools/axioma_optimizer.sh` que asumía `$HOME/Escritorio`.
 - El chequeo del entorno ya no dice "listo" cuando falta Ollama o un modelo (explica qué falta y sale con 4).
 - El registro del CLI no se cae en los caminos de error; el paquete CLI ya no recursa al importarlo.
 - Las pruebas ya no dependen de la configuración de un equipo en particular (fallaban en un entorno limpio).
@@ -178,6 +180,7 @@ guardado nunca se leyera.
 
 ### 🚫 v0.6.9y — `logs/` y `docs/` fuera de git (commit y push) — 2026-09-13
 
+**Regla (ISSUE-072):** ni `tools/commit.py` ni `tools/push.py` deben commitear
 ni subir el contenido de `logs/` ni de `docs/`. Son carpetas de runtime
 (reportes de test, `commit_log.jsonl`, trazas) o de documentación generada por
 herramientas / interna (STRUCTURE_REPORT, AXIOMA_COMPLETE_CONTEXT, RAC_*, planes).
@@ -185,12 +188,16 @@ herramientas / interna (STRUCTURE_REPORT, AXIOMA_COMPLETE_CONTEXT, RAC_*, planes
 - ✅ **`.gitignore`**: `logs/` y `docs/` completos (antes `docs/` solo ignoraba
   `STRUCTURE_REPORT.*`, `verification_report_*`, `test_report_*`, `*.pdf/…`).
   Cualquier archivo NUEVO en esas carpetas queda fuera del repo.
+- ✅ **`tools/commit.py`**: `docs/` sumado a `DEFAULT_EXCLUDE_PATTERNS` (antes el
   docstring decía explícitamente "SE COMMITEA: docs/"). `logs/` ya estaba.
+- ✅ **`tools/push.py`**: guardia nueva `_contenido_prohibido()` — antes de
   pushear inspecciona `git diff --name-status <upstream>..HEAD` y avisa qué
   archivos de `logs/`/`docs/` **suben contenido** (A/M/C/R; las eliminaciones no
   cuentan). `--strict` cancela el push en ese caso.
 - ⚠️ **Excepción puntual**: para versionar un doc concreto hay que forzarlo a
   mano (`git add -f docs/<archivo>`), nunca desde las herramientas.
+- ℹ️ `tools/commit.py` y `tools/push.py` están **fuera de git por diseño**
+  (`.gitignore` los excluye: el push.py original llevaba un token hardcodeado),
   así que sus cambios viven solo en local; lo versionado de esta regla es
   `.gitignore`.
 - 📌 Los 11 archivos de `docs/` que ya estaban trackeados siguen en el repo: se
@@ -199,6 +206,7 @@ herramientas / interna (STRUCTURE_REPORT, AXIOMA_COMPLETE_CONTEXT, RAC_*, planes
   remoto y rompe los enlaces del README a `docs/`).
 - ✅ Verificado: `docs/FIX_RAC_v0.6.9w.md` y `docs/FIX_VERSIONES_v0.6.9x.md`
   pasaron a estar ignorados (ya no aparecen en `git status`), y
+  `python3 tools/push.py --dry-run` avisa de los commits que subirían docs
   (con `--strict` los bloquea).
 
 ### 🔢 v0.6.9x — FIX VERSIONES: cada artefacto muestra la versión real — 2026-09-13
@@ -209,11 +217,17 @@ corrigieron los archivos que los generan.
 
 | Artefacto / superficie | Mostraba | Ahora | Generador corregido |
 |---|---|---|---|
+| `docs/AXIOMA_COMPLETE_CONTEXT.md` (título) | `AXIOMA v0.3.6` | `AXIOMA v0.6.9` | `tools/documentador/axioma_doc_md_generator.py` → `axioma_doc_base.AXIOMA_PROJECT_VERSION` |
+| `docs/STRUCTURE_REPORT.md` (nota de cabecera) | `v0.3.1` (parecía la del proyecto) | `Detector v0.3.2` (etiquetado como herramienta) | `tools/structure_detector.py` |
+| `docs/STRUCTURE_REPORT.md` (versión del detector) | `0.3.0` (código real: 0.3.2) | `0.3.2` (`DETECTOR_VERSION`, fuente única) | `tools/structure_detector.py` |
 | Identidad enviada al modelo | `Eres AXIOMA v0.2.0` | `Eres AXIOMA v0.6.9` | `src/prompts/base_prompts.py` |
 | `GET /api/v1/status` | `"version": "0.2.0"` | `"version": "0.6.9"` | `src/interfaces/web/routes_extended.py` |
+| Banner CLI del documentador | `v4.1.1` / `v3.9.0` / `v3.6` mezclados | `v4.2.1` (`DOCUMENTADOR_VERSION`) | `tools/documentador/*` |
 
 - ✅ **Fuente única por artefacto**: la versión del **proyecto** se lee siempre de
   `src/__init__.py` (`src.AXIOMA_VERSION` / `AXIOMA_PROJECT_VERSION`); la del
+  **documentador** vive en `axioma_doc_base.DOCUMENTADOR_VERSION` (4.2.1) y la del
+  **detector** en `structure_detector.DETECTOR_VERSION` (0.3.2).
 - ✅ Se conservaron como **históricos** los marcadores de cuándo se implementó
   cada cosa (`✅ v0.3.x`, `CORRECCIONES_en_v3.9.0`) y las métricas antiguas pasan
   a decir `(medido en v0.3.6)` en lugar de aparentar ser actuales.
@@ -1011,12 +1025,20 @@ cualquier verificación estática previa.
 
 ### 🟢 v0.6.8bb — Tools: análisis, fusiones y logger robusto — 2026-09-01
 
+- ✅ **Nuevo `tools/system_check.py`** — diagnóstico unificado que FUSIONA 3
   herramientas redundantes en una con subcomandos:
+  - `python tools/system_check.py health` → HealthCheck (16+ componentes)
+  - `python tools/system_check.py setup` → SetupValidator (entorno pre-ejecución)
+  - `python tools/system_check.py diagnostic` → SystemDiagnostic (SO/hardware/IA/optimizaciones)
+  - `python tools/system_check.py verify` → delega a verify_axioma.py (visión runtime)
+  - `python tools/system_check.py all` → los 3 primeros
   - Eliminados: `tools/health_checker.py`, `tools/setup_validator.py`, `tools/system_diagnostic.py`.
   - **Bug corregido en la fusión**: setup_validator verificaba `chromadb`
     (ELIMINADO del proyecto) y usaba `__import__("scikit-learn")` con guion
     (inválido) — ahora verifica `lancedb`/`pyarrow`/`sklearn` correctamente.
+  - `tools/__init__.py` actualizado: `tools.system_check` + retro-compat
     (`tools.health_checker`/`setup_validator`/`system_diagnostic` resuelven a
+    system_check); lazy loading con `importlib.import_module` (el patrón
     `from . import X` en `__getattr__` causaba RecursionError).
 - ✅ **Eliminados tests obsoletos de tools/** (duplicados por la suite
   `tests/test_axioma_*.py`):
@@ -1025,6 +1047,7 @@ cualquier verificación estática previa.
   - `tools/test_autonomous.py`, `tools/test_detect_intent.py`,
     `tools/test_jarvis_mode.py` — 0 tests pytest-collectables, entorno real.
   - `tools/caac_e2e_validation.py` — duplicaba `tests/test_code_contract_e2e.py`.
+  - `tools/run_diagnostic_suite.py` actualizado (`TOOLS_TESTS = []`).
 - ✅ **`tools/detailed_logger.py` v0.2.0** (usado por 59 archivos de src/):
   - Rutas portátiles derivadas de `__file__` (antes hardcodeadas a
     `/ruta/a/axioma`).
@@ -1041,8 +1064,11 @@ cualquier verificación estática previa.
 
 ### 🟢 v0.6.8aa — Commit/push: fix de eliminaciones y renames (v0.4.5) — 2026-09-01
 
+- ✅ **FIX en `tools/commit.py` — `get_modified_files()`**: en renames/copies
   (`R  old -> new`) solo se tomaba el DESTINO, descartando el ORIGEN. Un
+  `git mv` (ej. `axioma_model_bench_v2.py` → `tools/`) commiteaba solo el
   "create new file" sin el "delete old file" → quedaba `D  archivo` stageado
+  para siempre y `push.py` se cancelaba. Ahora se incluyen AMBOS paths.
 - ✅ **Nuevo `get_tracked_deleted_files()`**: la eliminación de un archivo YA
   trackeado (ej. `speedtest_history.json`) siempre debe commitearse, aunque
   el archivo esté en `DEFAULT_EXCLUDE_PATTERNS` — si no, el árbol queda
@@ -1059,20 +1085,30 @@ cualquier verificación estática previa.
 
 ### 🟢 v0.6.8z — Documentador: fix de módulos conectados marcados AISLADOS — 2026-09-01
 
+- ✅ **FIX en `tools/documentador/axioma_doc_flow_mapper.py` (`_map_dependencies`,
   v3.9.9)**: los archivos NOISE (herramientas standalone en `tools/`, listadas en
   `IGNORED_PATTERNS`) se descartaban por completo como FUENTE del grafo — por eso un
   archivo no-noise importado SOLO desde una fuente noise quedaba `[⚠️ AISLADO]` pese a
+  estar conectado. Caso real detectado: **`tools/benchmark_suites.py` aparecía AISLADO
+  pero es importado por `tools/benchmark_response.py`** (que está en IGNORED_PATTERNS).
 - ✅ **Comportamiento corregido**: los edges de import desde herramientas standalone
   ahora se registran en `module_graph` (prueban conexión real de producción), pero:
   - desde `tests/` **no** se registran (un módulo importado solo por un test no está
     integrado a producción — `quality_monitor.py` y `security_listener.py` siguen
     correctamente aislados);
   - los `symbol_traces` (used_in/call_sites) no se contaminan desde fuentes noise.
+- ✅ **Verificado con el scan real del documentador**: `tools/benchmark_suites.py`
   ahora figura en `connected_modules`. Los 12 aislados restantes son CLIs autónomos /
   entry points legítimos (nadie los importa: `Rafael.py`, `ptt_axioma.py`,
+  `run_diagnostic_suite.py`, `run_evals.py`, `security_audit.py`, `system_diagnostic.py`,
+  `speedtest.py`, `hardware_report.py`, `post_update.py`, `analyze_tests_imports.py`,
   `test_autonomous.py`, `test_detect_intent.py`, `test_handoff_integration.py`).
+- Suite: **254 passed** — sin cambios de comportamiento en runtime (solo análisis del documentador).
 
+### 🟢 v0.6.8y — Migración y actualización de axioma_model_bench_v2.py — 2026-09-01
 
+- ✅ **`axioma_model_bench_v2.py` migrado de la raíz a `tools/`** — el header
+  declaraba `tools/axioma_model_bench_v2.py` pero el archivo vivía en la raíz
   (único benchmark fuera de `tools/`).
 - ✅ **`CODE_CANDIDATES` actualizado**: `deepseek-r1:8b` fue reemplazado por
   `qwen3-vl:4b` — deepseek-r1:8b está descartado por el proyecto
@@ -1081,6 +1117,7 @@ cualquier verificación estática previa.
   realmente instalados (qwen2.5-coder:7b, qwen3:8b, qwen3-vl:4b).
 - ✅ **`OLLAMA_HOST` leído de `settings.ollama_host`** (antes hardcodeado
   `http://127.0.0.1:11434`); si el host cambia en `.env`, el bench lo respeta.
+- ✅ **`tools/benchmark_calibration.py`**: los fallbacks de import de
   `CODE_TEST_CASES`/helpers ahora buscan en `tools/` primero (raíz como
   retro-compat) y registran el módulo en `sys.modules` ANTES de `exec_module`
   — fix de un bug latente: cargar el módulo por path sin registrarlo crasheaba
@@ -1237,7 +1274,9 @@ Implementación del **PLAN AXIOMA v2.0** (6 fases planificadas → 5 implementad
 
 ### 🟢 v0.6.8q — Limpieza git + panel de archivos en la UI — 2026-08-31
 
+- ✅ **`tools/push.py` ELIMINADO** (contenía un token de GitHub hardcodeado
   `ghp_...`). Estaba en `.gitignore` (no se subía), pero ahora tampoco existe
+  localmente. `docs/documentador.txt` actualizado (push vía `git push`).
 - ✅ **`axioma-v1.0.0.bundle`**: backup portátil del repo (git bundle,
   tag v1.0.0) — NO es necesario (el commit existe en `.git`). Des-trakkeado
   (`git rm --cached`), `*.bundle` agregado a `.gitignore`, y movido a
@@ -1280,6 +1319,7 @@ Implementación del **PLAN AXIOMA v2.0** (6 fases planificadas → 5 implementad
 - ✅ **"✕" en la esquina superior derecha real**: flet 0.85 no posiciona bien
   `right` en Stack → ahora usa `left`/`top` explícitos (36, 4).
 - ✅ **Verificado**: suite 221 PASS; end-to-end "buscá el archivo
+  benchmark_calibration" → `tools/benchmark_calibration.py` (ruta exacta);
   "dónde está la carpeta tools" → `tools/`. Widget relanzado sin errores.
 
 ### 🟢 v0.6.8ñ — Widget: botón "✕" visible para cerrar + fix del menú — 2026-08-31
@@ -1307,6 +1347,7 @@ Implementación del **PLAN AXIOMA v2.0** (6 fases planificadas → 5 implementad
   `python Rafael.py`. Se cierra con botón derecho → Cerrar.
 - ✅ `mic-gain.service` sigue activo (solo fija la ganancia del micrófono —
   no arranca Rafael). Nada más lo re-habilita (verificado: sin autostart,
+  sin hooks de bashrc, post_update no lo toca).
 
 ### 🟢 v0.6.8m — Widget Rafael: botón derecho → "Cerrar" — 2026-08-31
 
@@ -1501,6 +1542,7 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 
 ### 🟢 v0.6.8f — RSS de Ollama por relación padre-hijo (robustez) — 2026-08-29
 
+- ✅ **`tools/benchmark_calibration.py::_get_ollama_rss_gb()` reescrito (v2)**:
   en vez de matchear el runner por NOMBRE (`llama-server`, que no contiene
   "ollama" y puede renombrarse en el futuro — Ollama ya lo hizo antes:
   `ollama runner` → `llama-server` → `ollama_llama_server`), ahora se
@@ -1519,6 +1561,7 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 
 ### 🟢 v0.6.8e — Poda automática de logs y backups (ahorro de disco) — 2026-08-29
 
+- ✅ **`data/backups/`**: poda automática en `tools/commit.py`
   (`prune_backups()`, `BACKUP_KEEP_COUNT=5`) — tras cada commit se conservan
   solo los últimos 5 backups `commit_*` y se borran los más antiguos. Limpieza
   inicial: **22 GB → 7,7 MB** (39 backups viejos eliminados).
@@ -1526,8 +1569,10 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
   solo el reporte más reciente (poda al crear el nuevo).
 - ✅ **`logs/code_contract_report_*.md`**: `tests/test_code_contract_e2e.py`
   conserva solo el informe más reciente.
+- ✅ **`logs/post_update_*.log`**: `tools/post_update.py` — un solo archivo
   por corrida (antes uno por línea, logs incompletos) y poda al final
   conservando solo el más reciente.
+- ✅ **`logs/optimizer_*.log`**: `tools/axioma_optimizer.sh` conserva solo el
   log de la corrida actual (poda al inicio excluyendo `$LOG_FILE`, porque
   `main()` puede hacer exit antes del final).
 - ✅ **`logs/reg_error.txt`**: sin cambios — `tools/detailed_logger.py` ya
@@ -1566,6 +1611,7 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 - ✅ **Docs corregidas (info obsoleta):**
   - `src/memory/__init__.py`: "SemanticMemory: ChromaDB" → LanceDB.
   - `src/domain/types.py` docstring: 46→47 tipos (y JARVIS 3→4).
+  - `tools/model_tester.py`: fallback `aletheia-3b:latest` → `qwen3:8b`.
   - `README.md`: links rotos a `docs/ARQUITECTURA.md` y
     `docs/REFERENCIA_ARCHIVOS.md` (no existen) → reemplazados por
     STRUCTURE_REPORT.md y AXIOMA_COMPLETE_CONTEXT.md.
@@ -1573,6 +1619,7 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 
 ### 🟢 v0.6.8c — Fix RSS del benchmark de calibración (memoria real) — 2026-08-29
 
+- ✅ **FIX** `tools/benchmark_calibration.py::_get_ollama_rss_gb()` — el delta
   RSS daba ~0.01GB (`delta_valid=False` en los 3 modelos) porque medía SOLO el
   primer proceso que matchea "ollama" (el server `ollama serve`, ~0.05GB). El
   footprint real del modelo cargado vive en el runner **`llama-server`** (hijo
@@ -1703,7 +1750,9 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 - ✅ `README.md` — Documentación completa
 - ✅ `CHANGELOG.md` — Este archivo
 - ✅ `tools/health_checker.py` — Verificación de 10+ componentes
+- ✅ `tools/model_tester.py` — Tests de latencia/capacidad por modelo
 - ✅ `tools/setup_validator.py` — Validación de entorno pre-ejecución
+- ✅ `tools/structure_detector.py` — Detector de estructura del proyecto
 - ✅ `benchmarks/reasoning.py` — Benchmarks reproducibles (seed 42)
 - ✅ `benchmarks/classification.py` — Precisión del router por TaskType
 - ⚪ `setup_structure.py` — Script de configuración (Pendiente)
@@ -1730,6 +1779,7 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 - Configuración centralizada con Pydantic Settings
 - Dominio puro: tipos, entidades, excepciones, contratos
 - Sistema de fases con criterios de aceptación verificables
+- Detector de estructura `tools/structure_detector.py` para progreso
 - Entorno virtual fish-compatible en `venv/`
 - Modelos LLM soportados: llama3.2:3b, qwen2.5-coder:7b, llava:7b, atla/selene-mini:q4_k_m
 - Sistema de memoria en 3 capas (short-term, long-term, semantic)

@@ -390,10 +390,6 @@ Otros tools útiles:
 python tools/warmup_models.py             # Pre-carga modelos en VRAM
 
 ════════════════════════════════════════════════════════════════════════════════
-10. 📚 DOCUMENTACIÓN
-════════════════════════════════════════════════════════════════════════════════
-
-════════════════════════════════════════════════════════════════════════════════
 11. 🔧 GIT + COMMIT
 ════════════════════════════════════════════════════════════════════════════════
 git status
@@ -411,44 +407,6 @@ uvicorn src.interfaces.web.server:app --reload
 curl http://localhost:8000/health
 
 ════════════════════════════════════════════════════════════════════════════════
-13. ⚙️ OPTIMIZADOR DE SISTEMA (CachyOS — sudo requerido)
-════════════════════════════════════════════════════════════════════════════════
-# Optimiza sysctl, scheduler scx, ananicy, zram, env y el override
-# systemd de Ollama para este hardware (AMD RX 460 + 14GB RAM).
-# Usa .optimizer_manifest.json para rollback exacto.
-
-
-── 13.1 DESPUÉS DE UN pacman -Syu (actualización completa del sistema) ─────────
-🚀 AUTOMÁTICO (recomendado): un solo comando hace todo el flujo:
-  → Pregunta si actualizar (sudo pacman -Syu — la contraseña la ponés vos)
-  → Pregunta si reiniciar → instala el auto-arranque y reinicia
-  → Al volver (login), ejecuta SOLO:
-      sudo systemctl status ollama --no-pager
-    y te muestra un resumen con los problemas detectados y la acción.
-  → Se auto-limpia (quita flag y hooks del auto-arranque) al terminar.
-
-Flujo manual:
-1. Terminar el update y REINICIAR (el kernel nuevo necesita reboot).
-2. Tras el reboot, verificar qué se perdió:
-3. Re-aplicar lo perdido (idempotente, usa manifest + backups):
-4. Verificar que Ollama quedó bien:
-      sudo systemctl status ollama --no-pager
-
-Qué persiste y qué NO tras un -Syu:
-  ❌ Scheduler scx      → NO persiste entre reinicios (vuelve a CFS).
-                         Es lo más común que haya que re-aplicar.
-  ✅ Sysctl             → persiste (/etc/sysctl.d/99-axioma.conf), pero un
-                         kernel nuevo puede cambiar defaults → revalidar.
-  ✅ Override Ollama    → persiste (/etc/systemd/system/ollama.service.d/).
-                         Si el -Syu actualizó Ollama, el servicio se reinicia
-                         y las variables se cargan solas. Si --status dice
-                         "Variables en override pero NO aplicadas", alcanza:
-                             sudo systemctl restart ollama
-  ✅ Ananicy / env / optimizer.env → persisten sin cambios.
-
-OPCIONAL: activar zram tras el update para más RAM efectiva (hoy inactivo):
-
-════════════════════════════════════════════════════════════════════════════════
 14. 🤝 SERVICIO RAFAEL (systemd --user)
 ════════════════════════════════════════════════════════════════════════════════
 # Detener el servicio ahora mismo
@@ -461,26 +419,6 @@ systemctl --user status rafael.service
 systemctl --user start rafael.service
 # Modo Jarvis
 python Rafael.py --mode jarvis
-
-════════════════════════════════════════════════════════════════════════════════
-15. 🧠 DEEPSEEK HARNESS (terminal)
-════════════════════════════════════════════════════════════════════════════════
-cd deepseek-harness
-NODE_OPTIONS="--max-old-space-size=4096" pnpm dsh web / ollama launch dsh
-
-════════════════════════════════════════════════════════════════════════════════
-16. ⚠️ NOTAS / ADVERTENCIAS
-════════════════════════════════════════════════════════════════════════════════
-#   edición → fallaba "constantemente"). Ahora:
-#   Nunca hace force-push, configura el upstream si falta y da mensajes accionables
-#   para auth/red/rechazo.
-· GitHub token expuesto en remote de STRUCTURE_REPORT.md — ROTAR
-
-════════════════════════════════════════════════════════════════════════════════
-17. github harness
-════════════════════════════════════════════════════════════════════════════════
-https://github.com/deepseek-ai/deepseek-harness
-
 
 ════════════════════════════════════════════════════════════════════════════════
 # v0.6.9v — transparencia, feedback real, salud y gate de calidad

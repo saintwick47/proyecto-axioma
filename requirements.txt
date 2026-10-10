@@ -1,7 +1,7 @@
 # /ruta/a/axioma/requirements.txt
 # AXIOMA v1.0.7 — Dependencias REALES del entorno
 # ✅ v0.7.4 (2026-09-28): REGENERADO contra el venv real (`pip freeze`), revisado
-#    paquete por paquete. Python 3.14.7 | Linux (CachyOS) | 194 distribuciones.
+#    paquete por paquete. Python 3.14.7 | Linux | 194 distribuciones.
 #
 # ── QUÉ CAMBIÓ EN ESTA REVISIÓN ──────────────────────────────────────────────
 #   ~ pandas 3.0.3 → 3.0.5 · numpy 2.4.4 → 2.5.3 (2026-10-07): actualización del usuario con `uv`,
@@ -16,35 +16,12 @@
 #                             deshacía el `pip install --upgrade pip` del CI.
 #
 # ── INSTALADOS EN EL VENV PERO **NO** DECLARADOS AQUÍ (a propósito) ──────────
-#   ⛔ NO DESINSTALAR NADA DE ESTE VENV SIN VERIFICAR `beer_vgb_mobile`.
-#   Este entorno es COMPARTIDO: ese proyecto móvil corre con
-#   `/ruta/a/axioma/venv/bin/python` (documentado en su repo:
-#   `verificar_movil.py` y `LEEME_movil.md`) y su UI (`flet==0.85.1`) vive acá.
-#   Desinstalar algo de acá puede romperlo (verificado 2026-09-29).
-#     · beautifulsoup4 · soupsieve · feedparser · feedparser-sgmllib
-#       → en la whitelist del auto-instalador (para código que el LLM genera)
-#     · memanto · moorcheh-sdk · rapidfuzz
-#       → sin uso en el código de AXIOMA (`memanto` arrastra los otros dos).
-#         Decisión del usuario (2026-09-29): **se dejan instalados** (pueden
-#         pertenecer al proyecto cervecero).
-#     · pyjwt → ⚠️ NO es huérfano: lo requiere `oauthlib` (y `requests-oauthlib`),
-#       que el build de Android de `beer_vgb_mobile` usa.
-#
-# ── ENTORNO COMPARTIDO (a propósito) ────────────────────────────────────────
-#   Este venv NO es exclusivo de AXIOMA: se comparte con los proyectos
-#   cerveceros para no crear un entorno por proyecto (decisión del usuario).
-#   Por eso hay paquetes instalados que AXIOMA no usa y está bien:
-#     · `flet`, `flet-cli`, `flet-desktop`, `fpdf2`, `Pillow`, `qrcode`, `repath`,
-#       `six` → `beer_vgb_mobile` (su `requirements.txt` los declara; corre con
-#       ESTE intérprete).
-#     · `pyinstaller`, `pyinstaller-hooks-contrib`, `altgraph`, `customtkinter`,
-#       `darkdetect`, `mmh3`, `pypika`, `pybase64` → empaquetado/GUI del proyecto
-#       de escritorio.
-#     · `pipdeptree`, `build`, `pytest-asyncio`, `pytest-mock` → herramientas de
-#       desarrollo (no las importa el código de AXIOMA).
-#   ⛔ NO desinstalar por "no estar referenciado": `fpdf2` o `pyjwt` (vía
-#   `oauthlib`) los usan esos proyectos. El CI instala `requirements-ci.txt`, que
-#   sí es la lista de AXIOMA sola, así que esto no afecta a la CI.
+#   Si instalás AXIOMA en un entorno virtual propio y limpio, esta sección no te
+#   afecta: alcanza con `pip install -r requirements.txt`.
+#   Existe para quien reutilice un entorno ya poblado, donde conviene NO
+#   desinstalar nada por "no estar referenciado": hay herramientas de desarrollo y
+#   de empaquetado que usan piezas que AXIOMA no importa, y sacarlas las rompe.
+#   El CI instala `requirements-ci.txt`, que sí es la lista exacta de AXIOMA sola.
 #
 # ── OPCIONALES QUE **NO** ESTÁN INSTALADOS (el código degrada solo) ──────────
 #   · pvporcupine        → alternativa a openwakeword en el wake word
@@ -289,7 +266,7 @@ altgraph==0.17.5
 playwright==1.60.0
 pyee==13.0.1
 # ═══════════════════════════════════════════════════════════════
-# === DATE / TIME / SYSTEM (CachyOS) ===
+# === DATE / TIME / SYSTEM ===
 # ═══════════════════════════════════════════════════════════════
 python-dateutil==2.9.0.post0
 pytz==2026.1.post1

@@ -62,7 +62,7 @@ python main.py --web --host 0.0.0.0 --port 8080   # Servidor accesible en red
 ### 3.1 Ventana de usuarios (primera pantalla)
 - Aparecen los usuarios existentes como **tarjetas clicables**. Tocás uno y se
   habilita el chat.
-- **saintwick** es el usuario root (admin). Los usuarios nuevos se crean con
+- **El primer usuario que creás** es el administrador (`root`); los que se crean después son
   **"➕ Usuario nuevo"** (por ahora solo se completa el **nombre**; correo,
   lugar y país están deshabilitados) → **Crear** → volvés a la lista y elegís
   el usuario nuevo.

@@ -224,7 +224,8 @@ GET /api/v1/hwfit/{hardware,rank,check,compatible}
 
 ## 📊 Métricas reales (medición propia, 2026-08-24)
 
-Excluye `venv/`, `.git/`, `deepseek-harness/`, `cache/`, `data/` (backups/salidas) y `logs/`:
+Excluye `venv/`, `.git/`, `cache/`, `data/` (backups/salidas) y `logs/`, más las carpetas de
+otros proyectos que puedan estar adentro del árbol de trabajo y no tengan nada que ver con AXIOMA:
 
 | Métrica | Valor |
 |---|---|
@@ -272,4 +273,3 @@ axioma/
 ├── logs/                    # Logs del sistema
 ```
 
-La estructura y función de **cada archivo** está en [docs/STRUCTURE_REPORT.md](docs/STRUCTURE_REPORT.md).
