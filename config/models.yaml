@@ -41,6 +41,7 @@ models:
       level_2: 420
       level_3: 900
       level_4: 1200
+      standard: 30          # el que usaba la entrada de respaldo (misma clave duplicada, ya fusionada)
     limits:
       max_lines_recommended: 200
       max_lines_absolute: 400
@@ -51,15 +52,12 @@ models:
       max_tokens: 4096
 
   # ─────────────────────────────────────────────────────────────
-  # MODELO FALLBACK + VALIDADOR — qwen2.5-coder:7b
-  # Especialista de código como juez general (validación con uso real)
+  # FALLBACK + VALIDADOR: es el MISMO `qwen2.5-coder:7b` de arriba (settings.llm_fallback_1).
+  # ⚠️ MEDIDO el 2026-10-10: acá había un SEGUNDO bloque con la misma clave, y en YAML gana el último:
+  # esta entrada (type: fallback, timeouts.standard: 30) PISABA a la de código y se perdían `type: code`,
+  # los `timeouts` level_1..4, los `limits` y los `parameters`. Ahora hay UNA sola entrada que junta las
+  # dos cosas, y una prueba impide que vuelva a haber claves duplicadas (ni acá ni anidadas).
   # ─────────────────────────────────────────────────────────────
-  qwen2.5-coder:7b:  # Mismo modelo como fallback_1 (settings.llm_fallback_1)
-    enabled: true
-    type: "fallback"
-    priority: 1
-    timeouts:
-      standard: 30
 
   # ─────────────────────────────────────────────────────────────
   # MODELO FALLBACK 2 — Desactivado (eliminado en fase0_stabilizer)

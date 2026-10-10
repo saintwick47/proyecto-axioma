@@ -287,3 +287,29 @@ def test_la_imagen_de_ollama_esta_fijada_a_una_version():
     assert not imagen.endswith(":latest"), f"la imagen de Ollama no puede ser `latest`: {imagen}"
     assert re.match(r"^ollama/ollama:\d+\.\d+(\.\d+)?$", imagen), \
         f"la imagen de Ollama tiene que estar fijada a una versión concreta: {imagen}"
+
+
+def test_los_yaml_no_tienen_claves_duplicadas():
+    """MEDIDO el 2026-10-10: `config/models.yaml` tenía DOS entradas `qwen2.5-coder:7b` —una de código y
+    otra de respaldo— y en YAML **gana la última**: se perdían silenciosamente `type: code`, los `timeouts`
+    level_1..4, los `limits` y los `parameters`. Un `yaml.safe_load` normal no avisa: la anterior
+    simplemente desaparece. Esta prueba usa un lector que **detecta duplicados, también anidados**.
+    """
+    import yaml
+
+    class Estricto(yaml.SafeLoader):
+        def construct_mapping(self, node, deep=False):
+            vistas = set()
+            for clave_nodo, _ in node.value:
+                clave = self.construct_object(clave_nodo, deep=deep)
+                assert clave not in vistas, (
+                    f"clave duplicada {clave!r} en la línea {clave_nodo.start_mark.line + 1} de {archivo.name}"
+                    " (en YAML gana la última y la anterior se pierde en silencio)")
+                vistas.add(clave)
+            return super().construct_mapping(node, deep=deep)
+
+    yamls = sorted((PROJECT_ROOT / "config").glob("*.yaml")) + \
+        sorted((PROJECT_ROOT / "config").glob("*.yml"))
+    assert yamls, "no encontré configuración para revisar"
+    for archivo in yamls:
+        yaml.load(archivo.read_text(encoding="utf-8"), Loader=Estricto)
