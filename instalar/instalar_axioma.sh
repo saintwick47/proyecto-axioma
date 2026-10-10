@@ -61,6 +61,14 @@ ok "Audio del equipo: UID ${AXIOMA_UID} · GID ${AXIOMA_GID} · grupo audio ${AX
 # TUYAS. Medido: en una instalación nueva, Docker las crea como `root`, y como el contenedor corre con tu
 # UID (fase 5) no puede escribir → `PermissionError: /app/data/memory` y AXIOMA no arranca.
 mkdir -p data logs cache
+
+# ✅ 2026-10-09: el `.env` tiene que EXISTIR antes de encender: es el archivo donde la interfaz guarda
+# las claves del usuario y el compose lo monta. Si no existe, Docker crea una CARPETA con ese nombre y el
+# montaje falla (medido en la documentación de Docker, y es un clásico). Se parte de la plantilla.
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+  ok "Creé tu .env a partir de la plantilla (ahí se guardan tus claves, y no se publican)"
+fi
 paso "Armando AXIOMA (la primera vez tarda unos minutos)"
 if $DRY; then
   echo "  (ensayo) cd $RAIZ && docker compose build"

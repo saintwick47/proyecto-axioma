@@ -74,6 +74,11 @@ services:
       # primer arranque tardaba minutos: medido, la copia no respondía en un minuto). Con el volumen se
       # baja una sola vez.
       - ./cache:/app/cache
+      # ✅ 2026-10-09: el `.env` del EQUIPO, montado. MEDIDO: las claves que se cargan desde la interfaz
+      # se escribían en `/app/.env`, que vive dentro del contenedor y NO es volumen → se perdían al
+      # recrearlo. OJO: tiene que EXISTIR antes de encender (si no, Docker crea una carpeta): los
+      # instaladores lo crean a partir de `.env.example`.
+      - ./.env:/app/.env
       # La configuración es la del usuario y se puede editar sin recompilar.
       - ./config:/app/config
     healthcheck:
@@ -113,6 +118,9 @@ services:
       HF_HOME: "/app/cache/huggingface"
     volumes:
       - ./data:/app/data
+      # ✅ 2026-10-09: las claves que se cargan desde la interfaz se guardaban en `/app/.env`, que vive
+      # dentro del contenedor y NO es volumen → se perdían al recrearlo. Montado, quedan en tu equipo.
+      - ./.env:/app/.env
       - ./logs:/app/logs
       - ./config:/app/config
     extra_hosts:

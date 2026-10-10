@@ -154,6 +154,16 @@ def guardar_valores(cambios: Dict[str, str], ruta: Optional[Path] = None,
     · Sólo se reemplazan las líneas de las claves que vienen en `cambios`; lo demás queda igual.
     · El archivo queda con permisos **sólo para el usuario** (0600).
     """
+    # ⚠️ MEDIDO el 2026-10-09: un valor con SALTO DE LÍNEA podía AGREGAR variables nuevas al `.env`
+    # (inyección): alcanzaba con mandar una clave cuyo valor fuera "algo\nSANDBOX_MODE=off" y el `.env`
+    # quedaba con una variable que cambia el comportamiento del sistema. El `.env` es una línea por
+    # variable, así que se rechazan los caracteres de control (y la interfaz muestra el motivo).
+    for variable, valor in (cambios or {}).items():
+        if any(c in str(valor) for c in ("\n", "\r", "\0")):
+            raise ValueError(
+                f"El valor de {variable} tiene un salto de línea o un carácter nulo: "
+                "cada clave tiene que ser una sola línea")
+
     archivo = Path(ruta) if ruta else ENV_POR_DEFECTO
     lineas = _leer_lineas(archivo)
     if not lineas and PLANTILLA.exists():

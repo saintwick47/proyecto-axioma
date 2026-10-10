@@ -22,6 +22,11 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONSTANTE_VIEJA = "axioma_secret_key_change_in_production"
 
+# Los archivos de empaquetado no viajan dentro de la imagen: estas pruebas se saltean ahí.
+_sin_empaquetado = pytest.mark.skipif(
+    not (PROJECT_ROOT / "docker-compose.yml").exists(),
+    reason="el empaquetado no viaja dentro de la imagen (se comprueba en el código)")
+
 
 def _modulo():
     from src.interfaces.web.sesion_segura import secreto_de_sesion
@@ -198,3 +203,46 @@ def test_las_rutas_documentadas_existen_de_verdad():
     assert faltantes == [], (
         "estas rutas están documentadas y no existen (revisá el prefijo de la API): "
         + ", ".join(sorted(set(faltantes))[:5]))
+
+
+# ═══════════════════════════════════════════════════════════════
+# LAS CLAVES DEL USUARIO: una línea por clave y que no se pierdan
+# ═══════════════════════════════════════════════════════════════
+# MEDIDO el 2026-10-09: (1) un valor con salto de línea podía AGREGAR variables nuevas al `.env`
+# (inyección: alcanzaba con mandar "algo\nSANDBOX_MODE=off"); (2) las claves cargadas desde la interfaz
+# se escribían en `/app/.env`, que NO es volumen, así que se perdían al recrear el contenedor.
+
+def test_una_clave_no_puede_inyectar_variables_en_el_env(tmp_path):
+    """Un valor con salto de línea se rechaza: el `.env` cambia el comportamiento del sistema."""
+    from src.core.apikeys import guardar_valores
+
+    archivo = tmp_path / ".env"
+    (tmp_path / ".env.example").write_text("TAVILY_API_KEY=\n", encoding="utf-8")
+
+    with pytest.raises(ValueError) as fallo:
+        guardar_valores({"TAVILY_API_KEY": "valor\nSANDBOX_MODE=off"}, ruta=archivo)
+    assert "una sola línea" in str(fallo.value), str(fallo.value)
+
+    contenido = archivo.read_text(encoding="utf-8") if archivo.exists() else ""
+    assert "SANDBOX_MODE" not in contenido, "el salto de línea agregó una variable al .env"
+    assert "\\0" not in contenido and "\\r" not in contenido
+
+    # Y un valor normal se guarda igual (el camino bueno no se rompió).
+    guardar_valores({"TAVILY_API_KEY": "clave-de-ejemplo-tvl"}, ruta=archivo)
+    assert "clave-de-ejemplo-tvl" in archivo.read_text(encoding="utf-8")
+    assert (os.stat(archivo).st_mode & 0o777) == 0o600
+
+
+@_sin_empaquetado
+def test_el_env_del_equipo_esta_montado_y_los_guiones_lo_crean():
+    """Sin el montaje, las claves de la interfaz viven dentro del contenedor y se pierden al recrearlo."""
+    import yaml
+    comp = yaml.safe_load((PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    for servicio in ("axioma", "axioma-puente"):
+        volumenes = comp["services"][servicio].get("volumes") or []
+        assert any(".env" in str(v) and "/app/.env" in str(v) for v in volumenes), \
+            f"el servicio `{servicio}` tiene que montar el .env del equipo: {volumenes}"
+    for guion in ("instalar/instalar_axioma.sh", "instalar/iniciar_axioma.sh"):
+        fuente = (PROJECT_ROOT / guion).read_text(encoding="utf-8")
+        assert "cp .env.example .env" in fuente, \
+            f"{guion} tiene que crear el .env antes de encender (si no, Docker crea una carpeta)"
