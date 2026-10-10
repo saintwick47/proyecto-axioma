@@ -94,4 +94,4 @@ grep -E "Audio \(voz\)|Placa de video|Memoria RAM" /tmp/axioma_preflight_imagen.
 
 paso "Verificación terminada"
 ok "tamaño ${tamano:-?} · $version · suite dentro de la imagen ✅"
-echo "  Anotá el tamaño en docs/PLAN_CONTENEDORES.md §9.9 (medición del riesgo 'imagen gigante')."
+echo "  Anotá el tamaño medido donde lleves el registro de la imagen (es el riesgo 'imagen gigante')."

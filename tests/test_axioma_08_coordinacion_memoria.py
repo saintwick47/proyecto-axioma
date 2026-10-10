@@ -393,7 +393,7 @@ class TestIntegracionSystemAgent:
 class TestMemoryRetention:
     def test_session_date(self):
         from src.memory.gateway import _session_date
-        assert _session_date("saintwick_20260905") == "20260905"
+        assert _session_date("usuario_20260905") == "20260905"
         assert _session_date("nicegui_20260904_135338_322087") == "20260904"
         assert _session_date("coder_33172afc") is None
         assert _session_date(None) is None
@@ -405,8 +405,8 @@ class TestMemoryRetention:
         from src.memory.gateway import MemoryGateway
         # ✅ v0.6.9p: ids relativos a HOY — antes usaba fechas fijas y el
         hoy = datetime.now()
-        vieja = f"saintwick_{(hoy - timedelta(days=10)):%Y%m%d}"
-        reciente = f"saintwick_{(hoy - timedelta(days=1)):%Y%m%d}"
+        vieja = f"usuario_{(hoy - timedelta(days=10)):%Y%m%d}"
+        reciente = f"usuario_{(hoy - timedelta(days=1)):%Y%m%d}"
         db = tmp_path / "mem.db"
         con = sqlite3.connect(str(db))
         con.executescript("""

@@ -753,7 +753,7 @@ def home():
     def select(username: str) -> None:
         app.storage.user['user_id'] = username
         ui.navigate.to('/chat')
-    ui.button('saintwick', on_click=lambda: select('saintwick'))
+    ui.button('usuario', on_click=lambda: select('usuario'))
 
 @ui.page('/chat')
 def chat():
@@ -778,9 +778,9 @@ def test_click_user_reaches_chat(tmp_path) -> None:
     async def scenario() -> None:
         async with user_simulation(main_file=_main_file(tmp_path)) as user:
             await user.open('/')
-            await user.should_see('saintwick')
-            user.find('saintwick').click()
-            await user.should_see('CHAT-OK-saintwick')
+            await user.should_see('usuario')
+            user.find('usuario').click()
+            await user.should_see('CHAT-OK-usuario')
     asyncio.run(scenario())
 
 
@@ -789,7 +789,7 @@ def test_chat_without_user_redirects_home(tmp_path) -> None:
     async def scenario() -> None:
         async with user_simulation(main_file=_main_file(tmp_path)) as user:
             await user.open('/chat')
-            await user.should_see('saintwick')
+            await user.should_see('usuario')
     asyncio.run(scenario())
 
 

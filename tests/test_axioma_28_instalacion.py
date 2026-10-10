@@ -934,3 +934,14 @@ def test_el_compose_no_tiene_uid_ni_gid_de_audio_fijos():
         fuente = (PROJECT_ROOT / guion).read_text(encoding="utf-8")
         for calculo in ("AXIOMA_UID=\"$(id -u)\"", "getent group audio", "export AXIOMA_AUDIO_GID"):
             assert calculo in fuente, f"{guion} no calcula {calculo}"
+
+
+def test_los_instaladores_de_windows_preparan_env_y_carpetas():
+    """MEDIDO (2026-10-10): en Windows faltaban las dos cosas y las dos rompen el arranque — sin `.env`,
+    Docker crea una CARPETA con ese nombre y el montaje falla; sin `data/`, `logs/` ni `cache/`, las crea
+    `root` y el contenedor no puede escribir (la misma familia del PermissionError de Linux).
+    """
+    for nombre in ("instalar_axioma.ps1", "iniciar_axioma.ps1"):
+        texto = (PROJECT_ROOT / "instalar" / nombre).read_text(encoding="utf-8-sig")
+        assert "New-Item -ItemType Directory" in texto, f"{nombre} no crea las carpetas"
+        assert "Copy-Item" in texto and ".env.example" in texto, f"{nombre} no crea el .env"

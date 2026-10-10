@@ -54,7 +54,27 @@ if (-not $hayDocker) {
 }
 ok "Docker responde ($(& docker --version))"
 
-# ── 2. Imagen ───────────────────────────────────────────────────────────────
+# ── 2. Carpetas y .env (tienen que existir ANTES de encender) ──────────────
+# 2026-10-10: MEDIDO — las carpetas que el contenedor escribe tienen que existir y ser TUYAS: si no,
+# Docker las crea como `root` y el contenedor (que corre con tu usuario) no puede escribir, así que
+# AXIOMA no arranca. Y el `.env` tiene que existir: el compose lo monta como archivo y, si no está,
+# Docker crea una CARPETA con ese nombre y el montaje falla (probado con `docker run -v`).
+paso "Preparando las carpetas y tu archivo de claves"
+foreach ($carpeta in @("data", "logs", "cache")) {
+    $ruta = Join-Path $Raiz $carpeta
+    if ($Ensayo) { Write-Host "  (ensayo) crearía la carpeta $ruta"; continue }
+    if (-not (Test-Path -LiteralPath $ruta)) { New-Item -ItemType Directory -Path $ruta | Out-Null }
+}
+$archivoEnv = Join-Path $Raiz ".env"
+$plantillaEnv = Join-Path $Raiz ".env.example"
+if ($Ensayo) {
+    Write-Host "  (ensayo) si no existe, crearía $archivoEnv a partir de la plantilla"
+} elseif ((Test-Path -LiteralPath $plantillaEnv) -and -not (Test-Path -LiteralPath $archivoEnv)) {
+    Copy-Item -LiteralPath $plantillaEnv -Destination $archivoEnv
+    ok "Creé tu .env a partir de la plantilla (ahí se guardan tus claves, y no se publican)"
+}
+
+# ── 3. Imagen ───────────────────────────────────────────────────────────────
 paso "Armando AXIOMA (la primera vez tarda unos minutos)"
 if ($Ensayo) {
     Write-Host "  (ensayo) cd $Raiz; docker compose build"
@@ -69,7 +89,7 @@ if ($Ensayo) {
     ok "AXIOMA armado"
 }
 
-# ── 3. Accesos directos (menú Inicio y Escritorio) ──────────────────────────
+# ── 4. Accesos directos (menú Inicio y Escritorio) ──────────────────────────
 if (-not $SinAcceso) {
     paso "Creando los accesos directos"
     # El acceso directo NO deja una ventana abierta de más: arranca AXIOMA y abre el navegador.
@@ -100,7 +120,7 @@ if (-not $SinAcceso) {
     }
 }
 
-# ── 4. Arrancar ─────────────────────────────────────────────────────────────
+# ── 5. Arrancar ─────────────────────────────────────────────────────────────
 paso "Arrancando AXIOMA"
 if ($Ensayo) {
     Write-Host "  (ensayo) powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\iniciar_axioma.ps1`""

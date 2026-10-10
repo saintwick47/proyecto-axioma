@@ -259,7 +259,7 @@ def test_el_cors_no_refleja_cualquier_origen():
 
     app = build_api_app()
     assert app is not None, "la app de la API no se construyó (¿faltan endpoints críticos?)"
-    cliente = TestClient(app)
+    cliente = TestClient(app, base_url="http://127.0.0.1")
 
     # Un origen AJENO no recibe permiso...
     ajeno = cliente.get("/v1/health", headers={"Origin": "http://sitio-ajeno.test"})
@@ -375,6 +375,15 @@ def test_elegir_modelo_por_rol_valida_contra_ollama(monkeypatch, tmp_path, ollam
     assert bueno["guardados"] == ["LLM_DEFAULT_MODEL"], bueno
     assert "LLM_DEFAULT_MODEL=falso:1b" in (tmp_path / ".env").read_text(encoding="utf-8")
 
+    # 4) Y se APLICA ya, no sólo en el archivo: MEDIDO (2026-10-10) — antes quedaba en el `.env` y la
+    # pantalla (que lee `settings`) seguía mostrando el modelo viejo hasta reiniciar, mientras el mensaje
+    # decía «AXIOMA lo usa para ese rol».
+    assert ajustes.llm_code_model == "codigo-real:7b"          # lo dejó puesto el paso 1b
+    otro = asyncio.run(rp.preflight_guardar_modelos({"codigo": "falso:1b"}))
+    assert otro["guardados"] == ["LLM_CODE_MODEL"], otro
+    assert ajustes.llm_code_model == "falso:1b", ajustes.llm_code_model
+    assert "se aplica ya" in otro["detalle"].lower(), otro["detalle"]
+
 
 def test_elegir_modelo_sin_ollama_no_guarda_a_ciegas(monkeypatch, tmp_path):
     """Sin Ollama no se puede validar: se avisa y NO se escribe (mejor que dejar la config a medias)."""
@@ -434,3 +443,25 @@ def test_las_secciones_de_la_pantalla_van_ADENTRO_del_dialogo():
         assert llamadas, f"la pantalla no llama a {seccion}"
         assert all(ast.dump(llamada) in adentro for llamada in llamadas), \
             f"{seccion} se llama FUERA del diálogo: se dibujaría en la página y taparía la pantalla"
+
+def test_la_api_rechaza_un_host_ajeno_y_acepta_el_local(monkeypatch):
+    """MEDIDO (2026-10-10): la API no validaba el `Host`. Una página puede apuntar un dominio propio a
+    127.0.0.1 (DNS rebinding) y, como el navegador lo ve como el MISMO origen, el CORS no la frena:
+    podía llamar a las rutas que ESCRIBEN el `.env`. Con la dirección local sólo se acepta el `Host` local.
+    """
+    from fastapi.testclient import TestClient
+    from src.interfaces.web.server import build_api_app
+
+    monkeypatch.setenv("AXIOMA_WEB_HOST", "127.0.0.1")
+    app = build_api_app()
+    assert app is not None, "la app de la API no se construyó"
+    local = TestClient(app, base_url="http://127.0.0.1").get("/v1/health")
+    assert local.status_code != 400, local.status_code
+    ajeno = TestClient(app, base_url="http://sitio-ajeno.test").get("/v1/health")
+    assert ajeno.status_code == 400, f"un Host ajeno tendría que rechazarse (salió {ajeno.status_code})"
+    assert "no permitido" in ajeno.json()["detail"], ajeno.json()
+
+    # Expuesto a propósito (`AXIOMA_WEB_HOST=0.0.0.0`): NO se restringe (decisión explícita del usuario).
+    monkeypatch.setenv("AXIOMA_WEB_HOST", "0.0.0.0")
+    expuesto = build_api_app()
+    assert TestClient(expuesto, base_url="http://sitio-ajeno.test").get("/v1/health").status_code != 400

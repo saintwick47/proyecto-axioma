@@ -88,6 +88,38 @@ from .sesion_segura import secreto_de_sesion   # ✅ 2026-10-07: secreto de sesi
 # ✅ CORREGIDO: MOUNT FASTAPI ROUTER
 # ═══════════════════════════════════════════════════════════════
 # ✅ NUEVO: Importar y montar router de FastAPI
+def _host_ligado() -> str:
+    """La dirección con la que se ligó el servidor (la deja puesta `WebServer.__init__`).
+
+    `AXIOMA_WEB_HOST` es el mismo nombre que usan el compose y los instaladores: una sola fuente de
+    verdad. Si nadie la puso, es la local (el valor seguro del proyecto).
+    """
+    import os
+    return (os.environ.get("AXIOMA_WEB_HOST") or "127.0.0.1").strip().lower()
+
+
+def _host_sin_puerto(crudo: str) -> str:
+    """`127.0.0.1:8080` → `127.0.0.1` · `[::1]:8080` → `::1`."""
+    crudo = (crudo or "").strip().lower()
+    if crudo.startswith("["):
+        return crudo[1:crudo.index("]")] if "]" in crudo else crudo
+    return crudo.split(":")[0]
+
+
+def _hosts_aceptados():
+    """Hosts válidos del encabezado `Host`, o `None` si AXIOMA está expuesto a propósito.
+
+    MEDIDO (2026-10-10): la API no validaba el `Host`. Una página web puede apuntar un dominio propio a
+    127.0.0.1 (**DNS rebinding**) y, como el navegador lo ve como el MISMO origen, el CORS no la frena:
+    podía llamar a las rutas que ESCRIBEN el `.env`. Con la dirección local sólo se acepta el `Host`
+    local. Si el usuario expone AXIOMA a la red (`AXIOMA_WEB_HOST=0.0.0.0`, decisión explícita y
+    documentada) **no** se restringe: ahí el `Host` puede ser cualquier nombre de la red.
+    """
+    if _host_ligado() not in ("127.0.0.1", "localhost", "::1"):
+        return None
+    return {"127.0.0.1", "localhost", "::1"}
+
+
 def build_api_app():
     """Construye la app FastAPI (CORS + conteo de requests + routers).
 
@@ -98,6 +130,7 @@ def build_api_app():
     """
     try:
         from fastapi import FastAPI
+        from fastapi.responses import JSONResponse
         from fastapi.middleware.cors import CORSMiddleware
         from .request_stats import track_request_stats
 
@@ -116,6 +149,22 @@ def build_api_app():
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+        # ✅ 2026-10-10: validación del `Host` (anti DNS-rebinding, ver `_hosts_aceptados`). Va DESPUÉS
+        # del CORS a propósito: así el rechazo también sale sin encabezados de permiso.
+        @app.middleware("http")
+        async def _validar_host(request, call_next):
+            aceptados = _hosts_aceptados()
+            if aceptados is not None:
+                host = _host_sin_puerto(request.headers.get("host", ""))
+                if host not in aceptados:
+                    _log_web_event("SERVER", f"Host rechazado: {host!r} (¿DNS rebinding?)", level="WARNING")
+                    return JSONResponse(
+                        {"detail": f"Host no permitido: {host or '(vacío)'}. AXIOMA atiende sólo en tu "
+                                   "equipo (127.0.0.1/localhost). Para exponerlo a la red, arrancalo con "
+                                   "AXIOMA_WEB_HOST=0.0.0.0 a propósito."},
+                        status_code=400)
+            return await call_next(request)
 
         # Contador REAL de requests: `/api/v1/stats` devolvía total_requests,
         # avg_latency_ms y uptime_seconds en 0 (stub) mientras `router_metrics`
@@ -305,6 +354,9 @@ class WebServer:
         _log_web_event("SERVER", "WebServer initialization started",
                       extra={"host": host, "port": port, "open_browser": open_browser})
 
+        # ✅ 2026-10-10: la dirección ligada queda en `AXIOMA_WEB_HOST` (el mismo nombre que usan el
+        # compose y los instaladores). La API la lee para validar el `Host` y frenar el DNS rebinding.
+        os.environ["AXIOMA_WEB_HOST"] = str(host)
         self.host = host
         self.port = port
         self.open_browser = open_browser

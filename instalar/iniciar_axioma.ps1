@@ -99,7 +99,27 @@ if ($env:AXIOMA_PUERTO -and $env:AXIOMA_PUERTO -ne "$Puerto") {
     aviso "Tenías AXIOMA_PUERTO=$($env:AXIOMA_PUERTO), pero en Windows se usa el $Puerto (el que publica el servicio puente)."
 }
 
-# ── 2. ¿Usamos el Ollama del equipo o el que trae AXIOMA? ───────────────────
+# ── 2. Carpetas y .env (tienen que existir ANTES de encender) ──────────────
+# 2026-10-10: MEDIDO — las carpetas que el contenedor escribe tienen que existir y ser TUYAS: si no,
+# Docker las crea como `root` y el contenedor (que corre con tu usuario) no puede escribir, así que
+# AXIOMA no arranca. Y el `.env` tiene que existir: el compose lo monta como archivo y, si no está,
+# Docker crea una CARPETA con ese nombre y el montaje falla (probado con `docker run -v`).
+paso "Preparando las carpetas y tu archivo de claves"
+foreach ($carpeta in @("data", "logs", "cache")) {
+    $ruta = Join-Path $Raiz $carpeta
+    if ($Ensayo) { Write-Host "  (ensayo) crearía la carpeta $ruta"; continue }
+    if (-not (Test-Path -LiteralPath $ruta)) { New-Item -ItemType Directory -Path $ruta | Out-Null }
+}
+$archivoEnv = Join-Path $Raiz ".env"
+$plantillaEnv = Join-Path $Raiz ".env.example"
+if ($Ensayo) {
+    Write-Host "  (ensayo) si no existe, crearía $archivoEnv a partir de la plantilla"
+} elseif ((Test-Path -LiteralPath $plantillaEnv) -and -not (Test-Path -LiteralPath $archivoEnv)) {
+    Copy-Item -LiteralPath $plantillaEnv -Destination $archivoEnv
+    ok "Creé tu .env a partir de la plantilla (ahí se guardan tus claves, y no se publican)"
+}
+
+# ── 3. ¿Usamos el Ollama del equipo o el que trae AXIOMA? ───────────────────
 paso "Buscando Ollama"
 # Los servicios se nombran UNO POR UNO a propósito. Medido el 2026-10-06 en Linux: `docker compose
 # --profile puente up -d` levanta ADEMÁS el servicio `axioma` (no tiene perfil, arranca siempre), y
@@ -117,7 +137,7 @@ if (Hay-OllamaEnElEquipo) {
     ok "Levanto el Ollama que viene con AXIOMA (los modelos quedan guardados en un volumen)."
 }
 
-# ── 3. Encender, esperar y abrir el navegador ───────────────────────────────
+# ── 4. Encender, esperar y abrir el navegador ───────────────────────────────
 paso "Encendiendo AXIOMA"
 if ($Ensayo) {
     Write-Host "  (ensayo) cd $Raiz; docker compose --profile puente $($perfilOllama -join ' ') up -d $($servicios -join ' ')"

@@ -497,6 +497,21 @@ class TestTaskTemperatureWiring:
         }
         check("mapeos de modelo intactos", got == expected, str(got), SECTION)
 
+    def test_el_modelo_elegido_en_el_env_manda_sobre_models_yaml(self, monkeypatch):
+        """MEDIDO (2026-10-10): `get_model_for_task` mira PRIMERO `task_mappings`, así que los nombres
+        fijos de `models.yaml` ganaban y el modelo elegido en la pantalla no cambiaba NADA en ejecución
+        (sólo el preflight). Ahora manda el rol del `.env`, con la temperatura de cada tarea intacta."""
+        import src.llm.config as C
+        monkeypatch.setattr(C.settings, "llm_code_model", "mi-codigo:7b", raising=False)
+        monkeypatch.setattr(C.settings, "llm_default_model", "mi-chat:8b", raising=False)
+        monkeypatch.setattr(C.settings, "llm_code_model_fallback", "mi-respaldo:3b", raising=False)
+        cfg = C.LLMConfig()
+        codigo = cfg.get_model_for_task("code_generation")
+        assert codigo.name == "mi-codigo:7b", codigo.name
+        assert codigo.temperature == 0.2, "la temperatura de la tarea se pierde"
+        assert cfg.get_model_for_task("general_chat").name == "mi-chat:8b"
+        assert "mi-respaldo:3b" in cfg.get_fallback_chain("mi-codigo:7b")
+
     def test_loader_accepts_empty_mapping_entry(self):
         """Una entrada `{}` no debe romper la carga ni crear un mapeo."""
         import tempfile, yaml as _yaml

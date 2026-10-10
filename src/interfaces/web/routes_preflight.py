@@ -278,12 +278,26 @@ async def preflight_guardar_modelos(datos: Dict[str, str]) -> Dict[str, Any]:
                     "detalle": "Encendé Ollama (o el perfil `ollama-local`) y volvé a intentar."}
         a_guardar = {VARIABLES_DE_ROL[rol]: nombre for rol, nombre in pedidos.items()
                      if rol not in errores}
+        aplicado = ""
         if a_guardar:
             await asyncio.to_thread(guardar_valores, a_guardar)
+            # ✅ 2026-10-10: que se aplique YA. Antes quedaba sólo en el `.env` y la pantalla —que lee
+            # `settings`, no el archivo— seguía mostrando el modelo viejo, mientras este mensaje decía
+            # «AXIOMA lo usa para ese rol» (falso hasta reiniciar). Se actualiza la copia en memoria y se
+            # descarta el router para que la próxima consulta se rearme leyendo los valores nuevos.
+            from config.settings import settings
+            for variable, nombre in a_guardar.items():
+                setattr(settings, variable.lower(), nombre)
+            try:
+                from src.interfaces.web.routes import cleanup_router
+                await cleanup_router()
+                aplicado = " Se aplica ya: el router se rearmó con tu elección."
+            except Exception as exc:  # noqa: BLE001 — R3: se registra y se dice, no se esconde
+                _log_error(exc, "routes_preflight.aplicar_modelo")
+                aplicado = " Se aplica cuando reinicies AXIOMA (no pude rearmar el router ahora)."
         return {"guardados": sorted(VARIABLES_DE_ROL[rol] for rol in pedidos if rol not in errores),
                 "errores": errores,
-                "detalle": ("Quedó en tu `.env`: AXIOMA lo usa para ese rol (y el preflight deja de pedirte "
-                            "otro modelo).")}
+                "detalle": ("Quedó en tu `.env` (y el preflight deja de pedirte otro modelo)." + aplicado)}
     except Exception as exc:  # noqa: BLE001
         _log_error(exc, "routes_preflight.preflight_guardar_modelos")
         return {"guardados": [], "errores": {"general": f"{type(exc).__name__}: {exc}"}}

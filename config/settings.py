@@ -817,13 +817,16 @@ class Settings(BaseSettings, SettingsComputations):
         description="Confianza mínima de Tesseract (0-100) para aceptar su "
                     "transcripción sin pasar por el VLM"
     )
-    # ✅ FIX: gemma4:e4b desinstalado — selector actualizado al VLM activo.
-    vision_model_selector: Literal["auto", "qwen3-vl:4b"] = Field(
+    # ✅ 2026-10-10: era `Literal["auto", "qwen3-vl:4b"]` —el nombre de UN modelo— y su descripción
+    # prometía «forzar uso explícito», pero MEDIDO: `get_vision_config()` devolvía `llm_vision_model` en
+    # las dos ramas, así que no tenía ningún efecto. Ahora es texto libre: «auto» = usá el VLM que
+    # configuraste (`llm_vision_model`), que es lo que hace siempre, y cualquier otro nombre se acepta
+    # por compatibilidad (la interfaz puede guardarlo al recargar ajustes).
+    vision_model_selector: str = Field(
         default="auto",
         description=(
-            "Selector de modelo de visión para UI. "
-            "'auto' = usa llm_vision_model (único modelo disponible). "
-            "'qwen3-vl:4b' = fuerza uso explícito de ese modelo."
+            "Selector de modelo de visión para la interfaz. 'auto' = usá `llm_vision_model`, que es el "
+            "VLM que configuraste y lo que se usa siempre. Se aceptan otros nombres por compatibilidad."
         )
     )
 

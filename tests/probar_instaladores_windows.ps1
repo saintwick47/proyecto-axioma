@@ -156,6 +156,40 @@ foreach ($caso in @(
     }
 }
 
+# ── 2.b Preparan `.env` y las carpetas ANTES de encender ─────────────────────────────────────────
+# 2026-10-10: MEDIDO — en Windows no lo hacían, y las dos cosas rompen el arranque: si el `.env` no
+# existe, Docker crea una CARPETA con ese nombre y el montaje `./.env:/app/.env` falla (probado con
+# `docker run -v`); y si `data/`, `logs/` o `cache/` no existen, Docker las crea como root y el
+# contenedor (que corre con tu usuario) no puede escribir. Se comprueban las DOS cosas: que el código
+# esté en el guion, y que el modo ensayo PASE por él (si estuviera después del `exit 0`, no serviría).
+Write-Host "`n> Los guiones preparan .env y las carpetas antes de encender"
+foreach ($caso in @(
+        @{ Nombre = "instalar_axioma.ps1"; Relativo = "instalar\instalar_axioma.ps1"; Salida = $ensayoInstalar.Salida },
+        @{ Nombre = "iniciar_axioma.ps1"; Relativo = "instalar\iniciar_axioma.ps1"; Salida = $ensayoIniciar.Salida })) {
+    $texto = Get-Content (Join-Path $Raiz $caso.Relativo) -Raw
+    $faltasCodigo = @()
+    if ($texto -notmatch "New-Item -ItemType Directory") { $faltasCodigo += "crear carpetas" }
+    if ($texto -notmatch "Copy-Item") { $faltasCodigo += "copiar la plantilla" }
+    if ($texto -notmatch "\.env\.example") { $faltasCodigo += "usar .env.example" }
+    if ($faltasCodigo.Count -eq 0) {
+        Bien "$($caso.Nombre): crea las carpetas y el .env a partir de la plantilla"
+    } else {
+        Fallo "$($caso.Nombre): le falta $($faltasCodigo -join ', ')"
+        $Problemas++
+    }
+    $faltasSalida = @()
+    foreach ($esperado in @("data", "logs", "cache", ".env")) {
+        if ($caso.Salida -notmatch [regex]::Escape($esperado)) { $faltasSalida += $esperado }
+    }
+    if ($faltasSalida.Count -eq 0) {
+        Bien "$($caso.Nombre): el ensayo pasa por esa preparación (no está después de salir)"
+    } else {
+        Fallo "$($caso.Nombre): el ensayo no menciona $($faltasSalida -join ', ')"
+        Dato $caso.Salida
+        $Problemas++
+    }
+}
+
 # ── 3.b El demonio de voz de Windows: tiene que arrancar y explicar qué le falta ──────────────────
 Write-Host "`n> Rafael para Windows (voz nativa, sin Python)"
 $rafael = CorrerGuion "instalar\rafael_windows.ps1" @("-Ensayo")

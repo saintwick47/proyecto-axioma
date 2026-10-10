@@ -58,6 +58,11 @@ def _log_error(error: Exception, context: str):
 # ═══════════════════════════════════════════════════════════
 # ✅ v0.2.0: MODELO DE CÓDIGO ÚNICO
 # ═══════════════════════════════════════════════════════════
+# ✅ 2026-10-10: qué tareas pertenecen a cada rol del `.env` (decisión del usuario, 2026-10-10).
+# Las demás tareas sólo declaran temperatura en `models.yaml` y ya resolvían con el `.env`.
+TAREAS_DE_CODIGO: tuple = ("code_generation", "code_review", "code_correction", "code_explanation")
+TAREAS_DE_CHAT: tuple = ("general_chat", "complex_reasoning")
+
 CODE_MODEL:    str = settings.llm_code_model
 DEFAULT_MODEL: str = settings.llm_default_model
 VISION_MODEL:  str = settings.llm_vision_model
@@ -269,6 +274,32 @@ class LLMConfig:
 
     def _sync_with_settings(self) -> None:
         """Sincroniza con settings.py."""
+        # ✅ 2026-10-10 (lo pidió el usuario; verificado con medición): la elección del `.env` MANDA.
+        # MEDIDO: `get_model_for_task` mira PRIMERO `task_mappings`, así que los modelos fijos de
+        # `models.yaml` ganaban y el modelo elegido en la pantalla no cambiaba NINGUNA decisión en
+        # ejecución (sólo el preflight). Acá se reescribe sólo el MODELO de las tareas de cada rol —la
+        # temperatura de cada tarea queda intacta— y sólo si el usuario configuró ese rol: con el `.env`
+        # por defecto los valores coinciden con `models.yaml`, así que nada cambia para quien no tocó nada.
+        # Se leen de `settings` EN EL MOMENTO (no las constantes del módulo, que son una foto del arranque):
+        # así vale también si el modelo se elige con AXIOMA andando.
+        codigo = str(getattr(settings, "llm_code_model", "") or "").strip()
+        chat = str(getattr(settings, "llm_default_model", "") or "").strip()
+        respaldo_codigo = str(getattr(settings, "llm_code_model_fallback", "") or "").strip()
+        for nombre, tipo, temperatura in ((codigo, "code", 0.3), (chat, "default", 0.7)):
+            if nombre and nombre not in self.models:
+                self.models[nombre] = ModelConfig(name=nombre, task_types=[tipo],
+                                                  temperature=temperatura,
+                                                  timeout=settings.ollama_timeout)
+        for tarea in TAREAS_DE_CODIGO:
+            if codigo and tarea in self.task_mappings:
+                self.task_mappings[tarea].primary_model = codigo
+        for tarea in TAREAS_DE_CHAT:
+            if chat and tarea in self.task_mappings:
+                self.task_mappings[tarea].primary_model = chat
+        if respaldo_codigo and codigo in self.models:
+            # El respaldo de código atiende a las tareas de código (decisión del usuario): va como
+            # `fallback` del modelo de código, así `get_fallback_chain()` lo devuelve para `code_*`.
+            self.models[codigo].fallback = respaldo_codigo
         # Ensure default model exists
         if settings.llm_default_model not in self.models:
             self.models[settings.llm_default_model] = ModelConfig(
@@ -369,7 +400,11 @@ class LLMConfig:
                     model_config = self._resolve_reasoning_tokens(replace(model))
                 return self._apply_feedback_temperature(task_type, model_config)
         # Return default (CODE_MODEL para código, llm_default_model para resto)
-        default_name = CODE_MODEL if "code" in task_type.lower() else settings.llm_default_model
+        # ✅ 2026-10-10: el modelo de código se lee de `settings` EN EL MOMENTO (la constante `CODE_MODEL`
+        # es una foto del arranque): así el modelo elegido en la pantalla vale también para tareas de
+        # código que no tengan mapeo propio.
+        default_name = (str(getattr(settings, "llm_code_model", "") or "").strip() or CODE_MODEL
+                        if "code" in task_type.lower() else settings.llm_default_model)
         model = self.models.get(default_name, list(self.models.values())[0])
         if temp_override is not None:
             model_config = self._resolve_reasoning_tokens(

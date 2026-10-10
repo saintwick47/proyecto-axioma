@@ -391,7 +391,7 @@ def _sessions(now=None):
                    "model": "qwen3:8b", "temperature": 0.7,
                    "created_at": (now - timedelta(hours=3)).isoformat(),
                    "last_activity": (now - timedelta(minutes=2)).isoformat(),
-                   "user_id": "saintwick", "jarvis_mode": "normal"},
+                   "user_id": "usuario", "jarvis_mode": "normal"},
         "bbb222": {"session_id": "bbb222", "message_count": 0,
                    "model": "qwen2.5-coder:7b", "temperature": 0.2,
                    "created_at": (now - timedelta(days=2)).isoformat(),
@@ -418,7 +418,7 @@ class TestFilterAndSort:
         assert ids == ["bbb222"]
 
     def test_search_by_user(self):
-        ids = _sd().filter_sessions(_sessions(), "saintwick")
+        ids = _sd().filter_sessions(_sessions(), "usuario")
         check("busca por usuario", ids == ["aaa111"], str(ids), SECTION_2)
         assert ids == ["aaa111"]
 

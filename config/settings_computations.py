@@ -179,17 +179,13 @@ class SettingsComputations:
             - timeout: Timeout en segundos (leído de settings)
             - is_fallback: False (siempre principal, no hay segundo modelo)
         """
-        selector = getattr(self, "vision_model_selector", "auto")
         principal = getattr(self, "llm_vision_model", "qwen3-vl:4b")
         # ✅ v0.1.6: FIX CRÍTICO — getattr(self, "nombre_attr", default)
         # ✅ v0.1.6b: Default actualizado a 150s (resolución original ~111s)
         timeout_principal = getattr(self, "ollama_timeout_vision", 150)
-
-        # Cualquier selector válido apunta al VLM instalado
-        if selector in ["auto", "qwen3-vl:4b"]:
-            return principal, timeout_principal, False
-
-        # Fallback por seguridad si el selector es inválido
+        # ✅ 2026-10-10: acá había dos ramas (`selector in ["auto", "qwen3-vl:4b"]` y «selector
+        # inválido») que devolvían EXACTAMENTE lo mismo: el selector no cambiaba nada. Queda el valor
+        # real, el VLM configurado por el usuario (`llm_vision_model`), sin ramas que confundan.
         return principal, timeout_principal, False
 
     def get_vision_fallback_config(self) -> Tuple[str, int]:

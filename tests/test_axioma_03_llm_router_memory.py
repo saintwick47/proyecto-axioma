@@ -659,7 +659,7 @@ class TestPlanMemory:
 
 class TestUserRegistry:
     def test_registro_seed_y_validaciones(self, tmp_path, monkeypatch):
-        """Seed saintwick(root) + crear/duplicado/vacío."""
+        """Seed admin(root) + crear/duplicado/vacío."""
         import src.memory.user_registry as ur
         monkeypatch.setattr(ur, "_users_path", lambda: tmp_path / "users.json")
 

@@ -573,7 +573,7 @@ class TestMiddlewareWiring:
             return {"ok": True}
 
         reset()
-        client = TestClient(app)
+        client = TestClient(app, base_url="http://127.0.0.1")
         client.get("/ping")
         client.get("/ping")
         s = stats()
@@ -599,7 +599,7 @@ class TestMiddlewareWiring:
         @app.get("/x")
         async def _x():
             return {"ok": True}
-        resp = TestClient(app).get("/x")
+        resp = TestClient(app, base_url="http://127.0.0.1").get("/x")
         check("request OK aunque falle el registro", resp.status_code == 200,
               str(resp.status_code), SECTION_2)
         assert resp.status_code == 200
