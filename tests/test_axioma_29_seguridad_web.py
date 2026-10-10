@@ -270,3 +270,20 @@ def test_el_cors_no_refleja_cualquier_origen():
         propio = cliente.get("/v1/health", headers={"Origin": origen})
         assert propio.headers.get("access-control-allow-origin") == origen, \
             (origen, dict(propio.headers))
+
+
+@_sin_empaquetado
+def test_la_imagen_de_ollama_esta_fijada_a_una_version():
+    """MEDIDO el 2026-10-10: el compose usaba `ollama/ollama:latest`.
+
+    Con `latest`, dos personas (o la misma, dentro de dos meses) bajan versiones distintas del motor y
+    AXIOMA se comporta distinto sin que nadie haya cambiado el proyecto. Se fija a la versión medida en el
+    equipo (0.30.0), comprobada contra Docker Hub antes de escribirla.
+    """
+    import re
+    import yaml
+    comp = yaml.safe_load((PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    imagen = comp["services"]["ollama"]["image"]
+    assert not imagen.endswith(":latest"), f"la imagen de Ollama no puede ser `latest`: {imagen}"
+    assert re.match(r"^ollama/ollama:\d+\.\d+(\.\d+)?$", imagen), \
+        f"la imagen de Ollama tiene que estar fijada a una versión concreta: {imagen}"

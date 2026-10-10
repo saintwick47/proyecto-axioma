@@ -193,7 +193,11 @@ services:
 
   # ── Opcional: Ollama DENTRO del contenedor (perfil, no arranca por defecto) ──
   ollama:
-    image: ollama/ollama:latest
+    # ✅ 2026-10-10: versión FIJA, no `latest`. Con `latest`, dos personas (o la misma, en dos meses)
+    # bajan versiones distintas del motor y AXIOMA se comporta distinto sin que nadie haya cambiado nada.
+    # 0.30.0 es la versión MEDIDA en este equipo (`ollama --version`) y la etiqueta se comprobó contra
+    # Docker Hub (`docker manifest inspect ollama/ollama:0.30.0`) antes de fijarla.
+    image: ollama/ollama:0.30.0
     container_name: axioma-ollama
     profiles: ["ollama-local"]
     restart: unless-stopped
