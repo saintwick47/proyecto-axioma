@@ -408,3 +408,29 @@ def test_la_pantalla_permite_elegir_modelo_por_rol():
     # Regla R7: la consulta se hace UNA vez (nada de sondas en bucle).
     assert "ui.timer(0.05, cargar, once=True)" in fuente, \
         "la carga de modelos tiene que ser una sola vez (regla R7)"
+
+
+def test_las_secciones_de_la_pantalla_van_ADENTRO_del_dialogo():
+    """MEDIDO (lo reportó el usuario el 2026-10-10): las secciones se llamaban al final de la función,
+    o sea FUERA del `with ui.dialog()...`, así que sus campos se dibujaban en la PÁGINA y no dentro de
+    la pantalla. Resultado: al cerrarla quedaban a la vista **tapando todo** y cada clic en el ícono de
+    configuración agregaba otra copia (nunca se iban). Se comprueba con el árbol sintáctico: estar
+    nombrada no alcanza, tiene que estar **dentro** del `with` que crea el diálogo.
+    """
+    import ast
+
+    fuente = (PROJECT_ROOT / "src" / "interfaces" / "components" / "configurar_axioma.py"
+              ).read_text(encoding="utf-8")
+    funcion = next((n for n in ast.walk(ast.parse(fuente))
+                    if isinstance(n, ast.FunctionDef) and n.name == "abrir_configurar_axioma"), None)
+    assert funcion is not None, "no encontré abrir_configurar_axioma"
+    dialogos = [n for n in ast.walk(funcion) if isinstance(n, ast.With)
+                if any("dialog" in ast.dump(item.context_expr) for item in n.items)]
+    assert dialogos, "no encontré el `with ui.dialog()` de la pantalla de configuración"
+    adentro = {ast.dump(nodo) for dialogo in dialogos for nodo in ast.walk(dialogo)}
+    for seccion in ("_seccion_chequeo_de_modelo", "_seccion_modelos"):
+        llamadas = [n for n in ast.walk(funcion)
+                    if isinstance(n, ast.Call) and getattr(n.func, "id", "") == seccion]
+        assert llamadas, f"la pantalla no llama a {seccion}"
+        assert all(ast.dump(llamada) in adentro for llamada in llamadas), \
+            f"{seccion} se llama FUERA del diálogo: se dibujaría en la página y taparía la pantalla"

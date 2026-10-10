@@ -127,6 +127,13 @@ def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
         cuerpo = ui.column().classes('w-full gap-1')
         avance = ui.row().classes('w-full items-center gap-2')
         claves_zona = ui.column().classes('w-full gap-1')
+        # ✅ 2026-10-10 (lo reportó el usuario, medido con el navegador): estas dos secciones se llamaban
+        # al FINAL de la función, o sea FUERA del `with ui.dialog()...`. Por eso sus campos se dibujaban
+        # en la PÁGINA y no dentro de la pantalla: al cerrarla quedaban a la vista tapando todo, y cada
+        # clic en el ícono de configuración agregaba **otra copia** (nunca se iban). Adentro del `with`
+        # viven en la tarjeta del diálogo, se van con ella, y el botón Cerrar queda abajo de todo.
+        _seccion_chequeo_de_modelo()
+        _seccion_modelos()
         with ui.row().classes('w-full justify-end'):
             ui.button('Cerrar', on_click=dialogo.close).props('flat dense')
 
@@ -236,8 +243,6 @@ def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
             ui.button('Guardar claves', on_click=guardar).props('dense')
 
     construir_claves()
-    _seccion_chequeo_de_modelo()
-    _seccion_modelos()
     dialogo.open()
     ui.timer(0.05, refrescar, once=True)
 

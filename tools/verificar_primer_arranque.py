@@ -104,12 +104,35 @@ def _revisar_modelos(url: str, captura: str):
             """(els) => els.map(el => {
                  const et = el.querySelector('.q-field__label');
                  const inp = el.querySelector('input');
-                 return {label: et ? et.textContent.trim() : '', valor: inp ? inp.value : ''};
+                 const r = el.getBoundingClientRect();
+                 return {label: et ? et.textContent.trim() : '', valor: inp ? inp.value : '',
+                         visible: r.width > 0 && r.height > 0,
+                         dentroDelDialogo: !!el.closest('.q-dialog')};
                })""")
         CAPTURAS.mkdir(parents=True, exist_ok=True)
         pagina.screenshot(path=str(CAPTURAS / captura), full_page=True)
+        # ✅ 2026-10-10 (lo reportó el usuario y se midió): al cerrar la pantalla NO tiene que quedar
+        # nada a la vista. Los campos se dibujaban en la PÁGINA y se quedaban ahí tapando todo (y cada
+        # apertura agregaba otra copia). Acá se cierra y se mide.
+        cierre: dict = {"cerro": False, "campos_a_la_vista": -1, "centro": ""}
+        try:
+            pagina.locator("button:has-text('Cerrar')").first.click(timeout=8000)
+            # Espera ACOTADA (hasta 10 s) a que la pantalla se vaya de verdad. Antes esperaba 1,5 s fijos
+            # y daba un falso fallo: el botón queda abajo (medido: y=1582 en una ventana de 900) y la
+            # animación de Quasar todavía no había terminado. Un tiempo fijo acá es una prueba frágil.
+            for _ in range(20):
+                if pagina.locator(".q-dialog:visible").count() == 0:
+                    break
+                time.sleep(0.5)
+            cierre["cerro"] = pagina.locator(".q-dialog:visible").count() == 0
+            cierre["campos_a_la_vista"] = pagina.locator(".q-select:visible").count()
+            cierre["centro"] = pagina.evaluate(
+                "() => {const e = document.elementFromPoint(innerWidth / 2, innerHeight / 2);"
+                "return e ? (e.tagName + '.' + (e.className || '')).slice(0, 60) : '';}")
+        except Exception as e:
+            cierre["motivo"] = f"{type(e).__name__}: {str(e)[:80]}"
         navegador.close()
-    return campos, errores, datos
+    return campos, errores, datos, cierre
 
 
 def main(argv=None) -> int:
@@ -167,7 +190,7 @@ def _comprobar(args, marca) -> int:
 
     print("\n▶ 3) La sección de modelos ofrece lo instalado y muestra el modelo elegido")
     marca.unlink(missing_ok=True)          # que la pantalla se abra sola, como la primera vez
-    campos, errores3, datos = _revisar_modelos(args.url, "modelos_en_configurar.png")
+    campos, errores3, datos, cierre = _revisar_modelos(args.url, "modelos_en_configurar.png")
     if campos is None:
         print(f"   ❌ {errores3[0]} (captura: data/capturas/modelos_en_configurar.png)")
         return 4
@@ -192,6 +215,21 @@ def _comprobar(args, marca) -> int:
         for p_ in problemas:
             print(f"   ❌ {p_}")
         print("   (captura: data/capturas/modelos_en_configurar.png)")
+        return 4
+    # ✅ Dónde se dibujan: tienen que estar DENTRO de la pantalla de configuración.
+    dibujados_fuera = [c for c in campos if c.get("visible") and not c.get("dentroDelDialogo")]
+    if dibujados_fuera:
+        print(f"   ❌ {len(dibujados_fuera)} campo(s) de modelo se dibujan FUERA de la pantalla de "
+              "configuración (se quedan a la vista al cerrarla y cada apertura agrega otra copia)")
+        print("   (captura: data/capturas/modelos_en_configurar.png)")
+        return 4
+    print("   ✅ los campos están DENTRO de la pantalla (se van con ella)")
+    # ✅ Y que se CIERRE: es lo que reportó el usuario (quedaba tapando todo).
+    if cierre.get("cerro") and cierre.get("campos_a_la_vista") == 0:
+        print(f"   ✅ al cerrar se va y no queda nada a la vista (centro de la pantalla: {cierre['centro']})")
+    else:
+        print(f"   ❌ al cerrar quedó algo tapando: diálogo visible={not cierre.get('cerro')} · "
+              f"campos a la vista={cierre.get('campos_a_la_vista')} · {cierre.get('motivo', '')}")
         return 4
     print(f"   ✅ los {len(_ROLES_DE_MODELO)} roles están en pantalla, con el modelo que AXIOMA usa:")
     for v in vistos:
