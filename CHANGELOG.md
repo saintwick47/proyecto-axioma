@@ -8,6 +8,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 ## [Sin publicar] — AXIOMA en contenedores (instalable)
 
 ### Agregado
+- **Elegir el modelo de cada rol** (`GET/POST /api/v1/preflight/modelos`): la pantalla 🧩 podrá mostrar los
+  modelos que hay **en tu Ollama** y guardar el que elijas para chat, código, respaldo y visión. Lo elegido
+  queda en tu `.env` y **el catálogo y el preflight lo respetan** (antes te seguían pidiendo el del
+  catálogo). Valida contra Ollama: un modelo que no está instalado **no se escribe**, y se explica por qué.
+- **El catálogo sigue los modelos configurados**: si elegís otro modelo, el preflight deja de reclamarte el
+  anterior y lo estima por el nombre (y lo dice como estimación) cuando todavía no lo conoce.
 - **Instalación en contenedores**: imagen de dos etapas **sin modelos adentro** (~5,6 GB), CPU primero,
   con la suite completa corriendo **dentro** de la imagen (una imagen que no pasa las pruebas no se publica).
 - **Lanzador de doble clic**: `instalar/instalar_axioma.sh` (una sola vez) y `instalar/iniciar_axioma.sh`

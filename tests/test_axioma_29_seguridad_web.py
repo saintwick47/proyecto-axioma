@@ -332,3 +332,50 @@ def test_el_catalogo_sigue_los_modelos_que_eligio_el_usuario(monkeypatch):
     assert "ESTIMADO" in elegido.para, elegido.para
     assert elegido.instalar == "ollama pull mi-modelo-elegido:9b", elegido.instalar
     assert elegido.ram_gb > 0, "tiene que estimar la memoria por el nombre para poder avisar"
+
+
+def test_elegir_modelo_por_rol_valida_contra_ollama(monkeypatch, tmp_path, ollama_falso):
+    """El paso de la interfaz: se ELIGE el modelo por rol y se guarda en el `.env`, pero sólo si EXISTE.
+
+    MEDIDO: sin validación, escribir un nombre que no está en Ollama deja a AXIOMA sin poder responder en
+    ese rol y el error aparece mucho después (cuando alguien pide algo de ese rol).
+    """
+    import asyncio
+    from config import settings as ajustes
+    from src.core import apikeys
+    from src.interfaces.web import routes_preflight as rp
+
+    monkeypatch.setattr(ajustes, "ollama_host", ollama_falso.url, raising=False)
+    monkeypatch.setattr(apikeys, "ENV_POR_DEFECTO", tmp_path / ".env", raising=False)
+    (tmp_path / ".env").write_text("LLM_DEFAULT_MODEL=qwen3:8b\n", encoding="utf-8")
+
+    # 1) Lo que hay en Ollama (el falso anuncia `falso:1b`).
+    listado = asyncio.run(rp.preflight_modelos())
+    assert listado["instalados"] == ["falso:1b"], listado
+    assert listado["ollama_disponible"] is True
+
+    # 2) Un modelo que NO existe: no se guarda y se explica.
+    malo = asyncio.run(rp.preflight_guardar_modelos({"chat": "no-existe:99b"}))
+    assert malo["guardados"] == [] and "no-existe:99b" in str(malo["errores"]), malo
+    assert "no-existe:99b" not in (tmp_path / ".env").read_text(encoding="utf-8")
+
+    # 3) Uno que SÍ existe: se guarda en la variable del rol.
+    bueno = asyncio.run(rp.preflight_guardar_modelos({"chat": "falso:1b"}))
+    assert bueno["guardados"] == ["LLM_DEFAULT_MODEL"], bueno
+    assert "LLM_DEFAULT_MODEL=falso:1b" in (tmp_path / ".env").read_text(encoding="utf-8")
+
+
+def test_elegir_modelo_sin_ollama_no_guarda_a_ciegas(monkeypatch, tmp_path):
+    """Sin Ollama no se puede validar: se avisa y NO se escribe (mejor que dejar la config a medias)."""
+    import asyncio
+    from config import settings as ajustes
+    from src.core import apikeys
+    from src.interfaces.web import routes_preflight as rp
+
+    monkeypatch.setattr(ajustes, "ollama_host", "http://127.0.0.1:1", raising=False)
+    monkeypatch.setattr(apikeys, "ENV_POR_DEFECTO", tmp_path / ".env", raising=False)
+    (tmp_path / ".env").write_text("LLM_DEFAULT_MODEL=qwen3:8b\n", encoding="utf-8")
+
+    r = asyncio.run(rp.preflight_guardar_modelos({"chat": "cualquiera:7b"}))
+    assert r["guardados"] == [] and r["errores"], r
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == "LLM_DEFAULT_MODEL=qwen3:8b\n"
