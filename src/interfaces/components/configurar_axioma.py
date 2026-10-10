@@ -237,5 +237,67 @@ def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
 
     construir_claves()
     _seccion_chequeo_de_modelo()
+    _seccion_modelos()
     dialogo.open()
     ui.timer(0.05, refrescar, once=True)
+
+# Los cuatro roles que se pueden elegir: son los mismos que usan el catálogo y el `.env`.
+_ROLES_DE_MODELO = (
+    ("chat", "Conversar (chat)"),
+    ("codigo", "Programar (código)"),
+    ("codigo_respaldo", "Respaldo de código"),
+    ("vision", "Leer imágenes (visión)"),
+)
+
+
+def _seccion_modelos() -> None:
+    """🎯 Elegir qué modelo usar en cada rol, entre los que ya tenés en Ollama.
+
+    Idea del usuario (2026-10-10): descargar AXIOMA, instalarlo, **escanear el equipo**, que AXIOMA
+    **sugiera** modelos y que cada persona **elija**; lo elegido se configura solo. Esta sección es el
+    «elegir»: ofrece los modelos que hay en Ollama (con `GET /preflight/modelos`), deja escribir otro
+    nombre, y guarda con `POST /preflight/modelos`, que **valida contra Ollama** — si el modelo no está
+    instalado, no se escribe nada y se explica por qué (así nadie queda con una configuración a medias).
+    """
+    with ui.column().classes('w-full gap-1'):
+        ui.separator()
+        ui.label('🎯 ¿Qué modelo querés usar en cada rol?').classes('text-sm font-bold')
+        ui.label('Se ofrecen los que tenés instalados; si escribís otro nombre se valida igual antes de '
+                 'guardarlo. Queda en tu `.env` y AXIOMA lo usa para ese rol.').classes('text-xs opacity-70')
+        aviso = ui.label('').classes('text-xs')
+        contenedor = ui.column().classes('gap-1 w-full')
+        selecciones: dict = {}
+
+        async def cargar() -> None:
+            from src.interfaces.web import routes_preflight as rp
+            datos = await rp.preflight_modelos()
+            opciones = {m: m for m in (datos.get("instalados") or [])}
+            contenedor.clear()
+            with contenedor:
+                for rol, etiqueta in _ROLES_DE_MODELO:
+                    actual = (datos.get("configurados") or {}).get(rol, "")
+                    selecciones[rol] = ui.select(
+                        opciones, label=etiqueta, value=actual or None,
+                        with_input=True, new_value_mode="add-unique",
+                    ).props('dense').classes('w-full')
+            if not datos.get("ollama_disponible"):
+                aviso.set_text('⚠️ Ollama no responde: no puedo ofrecer los instalados ni validar lo que '
+                               'elijas. Encendé Ollama y volvé a abrir esta pantalla.')
+
+        async def guardar() -> None:
+            from src.interfaces.web import routes_preflight as rp
+            pedido = {rol: (campo.value or "").strip() for rol, campo in selecciones.items()
+                      if (campo.value or "").strip()}
+            if not pedido:
+                ui.notify('No elegiste ningún modelo', type='warning')
+                return
+            resultado = await rp.preflight_guardar_modelos(pedido)
+            for variable in resultado.get("guardados") or []:
+                ui.notify(f'Guardado: {variable}', type='positive')
+            for rol, motivo in (resultado.get("errores") or {}).items():
+                ui.notify(f'{rol}: {motivo}', type='negative', timeout=8000)
+            await cargar()
+
+        # `once=True`: se pide una sola vez al abrir (regla R7: nada de consultas en bucle).
+        ui.timer(0.05, cargar, once=True)
+        ui.button('Guardar modelos', on_click=guardar).props('dense')

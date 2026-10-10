@@ -379,3 +379,21 @@ def test_elegir_modelo_sin_ollama_no_guarda_a_ciegas(monkeypatch, tmp_path):
     r = asyncio.run(rp.preflight_guardar_modelos({"chat": "cualquiera:7b"}))
     assert r["guardados"] == [] and r["errores"], r
     assert (tmp_path / ".env").read_text(encoding="utf-8") == "LLM_DEFAULT_MODEL=qwen3:8b\n"
+
+
+def test_la_pantalla_permite_elegir_modelo_por_rol():
+    """El paso «elegir» de la idea del usuario: la pantalla 🧩 ofrece los modelos de Ollama y guarda el
+    elegido por rol, con la validación del backend (no se escribe un modelo que no está instalado).
+    """
+    fuente = (PROJECT_ROOT / "src" / "interfaces" / "components" / "configurar_axioma.py").read_text(encoding="utf-8")
+    assert "def _seccion_modelos" in fuente, "falta la sección para elegir modelos"
+    assert "_seccion_modelos()" in fuente.split("def abrir_configurar_axioma")[1], \
+        "la sección existe pero no se muestra al abrir la pantalla"
+    for pieza in ("preflight_modelos", "preflight_guardar_modelos", "ui.select"):
+        assert pieza in fuente, f"la sección no usa {pieza}"
+    # Los cuatro roles, y ninguno inventado: son los del catálogo.
+    for rol in ("chat", "codigo", "codigo_respaldo", "vision"):
+        assert f'("{rol}"' in fuente, f"falta el rol {rol} en la pantalla"
+    # Regla R7: la consulta se hace UNA vez (nada de sondas en bucle).
+    assert "ui.timer(0.05, cargar, once=True)" in fuente, \
+        "la carga de modelos tiene que ser una sola vez (regla R7)"
