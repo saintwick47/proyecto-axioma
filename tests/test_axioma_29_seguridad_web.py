@@ -354,6 +354,17 @@ def test_elegir_modelo_por_rol_valida_contra_ollama(monkeypatch, tmp_path, ollam
     assert listado["instalados"] == ["falso:1b"], listado
     assert listado["ollama_disponible"] is True
 
+    # 1b) Y lo que la pantalla dice que está configurado tiene que ser lo que AXIOMA usa de verdad.
+    # MEDIDO el 2026-10-10 con la prueba visual: el nombre del atributo se armaba desde el ROL
+    # (`llm_codigo_model`), así que «Programar (código)» salía VACÍO aunque el `.env` tuviera
+    # `LLM_CODE_MODEL`. La prueba vieja miraba `instalados` y no `configurados`: por eso no lo cazó.
+    for variable, valor in (("llm_default_model", "falso:1b"), ("llm_code_model", "codigo-real:7b"),
+                            ("llm_code_model_fallback", "respaldo:3b"), ("llm_vision_model", "vision:4b")):
+        monkeypatch.setattr(ajustes, variable, valor, raising=False)
+    configurados = asyncio.run(rp.preflight_modelos())["configurados"]
+    assert configurados == {"chat": "falso:1b", "codigo": "codigo-real:7b",
+                            "codigo_respaldo": "respaldo:3b", "vision": "vision:4b"}, configurados
+
     # 2) Un modelo que NO existe: no se guarda y se explica.
     malo = asyncio.run(rp.preflight_guardar_modelos({"chat": "no-existe:99b"}))
     assert malo["guardados"] == [] and "no-existe:99b" in str(malo["errores"]), malo

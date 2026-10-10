@@ -235,8 +235,13 @@ async def preflight_modelos() -> Dict[str, Any]:
     """Qué modelos hay en Ollama y cuáles están configurados hoy por rol (para poder elegir)."""
     from config.settings import settings
     instalados = await _modelos_en_ollama()
-    configurados = {rol: str(getattr(settings, f"llm_{'default' if rol == 'chat' else rol}_model", "")
-                             or "") for rol in VARIABLES_DE_ROL}
+    # ✅ 2026-10-10: MEDIDO con la prueba visual (`tools/verificar_primer_arranque.py`, comprobación 3):
+    # acá el nombre del atributo se armaba desde el ROL (`llm_codigo_model`, `llm_codigo_respaldo_model`),
+    # así que esos dos roles NO existían como atributos y la pantalla los mostraba **vacíos** aunque el
+    # `.env` tuviera `LLM_CODE_MODEL=qwen2.5-coder:7b`. El nombre sale de la VARIABLE, que es lo que el
+    # usuario escribe y ya vive en `VARIABLES_DE_ROL` (una sola fuente de verdad).
+    configurados = {rol: str(getattr(settings, variable.lower(), "") or "")
+                    for rol, variable in VARIABLES_DE_ROL.items()}
     return {"instalados": instalados,
             "ollama_disponible": bool(instalados),
             "variables": VARIABLES_DE_ROL,

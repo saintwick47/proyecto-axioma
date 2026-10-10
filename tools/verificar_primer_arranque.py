@@ -2,10 +2,14 @@
 # ═══════════════════════════════════════════════════════════════
 # AXIOMA — Verificación en NAVEGADOR REAL de la guía de primer arranque
 # ═══════════════════════════════════════════════════════════════
-# Comprueba las DOS ramas del comportamiento, no sólo una:
+# Comprueba TRES cosas, no sólo una:
 #   1. **Primera vez** (sin el marcador): la pantalla "Configurar AXIOMA" se abre SOLA, con el saludo
 #      que explica qué hace y que se instala con un clic.
 #   2. **Segunda vez** (con el marcador): NO se abre sola (no molesta al usuario que ya la vio).
+#   3. **La sección de modelos** (🎯 elegir un modelo por rol): que esté en pantalla, que muestre el
+#      modelo que AXIOMA tiene configurado y que coincida con lo que dice la API y con lo instalado
+#      en Ollama. Es la parte que el usuario eligió: si la pantalla dijera una cosa y AXIOMA usara
+#      otra, acá se ve.
 #
 # Uso:
 #   venv/bin/python tools/verificar_primer_arranque.py                 # contra 127.0.0.1:8080
@@ -43,7 +47,11 @@ def _abrir(url: str, captura: str):
         pagina = navegador.new_page(viewport={"width": 1280, "height": 900})
         errores: list = []
         pagina.on("pageerror", lambda e: errores.append(str(e)))
-        pagina.goto(url, wait_until="domcontentloaded", timeout=60000)
+        try:
+            pagina.goto(url, wait_until="domcontentloaded", timeout=60000)
+        except Exception as e:             # ✅ 2026-10-10: una dirección caída o un puerto no permitido
+            navegador.close()              # NO tiene que salir como traceback: es un requisito que falta.
+            return False, "", [f"no se pudo abrir {url}: {type(e).__name__}"]
         time.sleep(4)                      # que la página se arme (NiceGUI)
         abierta = False
         try:
@@ -58,6 +66,52 @@ def _abrir(url: str, captura: str):
         return abierta, texto, errores
 
 
+def _revisar_modelos(url: str, captura: str):
+    """Abre la pantalla y devuelve (campos por rol, errores JS, lo que dice la API).
+
+    Comprueba la sección «🎯 ¿Qué modelo querés usar en cada rol?» con el navegador de verdad y
+    contrastando tres cosas que tienen que coincidir: lo que **muestra la pantalla**, lo que declara
+    **`GET /preflight/modelos`** y lo que está **instalado en Ollama**. Si la pantalla dijera una cosa y
+    AXIOMA usara otra, acá se ve.
+    """
+    import httpx
+    from playwright.sync_api import sync_playwright
+
+    try:
+        datos = httpx.get(f"{url.rstrip('/')}/api/v1/preflight/modelos", timeout=30).json()
+    except Exception as e:
+        return None, [f"no pude consultar los modelos ({type(e).__name__}); ¿está AXIOMA andando?"], {}
+    with sync_playwright() as p:
+        navegador = p.chromium.launch(headless=True)
+        pagina = navegador.new_page(viewport={"width": 1280, "height": 1400})
+        errores: list = []
+        pagina.on("pageerror", lambda e: errores.append(str(e)))
+        try:
+            pagina.goto(url, wait_until="domcontentloaded", timeout=60000)
+        except Exception as e:
+            navegador.close()
+            return None, [f"no se pudo abrir {url}: {type(e).__name__}"], datos
+        time.sleep(4)                      # que la página se arme (NiceGUI)
+        try:
+            seccion = pagina.locator("text=¿Qué modelo querés usar en cada rol?")
+            seccion.wait_for(timeout=30000)
+            seccion.scroll_into_view_if_needed()
+        except Exception:
+            navegador.close()
+            return None, ["la sección de modelos no apareció en «Configurar AXIOMA»"], datos
+        campos = pagina.eval_on_selector_all(
+            ".q-select",
+            """(els) => els.map(el => {
+                 const et = el.querySelector('.q-field__label');
+                 const inp = el.querySelector('input');
+                 return {label: et ? et.textContent.trim() : '', valor: inp ? inp.value : ''};
+               })""")
+        CAPTURAS.mkdir(parents=True, exist_ok=True)
+        pagina.screenshot(path=str(CAPTURAS / captura), full_page=True)
+        navegador.close()
+    return campos, errores, datos
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Verifica la guía de primer arranque en un navegador real")
     ap.add_argument("--url", default="http://127.0.0.1:8080/")
@@ -70,16 +124,28 @@ def main(argv=None) -> int:
         return 4
 
     marca = _marcador()
-    respaldo = None
-    if marca.exists():
-        respaldo = marca.read_text(encoding="utf-8")
+    respaldo = marca.read_text(encoding="utf-8") if marca.exists() else None
+    if respaldo is not None:
         marca.unlink()
         print("ℹ️  Se quitó el marcador para simular la PRIMERA vez")
+    try:
+        return _comprobar(args, marca)
+    finally:
+        # ✅ 2026-10-10: el marcador se repone SIEMPRE, incluso si una comprobación falla a mitad de
+        # camino. Antes, un fallo en la comprobación 1 salía ANTES de reponerlo y al usuario le volvía a
+        # aparecer la guía de primer arranque como si fuera la primera vez (medido: me pasó al reintentar).
+        if respaldo is not None:
+            marca.write_text(respaldo, encoding="utf-8")
+
+
+def _comprobar(args, marca) -> int:
+    """Las tres comprobaciones. Devuelve 0 si todo se comporta bien y 4 si algo falla."""
 
     print("\n▶ 1) Primera vez: la guía tiene que abrirse SOLA")
     abierta, texto, errores = _abrir(args.url, "primer_arranque.png")
     if not abierta:
-        print("   ❌ no se abrió sola (captura: data/capturas/primer_arranque.png)")
+        print(f"   ❌ no se abrió la pantalla: {errores[0] if errores else 'motivo desconocido'}")
+        print("      (¿está AXIOMA encendido? `instalar/iniciar_axioma.sh`)")
         return 4
     print("   ✅ se abrió sola")
     if "primera vez" in texto.lower() and "un clic" in texto.lower():
@@ -99,8 +165,44 @@ def main(argv=None) -> int:
         return 4
     print("   ✅ no se abrió: el usuario que ya la vio no la ve de nuevo")
 
-    if respaldo is not None:
-        marca.write_text(respaldo, encoding="utf-8")
+    print("\n▶ 3) La sección de modelos ofrece lo instalado y muestra el modelo elegido")
+    marca.unlink(missing_ok=True)          # que la pantalla se abra sola, como la primera vez
+    campos, errores3, datos = _revisar_modelos(args.url, "modelos_en_configurar.png")
+    if campos is None:
+        print(f"   ❌ {errores3[0]} (captura: data/capturas/modelos_en_configurar.png)")
+        return 4
+    # La lista de roles se IMPORTA del componente: si mañana se agrega uno, esta prueba lo pide sola.
+    from src.interfaces.components.configurar_axioma import _ROLES_DE_MODELO
+
+    configurados, instalados = datos.get("configurados") or {}, set(datos.get("instalados") or [])
+    problemas, vistos = [], []
+    for rol, etiqueta in _ROLES_DE_MODELO:
+        campo = next((c for c in campos if etiqueta in c["label"]), None)
+        if campo is None:
+            problemas.append(f"{etiqueta}: no está en pantalla")
+            continue
+        esperado = (configurados.get(rol) or "").strip()
+        if esperado and campo["valor"].strip() != esperado:
+            problemas.append(f"{etiqueta}: la pantalla muestra «{campo['valor']}» y AXIOMA usa «{esperado}»")
+        elif esperado and esperado not in instalados:
+            problemas.append(f"{etiqueta}: «{esperado}» está configurado pero no instalado en Ollama")
+        else:
+            vistos.append(f"{etiqueta} → {campo['valor'].strip() or '(vacío)'}")
+    if problemas:
+        for p_ in problemas:
+            print(f"   ❌ {p_}")
+        print("   (captura: data/capturas/modelos_en_configurar.png)")
+        return 4
+    print(f"   ✅ los {len(_ROLES_DE_MODELO)} roles están en pantalla, con el modelo que AXIOMA usa:")
+    for v in vistos:
+        print(f"      · {v}")
+    if datos.get("ollama_disponible"):
+        print(f"   ✅ Ollama responde: ofrece {len(instalados)} modelo(s) instalado(s)")
+    else:
+        print("   ⚠️  Ollama no responde: la sección avisa en pantalla, pero no se pudo comprobar lo ofrecido")
+    if errores3:
+        print(f"   ⚠️  errores de JavaScript: {errores3[:2]}")
+
     print("\n✅ La guía se comporta como corresponde (capturas en data/capturas/)")
     return 0
 
