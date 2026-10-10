@@ -313,3 +313,22 @@ def test_los_yaml_no_tienen_claves_duplicadas():
     assert yamls, "no encontré configuración para revisar"
     for archivo in yamls:
         yaml.load(archivo.read_text(encoding="utf-8"), Loader=Estricto)
+
+
+def test_el_catalogo_sigue_los_modelos_que_eligio_el_usuario(monkeypatch):
+    """MEDIDO el 2026-10-10: el preflight exigía el nombre del CATÁLOGO aunque el usuario hubiera
+    configurado otro modelo en su `.env` — justo lo contrario de la idea del proyecto (escanear el equipo,
+    sugerir, y que el usuario ELIJA). Lo que el catálogo no conoce se estima y así lo dice.
+    """
+    # OJO: `config/__init__.py` re-exporta la INSTANCIA de `settings` (no el módulo).
+    from config import settings as ajustes
+    from config.model_catalog import cargar_catalogo, modelos_efectivos
+
+    monkeypatch.setattr(ajustes, "llm_default_model", "mi-modelo-elegido:9b", raising=False)
+    pares = dict((rol, modelo) for rol, modelo in modelos_efectivos(cargar_catalogo(usar_cache=False)))
+    assert "chat" in pares, pares.keys()
+    elegido = pares["chat"]
+    assert elegido.nombre == "mi-modelo-elegido:9b", elegido.nombre
+    assert "ESTIMADO" in elegido.para, elegido.para
+    assert elegido.instalar == "ollama pull mi-modelo-elegido:9b", elegido.instalar
+    assert elegido.ram_gb > 0, "tiene que estimar la memoria por el nombre para poder avisar"

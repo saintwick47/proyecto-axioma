@@ -219,3 +219,50 @@ def cargar_catalogo(ruta: Optional[Path] = None, usar_cache: bool = True) -> Cat
     if usar_cache and clave:
         _cache[clave] = catalogo
     return catalogo
+
+
+def modelos_efectivos(catalogo: "CatalogoDeModelos"):
+    """[(rol, modelo)] según lo que el USUARIO configuró, no los nombres fijos del catálogo.
+
+    ✅ 2026-10-10: MEDIDO: el catálogo tenía los nombres fijos, así que si alguien configuraba otro modelo
+    en su `.env` —que es la idea del proyecto: escanear el equipo, sugerir y ELEGIR— el preflight seguía
+    exigiéndole `qwen3:8b`. Esto devuelve los roles apuntando a lo configurado; lo que el catálogo no
+    conoce se agrega como entrada **estimada** (y así lo dice su texto), para que el preflight pueda
+    informar qué falta sin mentir con un número medido que no tiene.
+    """
+    elegidos = {
+        "chat": getattr(_settings(), "llm_default_model", ""),
+        "codigo": getattr(_settings(), "llm_code_model", ""),
+        "codigo_respaldo": getattr(_settings(), "llm_code_model_fallback", ""),
+        "vision": getattr(_settings(), "llm_vision_model", ""),
+    }
+    salida = []
+    for rol, por_defecto in catalogo.por_rol.items():
+        elegido = str(elegidos.get(rol, "") or "").strip()
+        nombre = elegido or por_defecto
+        modelo = catalogo.modelos.get(nombre)
+        if modelo is None and elegido:
+            modelo = _modelo_estimado(nombre, rol, obligatorio=bool(
+                (catalogo.modelos.get(por_defecto) or Modelo("", [], False, "", 0.0, 0.0, "", "", "")).obligatorio))
+        if modelo is not None:
+            salida.append((rol, modelo))
+    return salida
+
+
+def _settings():
+    """La configuración, importada tarde (evita dependencias circulares al cargar este módulo)."""
+    from config.settings import settings
+    return settings
+
+
+def _modelo_estimado(nombre: str, rol: str, obligatorio: bool) -> "Modelo":
+    """Modelo elegido por el usuario que el catálogo NO conoce: se ESTIMA por el nombre (`:7b` ≈ 4,5 GB)."""
+    import re
+    m = re.search(r"[:\-_](\d+(?:\.\d+)?)b\b", nombre.lower())
+    params = float(m.group(1)) if m else 0.0
+    ram = round(params * 0.65 + 0.8, 2) if params else 0.0
+    return Modelo(nombre=nombre, roles=[rol], obligatorio=obligatorio, tipo="ollama",
+                  disco_gb=ram, ram_gb=ram,
+                  para=f"el que elegiste para {rol} (ESTIMADO por el nombre: sólo se sabe midiéndolo)",
+                  si_falta=f"las tareas de {rol} no van a funcionar",
+                  instalar=f"ollama pull {nombre}")

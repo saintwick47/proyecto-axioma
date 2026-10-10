@@ -129,10 +129,11 @@ def _probar_modelos(cliente: Any, catalogo: Any, instalados: List[str],
                     hw: Any = None) -> List[Requisito]:
     """Modelo por rol: los obligatorios sin los que no se puede responder, y los opcionales."""
     requisitos: List[Requisito] = []
-    for rol, nombre in catalogo.por_rol.items():
-        modelo = catalogo.modelo_de_rol(rol)
-        if modelo is None:                      # el catálogo ya valida esto al leerse
-            continue
+    # ✅ 2026-10-10: se usan los modelos que el USUARIO configuró (no los nombres fijos del catálogo):
+    # antes, si alguien elegía otro modelo en su `.env`, el preflight le seguía pidiendo `qwen3:8b`.
+    from config.model_catalog import modelos_efectivos
+    for rol, modelo in modelos_efectivos(catalogo):
+        nombre = modelo.nombre
         if modelo.tipo == "piper":              # la voz se verifica por ARCHIVO, no en Ollama
             archivo = Path(modelo.archivo or "")
             from config.paths import Paths
