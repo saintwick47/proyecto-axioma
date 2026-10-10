@@ -246,3 +246,27 @@ def test_el_env_del_equipo_esta_montado_y_los_guiones_lo_crean():
         fuente = (PROJECT_ROOT / guion).read_text(encoding="utf-8")
         assert "cp .env.example .env" in fuente, \
             f"{guion} tiene que crear el .env antes de encender (si no, Docker crea una carpeta)"
+
+
+def test_el_cors_no_refleja_cualquier_origen():
+    """MEDIDO el 2026-10-10: `allow_origins=["*"]` con `allow_credentials=True` hace que Starlette
+    **refleje** el origen que pida el navegador (el comodín no se puede usar con credenciales). Con la
+    interfaz escuchando en tu equipo, cualquier página abierta podía llamar a la API con tus credenciales.
+    Ahora sólo se aceptan orígenes locales.
+    """
+    from fastapi.testclient import TestClient
+    from src.interfaces.web.server import build_api_app
+
+    app = build_api_app()
+    assert app is not None, "la app de la API no se construyó (¿faltan endpoints críticos?)"
+    cliente = TestClient(app)
+
+    # Un origen AJENO no recibe permiso...
+    ajeno = cliente.get("/v1/health", headers={"Origin": "http://sitio-ajeno.test"})
+    assert "access-control-allow-origin" not in {k.lower() for k in ajeno.headers}, dict(ajeno.headers)
+
+    # ... y el propio SÍ (en cualquiera de sus formas locales y con cualquier puerto).
+    for origen in ("http://127.0.0.1:8080", "http://localhost:8099"):
+        propio = cliente.get("/v1/health", headers={"Origin": origen})
+        assert propio.headers.get("access-control-allow-origin") == origen, \
+            (origen, dict(propio.headers))
