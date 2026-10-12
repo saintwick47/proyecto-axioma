@@ -234,5 +234,8 @@ if __name__ == "__main__":
         try:
             input("\nPresiona Enter para cerrar...")
         except (EOFError, KeyboardInterrupt):
-            pass
+            # Degradación INTENCIONAL (lo pide el auditor `silent_exceptions`): si no hay consola
+            # interactiva o el usuario cancela con Ctrl+C, no hay nada que hacer ni que informar —
+            # se cierra igual y sin dejar una excepción en la cara de quien lo ejecutó.
+            print()
     sys.exit(codigo)
