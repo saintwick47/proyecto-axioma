@@ -109,3 +109,37 @@ def test_no_quedan_banderas_del_contenedor_sin_lector():
     # Y el comentario del compose tiene que describir lo que AHORA pasa de verdad.
     assert "desactivada A PROPÓSITO" in compose, \
         "el comentario tiene que decir que la voz se desactiva a propósito (y que hay código que lo hace)"
+
+
+def test_el_widget_de_escritorio_no_se_lanza_sin_pantalla(monkeypatch):
+    """MEDIDO (2026-10-12): sin pantalla, el widget de Rafael (Flet desktop) **no falla: se CUELGA**
+    (`exit 124` con un timeout de 45 s), así que el `await ...wait()` del supervisor quedaba esperando
+    para siempre y los reintentos con abandono nunca llegaban a correr. Es una **ventana nativa**
+    (`ft.app`, arrastre en X11/Wayland): sin pantalla no se lanza, y el widget corre en el EQUIPO
+    (`docker-compose.yml:140`, `MANUAL_RAFAEL.md:130`).
+    """
+    import asyncio
+    from src.core import rafael_daemon
+
+    lanzamientos = []
+
+    async def falso_lanzar(*args, **kwargs):
+        lanzamientos.append(args)
+        raise AssertionError("sin pantalla no tiene que lanzar el widget")
+
+    # Sin `__init__` (no hace falta: la guarda sale antes de usar nada más) y sin esperas reales.
+    daemon = rafael_daemon.RafaelDaemon.__new__(rafael_daemon.RafaelDaemon)
+    daemon._shutdown_event = asyncio.Event()
+    monkeypatch.setattr(rafael_daemon, "_WIDGET_RETRY_DELAYS", (0.0, 0.0, 0.0))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", falso_lanzar)
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    asyncio.run(daemon._widget_supervisor())
+    assert lanzamientos == [], "sin pantalla no se lanza (el runner de Flet queda colgado)"
+
+    # Y con pantalla SÍ lo intenta: el camino normal no se rompió.
+    monkeypatch.setenv("DISPLAY", ":0")
+    daemon._shutdown_event = asyncio.Event()
+    asyncio.run(daemon._widget_supervisor())
+    assert lanzamientos, "con pantalla tiene que intentar lanzarlo"

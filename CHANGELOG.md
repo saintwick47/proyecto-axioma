@@ -8,6 +8,92 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 ## [Sin publicar] — AXIOMA en contenedores (instalable)
 
 ### Agregado
+- **Instaladores de un solo archivo** (`instalar/axioma-instalar.sh` y `instalar/axioma_setup.py`, que el
+  CI empaqueta como **`AXIOMA-Setup.exe`**): el usuario **descarga un archivo y lo ejecuta**, sin clonar el
+  repositorio, sin Python y sin saber de programación.
+  - Comprueban las herramientas del sistema y **Docker** (explicando qué hacer si falta o no responde),
+    **descargan AXIOMA** a una carpeta del usuario (`~/.axioma/app`; en Windows `%LOCALAPPDATA%\AXIOMA`) y
+    le pasan el control al instalador del proyecto: carpetas, `.env`, imagen, acceso directo y arranque.
+  - **Una segunda corrida actualiza el código sin tocar tu `.env` ni tus datos** (medido: se copia encima y
+    lo que no viene en la descarga no se toca).
+  - **Verificado de punta a punta**: descarga real, descompresión, `--dry-run`, `--solo-descargar` e
+    idempotencia. Los dos llevan `--help`, `--dry-run` y `--solo-descargar`.
+  - Se publican como *assets* del Release con el job `instaladores-release`, que construye el `.exe` en
+    Windows (PyInstaller **no compila cruzado** desde Linux), **verifica que arranca** y crea el Release
+    con los dos archivos.
+  - El código **no lleva el repositorio escrito** (lo que se distribuye no lleva la identidad del autor;
+    guardián en `test_axioma_28`): va un marcador `__REPO__` que el CI reemplaza al armar el Release,
+    junto con la versión del tag. Si el `sed` no engancha, el job **falla** en vez de publicar un
+    instalador que baja otra cosa.
+- **La imagen se publica en GHCR al etiquetar un release** (`.github/workflows/ci.yml`, job
+  `publicar-imagen`). Antes el usuario tenía que **construirla** en su máquina (~6 min más las descargas
+  de pip, con el código fuente delante); ahora se **descarga ya armada**.
+  - Se dispara con `git tag v0.7.5 && git push origin v0.7.5`, **solo desde el repositorio público**: un
+    paquete publicado desde un repositorio privado **nace privado** y el instalador no podría bajarlo sin
+    credenciales.
+  - Corre **después de que la suite pase** (`needs: [test]`) y ejecuta `tools/verificar_imagen.sh`, que
+    compila, **mide el tamaño** y corre la suite **adentro** de la imagen — porque la regla del proyecto
+    es que **una imagen que no pasa sus pruebas no se publica**.
+  - El nombre sale de `github.repository` **en minúsculas** (`ghcr.io/saintwick47/proyecto-axioma`) y se
+    publica con el nombre del tag y `latest`: nada hardcodeado.
+  - **La primera vez** hay que revisar que el paquete haya quedado **público** (Package settings →
+    Change visibility → Public); el propio job lo recuerda al terminar. Si queda privado, el instalador
+    falla en el primer paso.
+
+### Cambiado
+- **La imagen instala 5 paquetes menos** (`requirements-ci.txt`): `customtkinter`, `kubernetes`,
+  `playwright`, `pyinstaller` y `git-filter-repo`. **Medido antes de sacarlos**: 0 referencias en `src/`,
+  `main.py`, `config/` y `tools/`, y 0 en la suite — ni el producto, ni el CI, ni las pruebas los importan
+  (`pyinstaller` y `git-filter-repo` tampoco aparecen en ningún guion ni en el CI). La imagen se valida con
+  el `HEALTHCHECK` (preflight) y arranca con `main.py --web`: ninguno de los cinco entra en ese camino.
+  Menos peso y menos superficie de ataque. El **venv no se toca**: es **compartido con `beer_vgb_mobile`**
+  (ahí vive `flet`), y los cinco siguen declarados en `requirements.txt`. `flet` **se queda** porque
+  `src/interfaces/components/rafael_widget.py` lo importa. El contrato del proyecto
+  (`test_requirements_ci_es_requirements_menos_lo_documentado`) se actualizó en el mismo cambio.
+- **La familia Flet entera sale de la imagen** (`flet`, `flet-cli`, `flet-desktop`, `flet-web` — **72 MB**)
+  y con ella los 4 que quedaban huérfanos (`darkdetect`, `pyee`, `altgraph`, `pyinstaller-hooks-contrib`:
+  verificado con `pip show`, su **único requirente** era uno de los paquetes ya sacados, y el código no los
+  importa). Razón medida: Flet es la GUI del **widget de escritorio de Rafael**, que es una **ventana
+  nativa** (`ft.app`, arrastre en X11/Wayland) y sin pantalla **no falla: se CUELGA** — verificado dentro
+  de la imagen, `exit 124` con un timeout de 45 s, porque le faltan `libgtk-3` y `libwebkit2gtk`
+  (instalarlas costaría más peso del que esto ahorra). El widget corre en el **equipo** —lo dicen
+  `docker-compose.yml:140` y `MANUAL_RAFAEL.md:130`— y ahí sigue funcionando (el venv conserva Flet).
+  Para que sacarlo de la imagen **no rompiera el contrato del proyecto** («todo módulo de `src/` tiene que
+  ser importable», `test_axioma_06::test_todos_los_modulos_src_importan` — lo cazó la verificación de la
+  imagen: **22/23**), el import de Flet en `src/interfaces/components/rafael_widget.py` pasó a ser
+  **con respaldo** (`try/except ImportError`), que es el patrón que el proyecto ya usa para las
+  dependencias opcionales (`pyatspi`, `openwakeword`): dentro del contenedor el módulo **importa**
+  (`ft = None`) y en el equipo sigue con Flet de verdad (`_build_shapes` → 12 figuras, medido).
+
+### Corregido
+- **El daemon de Rafael ya no lanza el widget de escritorio cuando no hay pantalla.** Antes lo lanzaba
+  igual dentro del contenedor y, como el runner de Flet **se cuelga** en vez de fallar, el
+  `await self._widget_proc.wait()` del supervisor quedaba esperando **para siempre**: los 3 reintentos con
+  backoff y el abandono **nunca llegaban a correr**. Ahora, sin `DISPLAY` ni `WAYLAND_DISPLAY`, informa una
+  línea («el widget corre en el equipo, no acá») y **no lo lanza**. De paso se quitaron 3 `import os`
+  locales que volvían `os` una variable local de esas funciones (el nuevo guard lo destapó con un
+  `UnboundLocalError` que el test cazó). Prueba:
+  `test_axioma_30_audio_opcional.py::test_el_widget_de_escritorio_no_se_lanza_sin_pantalla` (y con pantalla
+  **sí** lo intenta: el camino normal no se rompió).
+- **`ISSUE-147` — el instalador de Windows ya se puede ejecutar con doble clic** (medido por el usuario en
+  un Windows real: *«al ejecutar el .ps1 abre y cierra y no hace nada más»*, con Docker ya instalado a
+  mano). La causa es doble: **un `.ps1` NO se ejecuta con doble clic** (Windows lo abre en el editor, o lo
+  corre en una consola que **se cierra sola**), y el guion hacía `exit 4` en el primer fallo sin dejar leer
+  el motivo. Ahora hay **`instalar/INSTALAR_AXIOMA.bat`** e **`instalar/INICIAR_AXIOMA.bat`**: llaman a
+  PowerShell con `-ExecutionPolicy Bypass` (funciona aunque Windows tenga la ejecución de guiones
+  deshabilitada, que es lo normal recién instalado) y **dejan la ventana abierta** al terminar.
+- **El instalador de Windows dice EN QUÉ PASO falló.** Son 6 pasos numerados (Windows/PowerShell · Docker
+  Desktop · carpetas y `.env` · armar la imagen · accesos directos · arrancar) y termina con un **resumen**
+  que enumera cada fallo con **qué hacer**, en vez de salir en silencio. Además **arranca Docker Desktop**
+  solo si está instalado pero apagado (el error más común) y espera hasta 90 s a que responda.
+- **`ISSUE-147` (el `.env` que quedó como CARPETA) ya no bloquea en silencio — en los 4 instaladores.**
+  Docker crea una **carpeta** `.env` cuando falta el archivo, y `Test-Path` (PowerShell) y `[ ! -f .env ]`
+  (sh) dan verdadero igual para una carpeta: los instaladores no hacían nada (o copiaban la plantilla
+  **adentro**) y el montaje seguía roto. Ahora detectan el caso, **sacan la carpeta si está vacía** (la creó
+  Docker) y **avisan sin borrar nada si tiene contenido** (R16). Sitios: `instalar_axioma.ps1`,
+  `iniciar_axioma.ps1`, `instalar_axioma.sh`, `iniciar_axioma.sh`.
+
+### Agregado
 - **Elegir el modelo de cada rol** (`GET/POST /api/v1/preflight/modelos`): la pantalla 🧩 podrá mostrar los
   modelos que hay **en tu Ollama** y guardar el que elijas para chat, código, respaldo y visión. Lo elegido
   queda en tu `.env` y **el catálogo y el preflight lo respetan** (antes te seguían pidiendo el del

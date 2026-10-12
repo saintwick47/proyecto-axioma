@@ -479,6 +479,14 @@ def test_el_lanzador_de_windows_hace_lo_mismo_que_el_de_linux():
         assert ajeno not in completo, f"{ajeno} es de Linux y no va en el guion de Windows"
 
 
+def test_los_cuatro_instaladores_ven_el_env_que_quedo_como_carpeta():
+    """ISSUE-147: Docker crea una CARPETA `.env`, y `Test-Path`/`[ ! -f ]` dan verdadero igual."""
+    for n in ("instalar_axioma.ps1", "iniciar_axioma.ps1"):
+        assert "PathType Container" in (PROJECT_ROOT / "instalar" / n).read_text(encoding="utf-8-sig"), n
+    for n in ("instalar_axioma.sh", "iniciar_axioma.sh"):
+        assert "if [ -d .env ]" in (PROJECT_ROOT / "instalar" / n).read_text(encoding="utf-8"), n
+
+
 @_sin_empaquetado
 def test_el_instalador_de_windows_deja_acceso_directo_y_sintaxis_balanceada():
     texto = _codigo_ps1((PROJECT_ROOT / "instalar" / "instalar_axioma.ps1").read_bytes().decode("utf-8-sig"))
@@ -507,11 +515,11 @@ def test_el_instalador_de_windows_deja_acceso_directo_y_sintaxis_balanceada():
 
 # Paquetes que están en requirements.txt y NO en el del CI, cada uno con su motivo escrito en el
 _OMITIDOS_A_PROPOSITO = {
-    "torch",                  # el CI lo instala aparte, desde el índice CPU
-    "torchaudio",             # ídem
-    "sentence-transformers",  # ídem (arrastra torch)
-    "pyatspi",                # necesita las libs de accesibilidad del escritorio
-    "openwakeword",           # opcional: la palabra de activación funciona sin él
+    "torch", "torchaudio", "sentence-transformers",  # el CI los instala aparte (índice CPU / arrastran torch)
+    "pyatspi", "openwakeword",                       # accesibilidad del escritorio · activación opcional
+    "customtkinter", "kubernetes", "playwright", "pyinstaller", "git-filter-repo",  # 2026-10-12: 0 refs
+    "flet", "flet-cli", "flet-desktop", "flet-web",  # GUI del widget de escritorio (sin pantalla no corre)
+    "darkdetect", "pyee", "altgraph", "pyinstaller-hooks-contrib",  # huérfanos: su requirente ya no está
 }
 
 

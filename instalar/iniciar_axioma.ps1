@@ -114,6 +114,26 @@ $archivoEnv = Join-Path $Raiz ".env"
 $plantillaEnv = Join-Path $Raiz ".env.example"
 if ($Ensayo) {
     Write-Host "  (ensayo) si no existe, crearía $archivoEnv a partir de la plantilla"
+} elseif (Test-Path -LiteralPath $archivoEnv -PathType Container) {
+    # 2026-10-12 (ISSUE-147): Docker crea una CARPETA `.env` cuando falta el archivo, y `Test-Path`
+    # da verdadero igual para una carpeta: sin este chequeo el arranque no hacía NADA y el montaje
+    # seguía roto. Vacía la sacamos (la creó Docker); con contenido, avisamos y no borramos nada.
+    $adentro = @(Get-ChildItem -LiteralPath $archivoEnv -Force -ErrorAction SilentlyContinue)
+    if ($adentro.Count -eq 0) {
+        try {
+            Remove-Item -LiteralPath $archivoEnv -Force
+            Copy-Item -LiteralPath $plantillaEnv -Destination $archivoEnv
+            ok "Había una CARPETA vacía .env (la crea Docker cuando falta el archivo): la saqué y creé tu .env"
+        } catch {
+            mal "Hay una CARPETA llamada .env y no pude sacarla ($($_.Exception.Message))."
+            exit 4
+        }
+    } else {
+        mal "Hay una CARPETA llamada .env con contenido: el montaje va a fallar."
+        Write-Host "     Mirá qué tiene:  Get-ChildItem `"$archivoEnv`""
+        Write-Host "     Si no te sirve, borrala:  Remove-Item -Recurse `"$archivoEnv`""
+        exit 4
+    }
 } elseif ((Test-Path -LiteralPath $plantillaEnv) -and -not (Test-Path -LiteralPath $archivoEnv)) {
     Copy-Item -LiteralPath $plantillaEnv -Destination $archivoEnv
     ok "Creé tu .env a partir de la plantilla (ahí se guardan tus claves, y no se publican)"

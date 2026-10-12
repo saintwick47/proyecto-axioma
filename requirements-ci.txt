@@ -16,6 +16,27 @@
 #                     no tiene; el código lo importa con respaldo
 #   · openwakeword  → opcional (palabra de activación): `src/multimodal/wake_word.py` funciona
 #                     sin él y lo informa. Evita bajar modelos ONNX grandes en cada corrida
+#   · customtkinter · kubernetes · playwright · pyinstaller · git-filter-repo
+#                   → 2026-10-12: sacados de la IMAGEN por no usarse. MEDIDO: 0 referencias en
+#                     `src/`, `main.py`, `config/` y `tools/`, y 0 en la suite — ni el producto,
+#                     ni el CI, ni las pruebas los importan (`pyinstaller` y `git-filter-repo`
+#                     tampoco aparecen en ningún guion ni en el CI). La imagen solo se valida con
+#                     el `HEALTHCHECK` (preflight) y arranca con `main.py --web`.
+#                     ⛔ EL VENV NO SE TOCA: es **compartido con otro proyecto del equipo** (ahí vive
+#                     `flet`). Estos paquetes siguen declarados en `requirements.txt` (el del venv);
+#                     acá sólo se dejan de instalar en la imagen.
+#   · flet · flet-cli · flet-desktop · flet-web
+#                   → 2026-10-12: la familia Flet entera. Es la GUI del **widget de escritorio de
+#                     Rafael**, que es una VENTANA nativa (`ft.app`, arrastre en X11/Wayland): sin
+#                     pantalla no corre. MEDIDO dentro de esta imagen: no falla, se **CUELGA**
+#                     (`exit 124` con timeout de 45 s) porque le faltan `libgtk-3` y `libwebkit2gtk`
+#                     — instalarlas costaría más peso del que esto ahorra. El widget corre en el
+#                     EQUIPO (lo dicen `docker-compose.yml:140` y `MANUAL_RAFAEL.md:130`) y el
+#                     daemon ya no lo lanza cuando no hay pantalla. Son **72 MB** menos.
+#   · darkdetect · pyee · altgraph · pyinstaller-hooks-contrib
+#                   → 2026-10-12: quedaron huérfanos al sacar sus únicos requirentes (verificado con
+#                     `pip show`: `darkdetect` ← `customtkinter`; `pyee` ← `playwright`; `altgraph`
+#                     y `pyinstaller-hooks-contrib` ← `pyinstaller`) y el código no los importa.
 #
 # ✅ 2026-10-06: se agregó `psutil`. Faltaba acá y el producto lo usa en 5 módulos para medir
 # memoria real: el CI corría siempre por el camino de respaldo (`/proc`) y no probaba el normal.
@@ -59,7 +80,6 @@ lancedb==0.33.0
 pyarrow==24.0.0
 pandas==3.0.5
 numpy==2.5.3
-kubernetes==35.0.0
 lance-namespace==0.8.0
 lance-namespace-urllib3-client==0.8.0
 pybase64==1.4.3
@@ -135,8 +155,6 @@ pathvalidate==3.3.1
 pipdeptree==3.1.0
 ply==3.11
 primp==1.3.1
-# Herramienta de reescritura de historial git (uso manual del operador)
-git-filter-repo==2.47.0
 # ═══════════════════════════════════════════════════════════════
 # === DOCUMENT PROCESSING ===
 # ═══════════════════════════════════════════════════════════════
@@ -152,15 +170,6 @@ python-docx==1.2.0
 # ═══════════════════════════════════════════════════════════════
 cryptography==48.0.0
 bcrypt==5.0.0
-# ═══════════════════════════════════════════════════════════════
-# === DESKTOP / GUI ===
-# ═══════════════════════════════════════════════════════════════
-customtkinter==5.2.2
-darkdetect==0.8.0
-flet==0.85.1
-flet-cli==0.85.1
-flet-desktop==0.85.1
-flet-web==0.85.1
 # ═══════════════════════════════════════════════════════════════
 # === TESTING ===
 # ═══════════════════════════════════════════════════════════════
@@ -227,14 +236,6 @@ setuptools==70.2.0
 wheel==0.47.0
 build==1.5.0
 pyproject_hooks==1.2.0
-pyinstaller==6.20.0
-pyinstaller-hooks-contrib==2026.5
-altgraph==0.17.5
-# ═══════════════════════════════════════════════════════════════
-# === BROWSER AUTOMATION ===
-# ═══════════════════════════════════════════════════════════════
-playwright==1.60.0
-pyee==13.0.1
 # ═══════════════════════════════════════════════════════════════
 # === DATE / TIME / SYSTEM ===
 # ═══════════════════════════════════════════════════════════════

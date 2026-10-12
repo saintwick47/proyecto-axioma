@@ -936,12 +936,15 @@ def test_el_compose_no_tiene_uid_ni_gid_de_audio_fijos():
             assert calculo in fuente, f"{guion} no calcula {calculo}"
 
 
-def test_los_instaladores_de_windows_preparan_env_y_carpetas():
-    """MEDIDO (2026-10-10): en Windows faltaban las dos cosas y las dos rompen el arranque — sin `.env`,
-    Docker crea una CARPETA con ese nombre y el montaje falla; sin `data/`, `logs/` ni `cache/`, las crea
-    `root` y el contenedor no puede escribir (la misma familia del PermissionError de Linux).
-    """
-    for nombre in ("instalar_axioma.ps1", "iniciar_axioma.ps1"):
-        texto = (PROJECT_ROOT / "instalar" / nombre).read_text(encoding="utf-8-sig")
-        assert "New-Item -ItemType Directory" in texto, f"{nombre} no crea las carpetas"
-        assert "Copy-Item" in texto and ".env.example" in texto, f"{nombre} no crea el .env"
+def test_los_instaladores_estan_completos():
+    """Absorbe al viejo `test_los_instaladores_de_windows_preparan_env_y_carpetas` (R13: se fusiona por tema)."""
+    marcas = {
+        ("instalar_axioma.ps1", "iniciar_axioma.ps1"): ("New-Item -ItemType Directory", "Copy-Item", ".env.example", "PathType Container"),
+        ("INSTALAR_AXIOMA.bat", "INICIAR_AXIOMA.bat"): ("-ExecutionPolicy Bypass", "pause"),
+        ("axioma-instalar.sh", "axioma_setup.py"): ("docker", "archive/", "instalar_axioma", "__REPO__"),
+    }
+    for nombres, esperadas in marcas.items():
+        for nombre in nombres:
+            texto = (PROJECT_ROOT / "instalar" / nombre).read_text(encoding="utf-8-sig")
+            for marca in esperadas:
+                assert marca in texto, f"{nombre} no tiene {marca!r}"

@@ -27,8 +27,18 @@ import logging
 from pathlib import Path
 from typing import List
 
-import flet as ft
-import flet.canvas as cv
+# ✅ 2026-10-12: Flet es la GUI de este widget de ESCRITORIO (una ventana nativa) y NO está en la
+# imagen del contenedor: ahí no hay pantalla y faltan `libgtk-3`/`libwebkit2gtk`. Peor: `ft.app()` no
+# falla, se CUELGA (medido: `exit 124` con un timeout de 45 s). Se importa **con respaldo** para que
+# el módulo siga siendo IMPORTABLE dentro de la imagen — la suite lo exige
+# (`test_axioma_06::test_todos_los_modulos_src_importan`) — y para que en el EQUIPO, que es donde el
+# widget corre (`docker-compose.yml:140`, `MANUAL_RAFAEL.md:130`), funcione igual que siempre.
+try:
+    import flet as ft
+    import flet.canvas as cv
+except ImportError:  # dentro del contenedor: el widget corre en el equipo, no acá
+    ft = None  # type: ignore[assignment]
+    cv = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 

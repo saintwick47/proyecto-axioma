@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -170,6 +171,19 @@ class RafaelDaemon:
             )
             return
 
+        # ✅ 2026-10-12: el widget es una VENTANA de escritorio (Flet desktop, con arrastre en
+        # X11/Wayland): sin pantalla no puede dibujar. MEDIDO dentro del contenedor: `ft.app()` NO
+        # falla, se CUELGA (exit 124 con timeout de 45 s), así que el `await ...wait()` de abajo se
+        # quedaba esperando para siempre y los reintentos con abandono (líneas de más abajo) nunca
+        # llegaban a correr. Sin pantalla no se lanza: el widget corre en el EQUIPO, que es donde
+        # funciona y lo que dicen `docker-compose.yml` y `MANUAL_RAFAEL.md`.
+        if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+            logger.info(
+                "[RafaelDaemon] Sin pantalla: el widget de escritorio corre en el equipo, no acá — "
+                "no se lanza (evita que el runner de Flet quede colgado)"
+            )
+            return
+
         retries = 0
         while not self._shutdown_event.is_set():
             try:
@@ -192,7 +206,6 @@ class RafaelDaemon:
                 # el WM), Rafael se apaga COMPLETO (antes solo se cerraba el
                 # widget y el daemon de voz seguía activo).
                 logger.info("[RafaelDaemon] Widget cerrado por el usuario — apagando daemon")
-                import os
                 import signal
                 os.kill(os.getpid(), signal.SIGTERM)
                 return
@@ -250,7 +263,6 @@ class RafaelDaemon:
         # de Rafael.py cancela main_task → shutdown() limpio (daemon + widget).
         if text.strip().lower() in ("/cerrar", "/shutdown", "cerrar"):
             logger.info("[RafaelDaemon] Comando de cierre recibido del widget — apagando")
-            import os
             import signal
             os.kill(os.getpid(), signal.SIGTERM)
             return
@@ -351,7 +363,6 @@ class RafaelDaemon:
         # shutdown limpio → systemd lo mataba con SIGKILL ("failed: timeout").
         # Forzamos la salida del proceso después del cleanup.
         try:
-            import os
             os._exit(0)
         except Exception as _d2e:
             logging.getLogger(__name__).debug(f"[D2 rafael_daemon.py:351] excepción degradada (intencional): {_d2e}")

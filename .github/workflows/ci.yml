@@ -3,6 +3,9 @@ name: CI — AXIOMA pytest
 on:
   push:
     branches: [main]
+    # ✅ 2026-10-12: un tag `v*` es un release. Los tres jobs de siempre corren igual (validan el
+    # release) y además se dispara la publicación de la imagen en GHCR (job `publicar-imagen`).
+    tags: ['v*']
   pull_request:
 
 concurrency:
@@ -315,7 +318,151 @@ jobs:
           fi
           rm -rf "$falso"
 
+          echo "▶ el instalador de UN SOLO ARCHIVO del Release también arranca"
+          # `AXIOMA_REPO` porque en el repositorio el instalador es la PLANTILLA (lleva `__REPO__` en
+          # vez del repositorio: lo que se distribuye no lleva la identidad del autor).
+          if AXIOMA_REPO=ejemplo/proyecto bash instalar/axioma-instalar.sh --dry-run >/dev/null 2>&1; then
+            echo "   ✅ axioma-instalar.sh --dry-run sale 0"
+          else
+            echo "❌ axioma-instalar.sh --dry-run no salió 0"; fallo=1
+          fi
+
           if [ "$fallo" -eq 0 ]; then
             echo "✅ los instaladores de Linux arrancan y explican lo que harían"
           fi
           exit $fallo
+
+  # ── Publicar la imagen del contenedor en GHCR ────────────────────────────────────────────────
+  # Se dispara SOLO al etiquetar (`git tag v0.7.5 && git push origin v0.7.5`) y SOLO desde el
+  # repositorio PÚBLICO: un paquete publicado desde un repositorio privado **nace privado**, y
+  # entonces el instalador de un usuario cualquiera no podría bajarlo sin credenciales.
+  #
+  # Por qué publica acá y no con un script suelto: el propio proyecto exige que **una imagen que no
+  # pasa sus pruebas no se publique**. `tools/verificar_imagen.sh` compila, MIDE el tamaño y corre
+  # la suite ADENTRO de la imagen; si eso falla, el job se corta y no se sube nada.
+  publicar-imagen:
+    name: publicar imagen en GHCR
+    if: startsWith(github.ref, 'refs/tags/v') && github.event.repository.private == false
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar la imagen (compila, mide el tamaño y corre la suite adentro)
+        run: bash tools/verificar_imagen.sh
+
+      - name: Entrar a GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Etiquetar y subir
+        run: |
+          set -euo pipefail
+          # GHCR sólo acepta nombres en minúsculas: `${VAR,,}` es la minúscula de bash.
+          IMAGEN="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker tag axioma:local "$IMAGEN:${GITHUB_REF_NAME}"
+          docker tag axioma:local "$IMAGEN:latest"
+          docker push "$IMAGEN:${GITHUB_REF_NAME}"
+          docker push "$IMAGEN:latest"
+          {
+            echo "### Imagen publicada"
+            echo ""
+            echo '```'
+            echo "$IMAGEN:${GITHUB_REF_NAME}"
+            echo "$IMAGEN:latest"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Recordar revisar la visibilidad del paquete
+        run: |
+          echo "⚠️  Si es la PRIMERA publicación, revisá que el paquete haya quedado PÚBLICO:"
+          echo "    https://github.com/${GITHUB_REPOSITORY}/pkgs/container/${GITHUB_REPOSITORY##*/}"
+          echo "    (Package settings → Change visibility → Public). Si queda privado, el instalador"
+          echo "    no puede bajarlo sin credenciales y la instalación falla en el primer paso."
+
+  # ── Instaladores de un solo archivo, como assets del Release ─────────────────────────────────
+  # El usuario final descarga **un archivo** y lo ejecuta: no clona nada ni necesita Python.
+  #   · `AXIOMA-Setup.exe`   → Windows, doble clic (PyInstaller envuelve `instalar/axioma_setup.py`)
+  #   · `axioma-instalar.sh` → Linux, un archivo (`bash axioma-instalar.sh`)
+  # Se construye en Windows porque PyInstaller **no compila cruzado** desde Linux.
+  instaladores-release:
+    name: instaladores de un solo archivo (Release)
+    if: startsWith(github.ref, 'refs/tags/v') && github.event.repository.private == false
+    needs: [test]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      # Fija la versión del tag Y el repositorio en los DOS instaladores: el que se baja un release
+      # instala ESE release, y el código no lleva la identidad del autor (regla del proyecto, con
+      # guardián en `test_axioma_28`). Si algún `sed` no engancha, el job FALLA en vez de publicar en
+      # silencio un instalador que baja otra cosa.
+      - name: Fijar la versión del tag y el repositorio
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i "s|^VERSION=\"\${AXIOMA_VERSION:-main}\"|VERSION=\"\${AXIOMA_VERSION:-${GITHUB_REF_NAME}}\"|" instalar/axioma-instalar.sh
+          sed -i "s|^VERSION_DEFECTO = os.environ.get(\"AXIOMA_VERSION\", \"main\")|VERSION_DEFECTO = os.environ.get(\"AXIOMA_VERSION\", \"${GITHUB_REF_NAME}\")|" instalar/axioma_setup.py
+          sed -i "s|__REPO__|${GITHUB_REPOSITORY}|g" instalar/axioma-instalar.sh instalar/axioma_setup.py
+          for archivo in instalar/axioma-instalar.sh instalar/axioma_setup.py; do
+            grep -q "${GITHUB_REF_NAME}" "$archivo" || { echo "no se fijo la version en $archivo"; exit 1; }
+            grep -q "${GITHUB_REPOSITORY}" "$archivo" || { echo "no se fijo el repositorio en $archivo"; exit 1; }
+            if grep -q "__REPO__" "$archivo"; then echo "quedo un __REPO__ sin reemplazar en $archivo"; exit 1; fi
+          done
+          grep -n "AXIOMA_VERSION:-" instalar/axioma-instalar.sh
+
+      # PyInstaller es una HERRAMIENTA DE EMPAQUETADO, no una dependencia del producto: por eso no
+      # está en `requirements-ci.txt` (se sacó a propósito el 2026-10-12) y se instala acá.
+      - name: Instalar PyInstaller
+        run: pip install pyinstaller
+
+      - name: Construir AXIOMA-Setup.exe
+        run: pyinstaller --onefile --console --name AXIOMA-Setup instalar/axioma_setup.py
+
+      # Que el .exe ARRANQUE es lo único que PyInstaller puede romper (faltó un módulo, un dato…).
+      # `--help` sale 0 siempre; `--dry-run` puede salir 4 si el runner no tiene Docker andando, y
+      # las dos son respuestas correctas: lo que no puede pasar es que no arranque.
+      - name: Verificar que el .exe arranca
+        shell: pwsh
+        run: |
+          .\dist\AXIOMA-Setup.exe --help
+          if ($LASTEXITCODE -ne 0) { throw "el .exe no arranca (--help salio $LASTEXITCODE)" }
+          .\dist\AXIOMA-Setup.exe --dry-run
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 4) { throw "salida inesperada: $LASTEXITCODE" }
+          Write-Host "OK: el .exe arranca y explica lo que haria"
+
+      - name: Publicar el Release con los dos instaladores
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          NOTAS="Instaladores de AXIOMA de un solo archivo: se descargan y se ejecutan, sin clonar el repositorio.
+
+          - **Windows**: descargá \`AXIOMA-Setup.exe\` y hacé **doble clic** (necesitás Docker Desktop).
+          - **Linux**: descargá \`axioma-instalar.sh\` y corré \`bash axioma-instalar.sh\` (necesitás Docker).
+
+          El instalador comprueba Docker, descarga AXIOMA, crea las carpetas y tu \`.env\`, arma la imagen, deja el acceso directo y lo enciende."
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --title "AXIOMA $TAG" --notes "$NOTAS"
+          gh release upload "$TAG" \
+            "dist/AXIOMA-Setup.exe" \
+            "instalar/axioma-instalar.sh" \
+            --clobber
+          echo "### Release $TAG publicado" >> "$GITHUB_STEP_SUMMARY"
+          echo "github.com/${GITHUB_REPOSITORY}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"

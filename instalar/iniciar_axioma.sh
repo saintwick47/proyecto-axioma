@@ -92,7 +92,21 @@ mkdir -p data logs cache
 # ✅ 2026-10-09: el `.env` tiene que EXISTIR antes de encender: es el archivo donde la interfaz guarda
 # las claves del usuario y el compose lo monta. Si no existe, Docker crea una CARPETA con ese nombre y el
 # montaje falla (medido en la documentación de Docker, y es un clásico). Se parte de la plantilla.
-if [ ! -f .env ] && [ -f .env.example ]; then
+if [ -d .env ]; then
+  # 2026-10-12 (ISSUE-147): Docker crea una CARPETA `.env` cuando falta el archivo, y `[ ! -f .env ]`
+  # da verdadero igual para una carpeta: sin este chequeo el arranque no hacía nada (o copiaba la
+  # plantilla ADENTRO) y el montaje seguía roto. Vacía la sacamos (la creó Docker); con contenido,
+  # avisamos y no borramos nada (R16).
+  if [ -z "$(ls -A .env 2>/dev/null)" ]; then
+    rmdir .env && cp .env.example .env &&
+      ok "Había una CARPETA vacía .env (la crea Docker cuando falta el archivo): la saqué y creé tu .env"
+  else
+    mal "Hay una CARPETA llamada .env con contenido: el montaje va a fallar."
+    echo "     Mirá qué tiene:  ls -la .env"
+    echo "     Si no te sirve, borrala:  rm -rf .env"
+    exit 4
+  fi
+elif [ ! -f .env ] && [ -f .env.example ]; then
   cp .env.example .env
   ok "Creé tu .env a partir de la plantilla (ahí se guardan tus claves, y no se publican)"
 fi
