@@ -88,8 +88,26 @@ if $DRY; then
   echo "  (ensayo) cd $RAIZ && docker compose build"
 else
   cd "$RAIZ"
-  docker compose build
-  ok "AXIOMA armado"
+  # ✅ 2026-10-22: antes se decía «AXIOMA armado» sin mirar el código de salida. Ahora se captura el
+  # build y, si falla por el ayudante de credenciales, se reintenta con un DOCKER_CONFIG temporal:
+  # AXIOMA sólo usa imágenes públicas y no necesita credenciales. (`set -o pipefail` ya está activo.)
+  LOG_BUILD="${TMPDIR:-/tmp}/axioma-build.log"
+  if docker compose build 2>&1 | tee "$LOG_BUILD"; then
+    ok "AXIOMA armado"
+  elif grep -qiE "docker-credential|error getting credentials" "$LOG_BUILD" 2>/dev/null; then
+    aviso "Docker no encontró su ayudante de credenciales. AXIOMA usa sólo imágenes públicas: reintento con una configuración temporal."
+    CFG_TMP="${TMPDIR:-/tmp}/axioma-docker-config"
+    mkdir -p "$CFG_TMP" && printf '{"auths":{}}\n' > "$CFG_TMP/config.json"
+    if DOCKER_CONFIG="$CFG_TMP" docker compose build 2>&1 | tee "$LOG_BUILD"; then
+      ok "AXIOMA armado (con configuración temporal de Docker)"
+    else
+      mal "No se pudo armar la imagen. El log quedó en $LOG_BUILD"
+      exit 1
+    fi
+  else
+    mal "No se pudo armar la imagen. El log quedó en $LOG_BUILD"
+    exit 1
+  fi
 fi
 
 # ── 3. Acceso directo en el menú ────────────────────────────────────────────

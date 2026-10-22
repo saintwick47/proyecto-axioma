@@ -93,34 +93,86 @@ function Probar-Docker {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Buscar-DockerDesktopExe {
+    # Docker Desktop se instala "para todos" (Program Files) o SOLO para el usuario
+    # (%LOCALAPPDATA%\Programs\DockerDesktop): hay que mirar los dos sitios. Como último recurso se
+    # deduce de dónde está docker.exe (...\DockerDesktop\resources\bin\docker.exe) o del registro.
+    $candidatos = New-Object System.Collections.ArrayList
+    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+        if ($base) { [void]$candidatos.Add((Join-Path $base "Docker\Docker\Docker Desktop.exe")) }
+    }
+    if ($env:LOCALAPPDATA) {
+        [void]$candidatos.Add((Join-Path $env:LOCALAPPDATA "Programs\DockerDesktop\Docker Desktop.exe"))
+        [void]$candidatos.Add((Join-Path $env:LOCALAPPDATA "Docker\Docker Desktop.exe"))
+    }
+    try {
+        $cli = Get-Command docker -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($cli -and $cli.Source) {
+            $raizDocker = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $cli.Source))
+            if ($raizDocker) { [void]$candidatos.Add((Join-Path $raizDocker "Docker Desktop.exe")) }
+        }
+    } catch { }
+    foreach ($clave in @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Docker Desktop", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Docker Desktop")) {
+        try {
+            $reg = Get-ItemProperty -LiteralPath $clave -ErrorAction Stop
+            if ($reg.InstallLocation) { [void]$candidatos.Add((Join-Path $reg.InstallLocation "Docker Desktop.exe")) }
+        } catch { }
+    }
+    $script:DockerCandidatos = @($candidatos)
+    foreach ($exe in $candidatos) {
+        if ($exe -and (Test-Path -LiteralPath $exe)) { return $exe }
+    }
+    return ""
+}
+
+function Agregar-DockerAlPath {
+    # Docker Desktop instalado "para este usuario" deja docker.exe en ...\DockerDesktop\resources\bin;
+    # si esta ventana se abrió antes de instalarlo, el PATH todavía no lo incluye.
+    if (Get-Command docker -ErrorAction SilentlyContinue) { return }
+    $exe = Buscar-DockerDesktopExe
+    if (-not $exe) { return }
+    $bin = Join-Path (Split-Path -Parent $exe) "resources\bin"
+    if (Test-Path -LiteralPath (Join-Path $bin "docker.exe")) { $env:Path = "$bin;$env:Path" }
+}
+
 function Arrancar-DockerDesktop {
     # Si está instalado y apagado, lo arrancamos nosotros: es el error más común.
-    $candidatos = @(
-        (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"),
-        (Join-Path ${env:ProgramFiles(x86)} "Docker\Docker\Docker Desktop.exe"),
-        (Join-Path $env:LOCALAPPDATA "Docker\Docker Desktop.exe")
-    )
-    foreach ($exe in $candidatos) {
-        if ($exe -and (Test-Path -LiteralPath $exe)) {
-            try { Start-Process -FilePath $exe | Out-Null } catch { return $false }
-            return $true
-        }
-    }
-    return $false
+    $exe = Buscar-DockerDesktopExe
+    if (-not $exe) { return $false }
+    aviso "Abriendo Docker Desktop: $exe"
+    try { Start-Process -FilePath $exe | Out-Null } catch { return $false }
+    return $true
 }
 
 paso "Paso 2 de 6: Docker Desktop (es el programa que ejecuta AXIOMA)"
+Agregar-DockerAlPath
 if (Probar-Docker) {
     ok "Docker responde ($(& docker --version))"
 } else {
-    $instalado = (Get-Command docker -ErrorAction SilentlyContinue) -ne $null
+    $exeDocker = Buscar-DockerDesktopExe
+    $instalado = ((Get-Command docker -ErrorAction SilentlyContinue) -ne $null) -or [bool]$exeDocker
+    if ($instalado -and $Ensayo) {
+        $donde = ""
+        if ($exeDocker) { $donde = " ($exeDocker)" }
+        Write-Host "  (ensayo) Docker está instalado pero cerrado: lo abriría$donde y esperaría hasta 5 minutos a que responda"
+    }
     if ($instalado -and -not $Ensayo) {
         aviso "Docker está instalado pero no responde (lo más común: Docker Desktop está cerrado)."
         if (Arrancar-DockerDesktop) {
-            aviso "Lo estoy arrancando; puede tardar hasta un minuto y medio en estar listo..."
-            for ($intento = 1; $intento -le 30; $intento++) {
+            aviso "Lo estoy arrancando; puede tardar hasta cinco minutos en estar listo (la primera vez, más)..."
+            for ($intento = 1; $intento -le 100; $intento++) {
                 Start-Sleep -Seconds 3
+                Agregar-DockerAlPath
                 if (Probar-Docker) { break }
+                if (($intento % 5) -eq 0) { Write-Host "     ...sigo esperando a Docker Desktop ($($intento * 3) s)" }
+            }
+        } else {
+            aviso "No encontré «Docker Desktop.exe» para abrirlo yo."
+            # 2026-10-22: la traza del 2026-10-16 frenó acá porque el exe no estaba en ninguna ruta
+            # conocida. Que el mensaje diga DÓNDE buscó: así el próximo diagnóstico se explica solo.
+            if ($script:DockerCandidatos) {
+                Write-Host "     Busqué en estas rutas:"
+                foreach ($c in $script:DockerCandidatos) { Write-Host "       - $c" }
             }
         }
     }
@@ -130,6 +182,7 @@ if (Probar-Docker) {
         if ($instalado) {
             mal "Docker está instalado pero no llegó a responder."
             Write-Host "     Abrilo a mano (menú Inicio -> Docker Desktop) y esperá a que diga «Engine running»."
+            Write-Host "     (Si te pide aceptar los términos o actualizar WSL, hacelo y volvé a ejecutar esto.)"
             Anotar-Fallo "2" "Docker Desktop no responde" "Abrí Docker Desktop, esperá a que diga «Engine running» y volvé a intentar."
         } else {
             mal "Docker Desktop no está instalado."
@@ -218,13 +271,48 @@ if ($Ensayo) {
     Write-Host "  (ensayo) cd $Raiz; docker compose build"
 } else {
     Push-Location $Raiz
-    try {
+    # 2026-10-22: el build se guarda en un log para poder RECONOCER el fallo. La traza del
+    # 2026-10-13 mostró: `error getting credentials - err: exec: "docker-credential-desktop":
+    # executable file not found in %PATH%`. AXIOMA usa sólo imágenes PÚBLICAS (python:*-slim,
+    # ollama/ollama), así que no necesita credenciales: si falla por eso, se reintenta con un
+    # DOCKER_CONFIG temporal (sin credsStore) y se restaura el del usuario al salir.
+    $logBuild = Join-Path $env:TEMP "axioma-build.log"
+    function Invoke-Build {
         $armado = $true
-        try { & docker compose build } catch { $armado = $false }
+        try { & docker compose build 2>&1 | Tee-Object -FilePath $logBuild } catch { $armado = $false }
         if ($armado) { $armado = ($LASTEXITCODE -eq 0) }
+        return $armado
+    }
+    function Es-FalloDeCredenciales {
+        return (Test-Path -LiteralPath $logBuild) -and
+               [bool](Select-String -Path $logBuild -Pattern "docker-credential|error getting credentials" -Quiet)
+    }
+    try {
+        $armado = Invoke-Build
+        if (-not $armado -and (Es-FalloDeCredenciales)) {
+            aviso "Docker no encontró su ayudante de credenciales al bajar las imágenes base."
+            aviso "AXIOMA sólo usa imágenes públicas: no hacen falta credenciales. Reintento con una configuración temporal."
+            $cfgTemp = Join-Path $env:TEMP "axioma-docker-config"
+            $cfgOriginal = $env:DOCKER_CONFIG
+            try {
+                New-Item -ItemType Directory -Force -Path $cfgTemp | Out-Null
+                [IO.File]::WriteAllText((Join-Path $cfgTemp "config.json"), '{"auths":{}}',
+                    (New-Object System.Text.UTF8Encoding($false)))
+                $env:DOCKER_CONFIG = $cfgTemp
+                $armado = Invoke-Build
+            } finally {
+                if ($null -ne $cfgOriginal) { $env:DOCKER_CONFIG = $cfgOriginal }
+                else { Remove-Item Env:DOCKER_CONFIG -ErrorAction SilentlyContinue }
+            }
+        }
         if (-not $armado) {
             mal "No se pudo armar la imagen (mirá los mensajes de arriba)."
-            Anotar-Fallo "4" "Falló 'docker compose build'" "Copiá el error de arriba. Causas típicas: se cortó internet, o a Docker Desktop le queda poca memoria (Settings -> Resources)."
+            if (Es-FalloDeCredenciales) {
+                Anotar-Fallo "4" "Falló 'docker compose build' por el ayudante de credenciales" "Docker no encuentra «docker-credential-desktop». Probá: reinstalar Docker Desktop, o borrar la línea «credsStore» de %USERPROFILE%\.docker\config.json (AXIOMA no necesita credenciales: usa sólo imágenes públicas)."
+                Write-Host "     El log del build quedó en: $logBuild"
+            } else {
+                Anotar-Fallo "4" "Falló 'docker compose build'" "Copiá el error de arriba (el log está en $logBuild). Causas típicas: se cortó internet, o a Docker Desktop le queda poca memoria (Settings -> Resources)."
+            }
             exit (Mostrar-Resumen -Freno "Paso 4 de 6 (armar la imagen)" -Codigo 4)
         }
     } finally { Pop-Location }

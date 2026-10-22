@@ -53,11 +53,86 @@ function Probar-Docker {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Buscar-DockerDesktopExe {
+    # Docker Desktop se instala "para todos" (Program Files) o SOLO para el usuario
+    # (%LOCALAPPDATA%\Programs\DockerDesktop): hay que mirar los dos sitios. Como último recurso se
+    # deduce de dónde está docker.exe (...\DockerDesktop\resources\bin\docker.exe) o del registro.
+    $candidatos = New-Object System.Collections.ArrayList
+    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+        if ($base) { [void]$candidatos.Add((Join-Path $base "Docker\Docker\Docker Desktop.exe")) }
+    }
+    if ($env:LOCALAPPDATA) {
+        [void]$candidatos.Add((Join-Path $env:LOCALAPPDATA "Programs\DockerDesktop\Docker Desktop.exe"))
+        [void]$candidatos.Add((Join-Path $env:LOCALAPPDATA "Docker\Docker Desktop.exe"))
+    }
+    try {
+        $cli = Get-Command docker -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($cli -and $cli.Source) {
+            $raizDocker = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $cli.Source))
+            if ($raizDocker) { [void]$candidatos.Add((Join-Path $raizDocker "Docker Desktop.exe")) }
+        }
+    } catch { }
+    foreach ($clave in @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Docker Desktop", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Docker Desktop")) {
+        try {
+            $reg = Get-ItemProperty -LiteralPath $clave -ErrorAction Stop
+            if ($reg.InstallLocation) { [void]$candidatos.Add((Join-Path $reg.InstallLocation "Docker Desktop.exe")) }
+        } catch { }
+    }
+    foreach ($exe in $candidatos) {
+        if ($exe -and (Test-Path -LiteralPath $exe)) { return $exe }
+    }
+    return ""
+}
+
+function Agregar-DockerAlPath {
+    # Docker Desktop instalado "para este usuario" deja docker.exe en ...\DockerDesktop\resources\bin;
+    # si esta ventana se abrió antes de instalarlo, el PATH todavía no lo incluye.
+    if (Get-Command docker -ErrorAction SilentlyContinue) { return }
+    $exe = Buscar-DockerDesktopExe
+    if (-not $exe) { return }
+    $bin = Join-Path (Split-Path -Parent $exe) "resources\bin"
+    if (Test-Path -LiteralPath (Join-Path $bin "docker.exe")) { $env:Path = "$bin;$env:Path" }
+}
+
+function Asegurar-Docker {
+    # Devuelve $true si Docker responde. Si Docker Desktop está instalado pero cerrado (lo normal
+    # después de reiniciar Windows), lo abre y espera hasta 3 minutos: así el doble clic "simplemente anda".
+    Agregar-DockerAlPath
+    if (Probar-Docker) { return $true }
+    $exe = Buscar-DockerDesktopExe
+    if (-not $exe) { return $false }
+    if ($Ensayo) {
+        Write-Host "  (ensayo) Docker Desktop está cerrado: lo abriría ($exe) y esperaría hasta 3 minutos a que responda"
+        return $false
+    }
+    aviso "Docker Desktop está cerrado: lo abro yo (puede tardar hasta tres minutos; la primera vez, más)..."
+    try { Start-Process -FilePath $exe | Out-Null }
+    catch { aviso "No pude abrirlo: $($_.Exception.Message)"; return $false }
+    $espera = 0
+    while ($espera -lt 180) {
+        Start-Sleep -Seconds 3
+        $espera += 3
+        Agregar-DockerAlPath
+        if (Probar-Docker) { ok "Docker Desktop listo (tardó $espera s)"; return $true }
+        if (($espera % 15) -eq 0) { Write-Host "     ...sigo esperando a Docker Desktop ($espera s)" }
+    }
+    return $false
+}
+
 function Explicar-FaltaDocker {
-    mal "Docker Desktop no está disponible (es el programa que ejecuta AXIOMA)."
-    Write-Host "     1. Instalalo desde https://www.docker.com/products/docker-desktop"
-    Write-Host "     2. Abrilo una vez y esperá a que diga «Engine running»."
-    Write-Host "     3. Volvé a hacer doble clic acá."
+    $exe = Buscar-DockerDesktopExe
+    if ($exe) {
+        mal "Docker Desktop está instalado pero no llegó a responder."
+        Write-Host "     1. Abrilo desde el menú Inicio y esperá a que diga «Engine running»."
+        Write-Host "        (Si te pide aceptar los términos o actualizar WSL, hacelo.)"
+        Write-Host "     2. Volvé a hacer doble clic acá."
+        Write-Host "     Para que no haga falta cada vez: Docker Desktop -> Settings -> General -> «Start Docker Desktop when you sign in»."
+    } else {
+        mal "Docker Desktop no está disponible (es el programa que ejecuta AXIOMA)."
+        Write-Host "     1. Instalalo desde https://www.docker.com/products/docker-desktop"
+        Write-Host "     2. Abrilo una vez y esperá a que diga «Engine running»."
+        Write-Host "     3. Volvé a hacer doble clic acá."
+    }
     $wsl = Get-Command wsl -ErrorAction SilentlyContinue
     if ($wsl) {
         Write-Host "     (Si Docker Desktop se queja de WSL 2: en una consola de administrador, 'wsl --update'.)"
@@ -92,7 +167,7 @@ if ($Detener) {
 
 # ── 1. ¿Está Docker? ────────────────────────────────────────────────────────
 paso "Comprobando Docker"
-if (-not (Probar-Docker)) { Explicar-FaltaDocker; exit 4 }
+if (-not (Asegurar-Docker)) { Explicar-FaltaDocker; exit 4 }
 ok "Docker responde ($(& docker --version))"
 
 if ($env:AXIOMA_PUERTO -and $env:AXIOMA_PUERTO -ne "$Puerto") {

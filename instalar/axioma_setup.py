@@ -35,6 +35,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -79,6 +80,75 @@ def docker_responde() -> bool:
         return subprocess.run(["docker", "info"], capture_output=True).returncode == 0
     except OSError:
         return False
+
+
+ESPERA_DOCKER_SEGUNDOS = 180
+
+
+def buscar_docker_desktop() -> Path | None:
+    """Ruta de «Docker Desktop.exe» (solo Windows).
+
+    Puede estar instalado para todos (Program Files) o solo para el usuario
+    (%LOCALAPPDATA%\\Programs\\DockerDesktop). Si docker.exe no está en el PATH de esta ventana pero
+    sí en la carpeta de Docker Desktop, lo agrega al PATH de este proceso.
+    """
+    if not ES_WINDOWS:
+        return None
+    candidatos: list[Path] = []
+    for variable in ("ProgramFiles", "ProgramFiles(x86)"):
+        base = os.environ.get(variable)
+        if base:
+            candidatos.append(Path(base) / "Docker" / "Docker" / "Docker Desktop.exe")
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        candidatos.append(Path(local) / "Programs" / "DockerDesktop" / "Docker Desktop.exe")
+        candidatos.append(Path(local) / "Docker" / "Docker Desktop.exe")
+    cli = shutil.which("docker")
+    if cli:
+        try:
+            # ...\DockerDesktop\resources\bin\docker.exe  ->  ...\DockerDesktop
+            candidatos.append(Path(cli).resolve().parents[2] / "Docker Desktop.exe")
+        except IndexError:
+            # La ruta de docker.exe no cuelga de DockerDesktop (pocos niveles): se omite este
+            # candidato y se sigue con los demás. Antes era un `pass` mudo, que el auditor marca
+            # como fallo silencioso (AUD-SIL-001): en una instalación conviene enterarse.
+            print(f"  (aviso) no pude deducir Docker Desktop desde {cli}")
+    for exe in candidatos:
+        if exe.is_file():
+            carpeta_bin = exe.parent / "resources" / "bin"
+            if not shutil.which("docker") and (carpeta_bin / "docker.exe").is_file():
+                os.environ["PATH"] = str(carpeta_bin) + os.pathsep + os.environ.get("PATH", "")
+            return exe
+    return None
+
+
+def asegurar_docker(ensayo: bool) -> bool:
+    """True si Docker responde. En Windows, si Docker Desktop está cerrado lo abre y espera."""
+    if docker_responde():
+        return True
+    exe = buscar_docker_desktop()
+    if exe is None:
+        return False
+    if ensayo:
+        print(f"     (ensayo) abriria Docker Desktop ({exe}) y esperaria hasta {ESPERA_DOCKER_SEGUNDOS // 60} minutos")
+        return False
+    aviso(f"Docker Desktop esta cerrado: lo abro yo ({exe}). Puede tardar hasta 3 minutos...")
+    try:
+        # DETACHED_PROCESS: Docker Desktop queda abierto aunque esta ventana se cierre.
+        subprocess.Popen([str(exe)], creationflags=getattr(subprocess, "DETACHED_PROCESS", 0), close_fds=True)
+    except OSError as error:
+        aviso(f"No pude abrirlo: {error}")
+        return False
+    espera = 0
+    while espera < ESPERA_DOCKER_SEGUNDOS:
+        time.sleep(3)
+        espera += 3
+        if docker_responde():
+            ok(f"Docker Desktop listo (tardo {espera} s)")
+            return True
+        if espera % 15 == 0:
+            print(f"     ...sigo esperando a Docker Desktop ({espera} s)")
+    return False
 
 
 def descargar(url: str, destino: Path) -> bool:
@@ -166,15 +236,17 @@ def main() -> int:
 
     # ── 1. Docker ───────────────────────────────────────────────────────────
     paso("Paso 1 de 4: Docker (es el programa que ejecuta AXIOMA)")
-    if not shutil.which("docker"):
+    desktop = buscar_docker_desktop()          # tambien arregla el PATH si hace falta
+    if not shutil.which("docker") and desktop is None:
         mal("Docker no esta instalado.")
         print("     Windows: Docker Desktop desde https://www.docker.com/products/docker-desktop")
         print("              (necesita WSL 2: si te lo pide, 'wsl --install' como administrador y reinicia)")
         print("     Linux:   el de tu distribucion (o 'sudo systemctl start docker' si ya lo tenes)")
         return 4
-    if not docker_responde():
-        mal("Docker esta instalado pero no responde (lo mas comun: Docker Desktop esta cerrado).")
-        print("     Windows: abrilo desde el menu Inicio y espera a que diga 'Engine running'")
+    if not asegurar_docker(args.dry_run):
+        mal("Docker esta instalado pero no llego a responder (lo mas comun: Docker Desktop esta cerrado).")
+        print("     Windows: abri Docker Desktop desde el menu Inicio y espera a que diga 'Engine running'")
+        print("              (si te pide aceptar los terminos o actualizar WSL, hacelo y volve a ejecutar esto)")
         print("     Linux:   sudo systemctl start docker")
         return 4
     ok(f"Docker responde ({platform.system()})")

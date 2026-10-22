@@ -139,6 +139,11 @@ class SecurityHarnessDetector(BaseDetector):
             src_text[key] = text
 
         def _src(rel: str) -> str:
+            if rel == "config/settings.py":
+                # Refactorizacion 2026-10-13: los campos de configuracion se repartieron en modulos
+                # hermanos (settings_llm.py, settings_paths.py, ...). La proteccion SIGUE existiendo:
+                # se busca el marcador en TODO el paquete `config/settings*.py`.
+                return "\n".join(v for k, v in src_text.items() if k.startswith("config/settings"))
             return src_text.get(rel, "")
 
         # ── 1. Símbolos en código ────────────────────────────────
@@ -325,7 +330,8 @@ class PlanV2ProtectionsDetector(BaseDetector):
                 confidence=0.9, tags={'security', 'plan-v2', 'regression'},
             )
         # Verificación de no-regresión de Fase 1 (descartada por diseño)
-        if "hybrid_search_enabled" in src_text.get("config/settings.py", ""):
+        _settings_txt = "\n".join(v for k, v in src_text.items() if k.startswith("config/settings"))
+        if "hybrid_search_enabled" in _settings_txt:
             self._add(
                 finding_id="AUD-PV2-002",
                 title="hybrid_search_enabled presente (Fase 1 descartada por diseño)",

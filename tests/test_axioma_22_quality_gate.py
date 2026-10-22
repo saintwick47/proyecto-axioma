@@ -606,14 +606,8 @@ class TestMiddlewareWiring:
 
 
 def _log_sintetico(tmp_path, nombre="reg_error.txt"):
-    """Log sintético para los tests del health report (ISSUE-089).
-
-    ✅ v0.7.3 (2026-09-28): estos tests llamaban al tool **sin logs**, así que
-    dependían de que existiera `logs/reg_error.txt` — un artefacto de RUNTIME que
-    solo existe en la máquina del desarrollador. En CI (checkout limpio) el tool
-    devolvía `None` y **7 tests fallaban**: la CI quedaba roja por un test mal
-    aislado (R5: determinismo; R17: nada de datos del usuario).
-    """
+    """Log sintético (ISSUE-089): sin esto los tests dependían de `logs/reg_error.txt`, un artefacto
+    de RUNTIME que sólo existe en la máquina del desarrollador ⇒ 7 tests fallaban en CI (R5/R17)."""
     p = tmp_path / nombre
     p.write_text(
         "[2026-01-01 10:00:00.123456] [INFO    ] [DISPATCHER ] Inicio de prueba | {}\n"
@@ -910,11 +904,7 @@ class TestPruneReportsHelper:
 
 
 def test_el_chequeo_del_entorno_dice_la_verdad(monkeypatch):
-    """`ISSUE-146`: con Ollama caído, `--check` decía "AXIOMA listo" y salía con 0.
-
-    Medido el 2026-10-04 (Fase 0 del plan de contenedores): el usuario pidió que el sistema
-    diga qué falta ANTES de que funcione, y el veredicto decía que todo estaba bien.
-    """
+    """`ISSUE-146`: con Ollama caído, `--check` decía "AXIOMA listo" y salía con 0 (medido el 2026-10-04)."""
     import importlib
     import src.llm.client as cliente
     cli = importlib.import_module("src.interfaces.cli.main")
@@ -936,3 +926,25 @@ def test_el_chequeo_del_entorno_dice_la_verdad(monkeypatch):
     sano = _Consola()
     assert cli.cmd_check(sano) == 0, "con Ollama y el modelo de chat, el entorno está listo"
 
+
+
+def test_no_hay_nombres_de_modelo_con_tag_hardcodeados():
+    """R8/R15: cambiar de modelo = editar el `.env`, no el código (AST: saltea docstrings)."""
+    import ast, re
+
+    patron = re.compile(r"(qwen|gemma|llama|mistral|phi|deepseek|moondream|nomic|bge|mxbai|snowflake|codellama)"
+                        r"[a-z0-9._-]*:[a-z0-9.\-]+$", re.I)
+    exentos = {"config/settings_llm.py", "tools/warmup_models.py"}
+    malos = []
+    for ruta in (sorted((PROJECT_ROOT / "src").rglob("*.py"))
+                 + sorted((PROJECT_ROOT / "tools").rglob("*.py")) + [PROJECT_ROOT / "main.py"]):
+        rel = ruta.relative_to(PROJECT_ROOT).as_posix()
+        if rel in exentos or "__pycache__" in rel:
+            continue
+        arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        docstrings = {id(n.value) for n in ast.walk(arbol)
+                      if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)}
+        malos += [f"{rel}:{n.lineno} -> {n.value!r}" for n in ast.walk(arbol) if isinstance(n, ast.Constant)
+                  and isinstance(n.value, str) and id(n) not in docstrings and patron.search(n.value)]
+    check("ningún nombre de modelo con tag hardcodeado fuera de la configuración",
+          not malos, "\n".join(malos[:12]), SECTION)

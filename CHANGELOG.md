@@ -41,6 +41,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
     falla en el primer paso.
 
 ### Cambiado
+- **Refactorización por partes: `src/router/classifier_core.py` pasó de 1214 a 324 líneas** (−73 %), **sin
+  ningún cambio de comportamiento** (misma API pública, mismos `task_type` y confianzas). Las piezas
+  salieron a módulos hermanos, siguiendo el patrón que el proyecto ya usaba (`classifier_embedding.py`):
+  `classifier_keywords.py` (**los datos**: las tablas de palabras), `classifier_cache.py` (caché de
+  respuestas), `classifier_learning.py` (entrenamiento y persistencia), `classifier_keyword_rules.py`
+  (motor de reglas por palabras clave) y `classifier_scoring.py` (preprocesado, calibración y umbral
+  adaptativo). `IntentClassifierCore` hereda esos mixins, así que **nada de lo que ya usaba el
+  clasificador cambió**. Cada parte se verificó con la suite completa y el gate **antes y después**.
 - **La imagen instala 5 paquetes menos** (`requirements-ci.txt`): `customtkinter`, `kubernetes`,
   `playwright`, `pyinstaller` y `git-filter-repo`. **Medido antes de sacarlos**: 0 referencias en `src/`,
   `main.py`, `config/` y `tools/`, y 0 en la suite — ni el producto, ni el CI, ni las pruebas los importan

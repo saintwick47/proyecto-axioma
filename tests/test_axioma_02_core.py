@@ -625,10 +625,10 @@ class TestImplicitSignalRouted:
 
     def test_call_sites_pasan_agent_role(self):
         """Ambos emisores deben pasar agent_role (requerido por record_implicit)."""
-        from src.core import dispatcher_process as DP
+        from src.core import dispatcher_process_steps as DP
         from src.router import smart_router as SR
 
-        for mod, nombre in ((DP, "dispatcher_process"), (SR, "smart_router")):
+        for mod, nombre in ((DP, "dispatcher_process_steps"), (SR, "smart_router")):
             src = inspect.getsource(mod)
             usa_routed = "ImplicitSignal.ROUTED" in src
             pasa_rol = "agent_role=" in src

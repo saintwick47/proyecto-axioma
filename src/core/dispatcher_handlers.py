@@ -1121,12 +1121,3 @@ class DispatcherHandlersMixin:
 
     # ── Handler: Analysis ────────────────────────────────────────────────────
 
-
-
-
-
-
-
-
-
-

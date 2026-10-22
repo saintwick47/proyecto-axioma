@@ -1,0 +1,26 @@
+🧪 Cómo usarlos
+Caso 1 — Primera vez (no está instalado)
+
+Doble clic en AXIOMA.bat.
+
+Se abre Docker Desktop si estaba cerrado, espera, y arranca la instalación.
+
+Al final, AXIOMA queda instalado y funcionando. El navegador se abre solo.
+
+Caso 2 — Ya está instalado, querés arrancarlo
+
+Doble clic en AXIOMA.bat.
+
+Detecta que ya hay .env → no reinstala, solo arranca.
+
+Abre el navegador en http://127.0.0.1:8080.
+
+Caso 3 — Algo falla, querés diagnosticar
+
+Doble clic en DIAGNOSTICO_AXIOMA.bat.
+
+Arranca Docker si hace falta, corre el diagnóstico y genera el .zip.
+
+Al final pregunta: Queres arrancar AXIOMA ahora? (S/N):
+
+Si ponés S, llama a AXIOMA.bat y sigue el flujo normal.
