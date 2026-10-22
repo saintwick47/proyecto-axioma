@@ -230,7 +230,7 @@ class SessionState:
 
         if not self.model:
             # ✅ CORREGIDO: Fallback a qwen3:8b (eliminado vicgalle/prometheus)
-            self.model = settings.llm_default_model if hasattr(settings, 'llm_default_model') else 'qwen3:8b'
+            self.model = settings.llm_default_model
 
         if not self.session_id:
             self.session_id = f"nicegui_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"

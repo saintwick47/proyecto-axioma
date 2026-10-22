@@ -781,7 +781,7 @@ class OllamaClientBase:
         ✅ 2026-09-29: aplicado también en `generate()` (camino de los agentes) —
         ver el bloque de comentario de arriba.
         """
-        if not getattr(settings, "chat_disable_thinking", True):
+        if not settings.chat_disable_thinking:
             return {}
         familia = (model or "").lower()
         if any(f in familia for f in ("qwen3", "deepseek-r1", "reasoning")):
@@ -837,7 +837,7 @@ class OllamaClientBase:
                            extra={"model": self.model})
                 raise LLMError(f"Circuit breaker OPEN para {self.model} (fallback deshabilitado)", model=self.model)
 
-            fallback = getattr(settings, "llm_fallback_1", None)
+            fallback = settings.llm_fallback_1
             if fallback and fallback != self.model:
                 _log_event("OLLAMA_CLIENT", f"Creating SEPARATE client for fallback: {fallback}", level="WARNING",
                            extra={"original_model": self.model, "fallback_model": fallback})
@@ -962,7 +962,7 @@ class OllamaClientBase:
                     # (KEEP_ALIVE_DEFAULT/TEMPORARY) — un modelo no-default (código,
                     # visión) quedaba cargado hasta 30min en vez de los 5min pensados
                     # para liberar RAM. Ahora replica el mismo criterio que ModelSwap.
-                    "keep_alive": "30m" if self.model == settings.llm_default_model else "5m",
+                    "keep_alive": settings.ollama_keep_alive,
                     # ✅ 2026-09-29: sin esto, un modelo con razonamiento (qwen3)
                     # por el camino de los AGENTES gastaba TODO `num_predict` en
                     # "thinking" y devolvía vacío (medido: 300 tokens ⇒ 56 chars).
@@ -1094,7 +1094,7 @@ class OllamaClientBase:
             payload = {
                 "model": embed_model,
                 "prompt": text,
-                "keep_alive": getattr(settings, "ollama_keep_alive", "30m"),
+                "keep_alive": settings.ollama_keep_alive,
             }
             _log_event("OLLAMA_CLIENT", f"Sending embed request", extra={"model": embed_model})
             response = session.post(f"{self.base_url}/api/embeddings", json=payload, timeout=effective_timeout)

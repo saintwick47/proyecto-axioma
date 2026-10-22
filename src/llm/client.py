@@ -184,7 +184,7 @@ class OllamaClient(OllamaClientBase):
             # ✅ FIX: ver mismo fix en client_base.py generate() — un "30m" fijo
             # pisaba la distinción default/no-default de ModelSwap en cada
             # llamada real, dejando modelos no-default cargados más de lo pensado.
-            "keep_alive": "30m" if self.model == settings.llm_default_model else "5m",
+            "keep_alive": settings.ollama_keep_alive,
         }
         if system:
             payload["system"] = system
@@ -303,7 +303,7 @@ class OllamaClient(OllamaClientBase):
                 # ✅ FIX: ver mismo fix en client_base.py generate() — un "30m" fijo
                 # pisaba la distinción default/no-default de ModelSwap en cada
                 # llamada real, dejando modelos no-default cargados más de lo pensado.
-                "keep_alive": "30m" if self.model == settings.llm_default_model else "5m",
+                "keep_alive": settings.ollama_keep_alive,
             }
 
             # ✅ NUEVO v0.2.0: Inyectar tools si se proporcionan
@@ -455,7 +455,7 @@ class OllamaClient(OllamaClientBase):
                     sum(len(m.get("content", "")) for m in messages),
                     effective_timeout, temperature, max_tokens_chat_stream),
                 **self._think_flag(self.model),
-                "keep_alive": "30m" if self.model == settings.llm_default_model else "5m",
+                "keep_alive": settings.ollama_keep_alive,
             }
             with session.stream("POST", "/api/chat", json=payload,
                                 timeout=effective_timeout) as response:

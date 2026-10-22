@@ -460,7 +460,7 @@ class DispatcherHandlersMixin:
     ) -> Any:
         """Llama a llm_client.generate() en hilo aparte con reintentos."""
         last_error = None
-        internal_retries = getattr(settings, 'max_retries', 2)
+        internal_retries = settings.max_retries
         outer_timeout = (base_timeout * internal_retries) + 60.0
 
         for attempt in range(1, max_retries + 1):

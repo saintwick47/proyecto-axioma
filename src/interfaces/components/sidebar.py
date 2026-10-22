@@ -20,6 +20,7 @@ from typing import Optional, Dict, Any, Callable, List
 from nicegui import ui
 from datetime import datetime
 from pathlib import Path
+from config.settings import settings
 
 # ============================================================================
 # LOGGING — Integración con DetailedLogger
@@ -274,7 +275,7 @@ class SidebarComponent:
         with ui.row().classes('w-full items-center justify-between'):
             ui.label('Modelo').classes('text-xs')
             model_value = ui.label(
-                self.state.model if self.state else 'qwen3:8b'  # ✅ CORREGIDO
+                self.state.model if self.state else settings.llm_default_model  # ✅ CORREGIDO
             ).classes('text-xs text-gray-300')
             self.elements['model_value'] = model_value
 
@@ -308,7 +309,7 @@ class SidebarComponent:
             self.elements['jarvis_mode_value'] = jarvis_mode_value
 
         _log_web_event("UI", "Status section created",
-                      extra={"model": self.state.model if self.state else 'qwen3:8b',  # ✅ CORREGIDO
+                      extra={"model": self.state.model if self.state else settings.llm_default_model,  # ✅ CORREGIDO
                             "session_id": self.state.session_id[-8:] if self.state and self.state.session_id else 'N/A'})
 
     def _create_action_buttons(self) -> None:

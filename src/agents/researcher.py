@@ -146,8 +146,6 @@ REGLAS ESTRICTAS:
         super().__init__(
             model=model or (
                 settings.llm_default_model
-                if hasattr(settings, 'llm_default_model')
-                else "qwen3:8b"
             ),
             temperature=temperature,
             timeout=timeout or settings.ollama_timeout,
@@ -578,10 +576,7 @@ Respuesta:"""
         # ✅ CORRECCIÓN: Evitar mutación permanente del modelo del agente
         original_model = self.config.model
         try:
-            self.config.model = getattr(
-                settings, 'llm_fallback_1',
-                'qwen2.5-coder:7b',
-            )
+            self.config.model = settings.llm_fallback_1
 
             self._start_execution(
                 task_type=TaskType.FINANCE_QUERY.value,

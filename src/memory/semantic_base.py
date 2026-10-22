@@ -127,8 +127,7 @@ class SemanticMemoryBase:
         # ✅ v0.6.3: Default path ahora es lancedb, no chroma
         self.persist_directory = persist_directory or Paths.MEMORY / "lancedb"
         self.embedding_model = embedding_model or (
-            settings.llm_embed_model if hasattr(settings, 'llm_embed_model')
-            else "BAAI/bge-m3"
+            settings.llm_embed_model
         )
 
         _log_memory("semantic_init", "semantic", db_path=str(self.persist_directory))

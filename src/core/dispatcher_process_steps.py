@@ -629,7 +629,7 @@ class DispatcherProcessStepsMixin:
             # get_model_for_task() — acá solo se actualiza ese valor.
             # Detrás del mismo flag que el consumidor, para no calcular
             # en vano si nadie lo va a leer.
-            if getattr(settings, "feedback_temperature_tuning_enabled", False):
+            if settings.feedback_temperature_tuning_enabled:
                 try:
                     _current_temp = self._feedback_loop.get_current_parameter(
                         "temperature", task_type

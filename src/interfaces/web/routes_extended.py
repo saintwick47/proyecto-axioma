@@ -82,8 +82,8 @@ async def status_endpoint() -> Dict[str, Any]:
         return {
             "status": "running",
             "version": AXIOMA_VERSION,
-            "model": getattr(settings, 'llm_default_model', ""),
-            "timeout": settings.ollama_timeout if hasattr(settings, 'ollama_timeout') else 25,
+            "model": settings.llm_default_model,
+            "timeout": settings.ollama_timeout_standard if hasattr(settings, 'ollama_timeout_standard') else 25,
             "router_stats": router_instance.get_stats(),
         }
     except Exception as e:

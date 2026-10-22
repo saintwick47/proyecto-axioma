@@ -297,13 +297,13 @@ def parse_code_contract(response: str, settings: Any, query: str = "") -> CodeCo
     missing: List[str] = []
     if not files:
         missing.append("codigo")
-    if getattr(settings, "code_require_dependencies", False) and not dependencies:
+    if settings.code_require_dependencies and not dependencies:
         missing.append("dependencias")
-    if getattr(settings, "code_require_tests", False) and not test_files:
+    if settings.code_require_tests and not test_files:
         missing.append("tests")
-    if getattr(settings, "code_require_commands", False) and not test_command:
+    if settings.code_require_commands and not test_command:
         missing.append("comando")
-    if getattr(settings, "code_require_expected_output", False) and not expected_output:
+    if settings.code_require_expected_output and not expected_output:
         missing.append("salida_esperada")
 
     contract = CodeContract(

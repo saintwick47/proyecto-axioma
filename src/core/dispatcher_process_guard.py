@@ -165,7 +165,7 @@ class DispatcherProcessGuardMixin:
                 gw = MemoryGateway(
                     session_id=session_id,
                     user_id=getattr(self, "_user_id", None)
-                    or getattr(settings, "axioma_user_id", ""),
+                    or settings.axioma_user_id,
                 )
                 self._memory_gateways[session_id] = gw
             return gw

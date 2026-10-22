@@ -131,6 +131,11 @@ class SettingsLLM(BaseModel):
     )
     default_temperature: float = Field(0.7, ge=0.0, le=1.0)
     ollama_host: str = "http://127.0.0.1:11434"
+    # ✅ 2026-10-22: campo REAL para el keep-alive. Antes no existía: el embed leía con un
+    # `getattr(settings, "ollama_keep_alive", "30m")` (siempre "30m") y los otros 4 sitios
+    # usaban "30m" para el modelo por defecto y "5m" para el resto. Ahora los 5 leen de acá
+    # (los modelos que no son el default pasan de 5m a 30m: aprobado y documentado en el CHANGELOG).
+    ollama_keep_alive: str = "30m"
 
     @field_validator("ollama_host", mode="before")
     @classmethod

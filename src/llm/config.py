@@ -282,9 +282,9 @@ class LLMConfig:
         # por defecto los valores coinciden con `models.yaml`, así que nada cambia para quien no tocó nada.
         # Se leen de `settings` EN EL MOMENTO (no las constantes del módulo, que son una foto del arranque):
         # así vale también si el modelo se elige con AXIOMA andando.
-        codigo = str(getattr(settings, "llm_code_model", "") or "").strip()
-        chat = str(getattr(settings, "llm_default_model", "") or "").strip()
-        respaldo_codigo = str(getattr(settings, "llm_code_model_fallback", "") or "").strip()
+        codigo = str(settings.llm_code_model or "").strip()
+        chat = str(settings.llm_default_model or "").strip()
+        respaldo_codigo = str(settings.llm_code_model_fallback or "").strip()
         for nombre, tipo, temperatura in ((codigo, "code", 0.3), (chat, "default", 0.7)):
             if nombre and nombre not in self.models:
                 self.models[nombre] = ModelConfig(name=nombre, task_types=[tipo],
@@ -403,7 +403,7 @@ class LLMConfig:
         # ✅ 2026-10-10: el modelo de código se lee de `settings` EN EL MOMENTO (la constante `CODE_MODEL`
         # es una foto del arranque): así el modelo elegido en la pantalla vale también para tareas de
         # código que no tengan mapeo propio.
-        default_name = (str(getattr(settings, "llm_code_model", "") or "").strip() or CODE_MODEL
+        default_name = (str(settings.llm_code_model or "").strip() or CODE_MODEL
                         if "code" in task_type.lower() else settings.llm_default_model)
         model = self.models.get(default_name, list(self.models.values())[0])
         if temp_override is not None:
@@ -435,7 +435,7 @@ class LLMConfig:
         esté prendido y de verdad se use. Mismo patrón que
         RuntimeMode.allowed_permission_level() en src/domain/types.py.
         """
-        if not getattr(settings, "feedback_temperature_tuning_enabled", False):
+        if not settings.feedback_temperature_tuning_enabled:
             return model
         try:
             from src.core.feedback_loop import get_feedback_loop_sync
@@ -460,7 +460,7 @@ class LLMConfig:
     def _resolve_reasoning_tokens(self, model: "ModelConfig") -> "ModelConfig":
         """[D3] Propaga settings.max_reasoning_tokens si el modelo no tiene valor propio."""
         if model.max_reasoning_tokens is None:
-            global_default = getattr(settings, "max_reasoning_tokens", 2048)
+            global_default = settings.max_reasoning_tokens
             return replace(model, max_reasoning_tokens=global_default)
         return model
 

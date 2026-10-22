@@ -415,7 +415,7 @@ Responde de forma clara y concisa."""
         inválido, devuelve None (nada se rompe, nada se filtra de más).
         """
         try:
-            raw = getattr(settings, "runtime_mode", None)
+            raw = settings.runtime_mode
             if not raw:
                 return None
             return RuntimeMode(raw)
@@ -698,7 +698,7 @@ Responde de forma clara y concisa."""
                 # retrieval cross-sesión (mismo user_id que el write-path).
                 gw = MemoryGateway(
                     session_id=session_id, agent_id=self.AGENT_TYPE,
-                    user_id=user_id or getattr(settings, "axioma_user_id", ""),
+                    user_id=user_id or settings.axioma_user_id,
                 )
                 self._memory_sessions[session_id] = gw
             return gw

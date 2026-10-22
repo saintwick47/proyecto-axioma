@@ -83,7 +83,7 @@ class RouterAPIExecutor:
     }
 
     def __init__(self, timeout: int = None) -> None:
-        timeout = timeout or getattr(settings, 'ollama_timeout', 45)
+        timeout = timeout or getattr(settings, 'ollama_timeout_standard', 45)
         self._api_manager: Optional[ExternalAPIManager] = None
         self._timeout = timeout
         self._normalizer = QueryNormalizer()

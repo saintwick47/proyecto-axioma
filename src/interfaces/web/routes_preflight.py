@@ -214,7 +214,7 @@ VARIABLES_DE_ROL: Dict[str, str] = {
 def _ollama_host() -> str:
     """El Ollama a consultar (el del equipo por defecto)."""
     from config.settings import settings
-    return str(getattr(settings, "ollama_host", "") or "http://127.0.0.1:11434")
+    return str(settings.ollama_host or "http://127.0.0.1:11434")
 
 
 async def _modelos_en_ollama() -> list:

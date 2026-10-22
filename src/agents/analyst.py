@@ -266,10 +266,10 @@ def _rac_config() -> Dict[str, int]:
     además, aconsejaba "ajustá AXIOMA_RAC_MAX_MINUTES" — imposible de aplicar.
     """
     return {
-        "max_minutes": int(getattr(settings, "rac_max_minutes", 45)),
-        "timeout": int(getattr(settings, "rac_timeout", 600)),
-        "batch_pause": int(getattr(settings, "rac_batch_pause", 45)),
-        "cooldown": int(getattr(settings, "rac_cooldown", 3)),
+        "max_minutes": int(settings.rac_max_minutes),
+        "timeout": int(settings.rac_timeout),
+        "batch_pause": int(settings.rac_batch_pause),
+        "cooldown": int(settings.rac_cooldown),
     }
 
 
@@ -587,7 +587,7 @@ Formatos soportados: Texto, JSON, CSV, tablas, informes."""
             max_tokens: Máximo de tokens para respuestas (default 512)
         """
         super().__init__(
-            model=model or (settings.llm_default_model if hasattr(settings, 'llm_default_model') else "qwen3:8b"),
+            model=model or (settings.llm_default_model),
             temperature=temperature,
             timeout=timeout or settings.ollama_timeout,
             enable_memory=enable_memory,
@@ -889,7 +889,7 @@ Proporciona tu análisis ahora (máximo 3 párrafos):"""
         # ✅ 2026-09-29 (ISSUE-115): RAC incremental. El archivo ya analizado cuyo
         # CONTENIDO no cambió no se vuelve a enviar al LLM: se reutiliza su análisis
         # anterior (mismo código + mismo prompt + mismo modelo ⇒ misma calidad).
-        _solo_cambiados = bool(getattr(settings, "rac_solo_cambiados", True))
+        _solo_cambiados = bool(settings.rac_solo_cambiados)
         _rac_cache_path = project_root / RAC_CACHE_REL
         _cache = _rac_cache_cargar(_rac_cache_path) if _solo_cambiados else _rac_cache_vacia()
         files_reutilizados = 0
@@ -910,7 +910,7 @@ Proporciona tu análisis ahora (máximo 3 párrafos):"""
             # ═══════════════════════════════════════════════════════════════
             # ✅ RAC usa SOLO el modelo de código instalado. Nunca cambia de modelo.
             # ═══════════════════════════════════════════════════════════════
-            rac_model = getattr(settings, "llm_code_model", "qwen2.5-coder:7b")
+            rac_model = settings.llm_code_model
 
             # ✅ 2026-09-29 (ISSUE-115): el MODELO es parte de la huella del análisis
             # cacheado: si cambia el modelo, el análisis guardado queda obsoleto (se

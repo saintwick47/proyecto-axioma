@@ -575,7 +575,7 @@ def init_blacklist():
 # ═══════════════════════════════════════════════════════════════
 def estimate_needs_chunking(query: str, settings) -> bool:
     """Determina si el request probablemente requiere generación chunked."""
-    if not getattr(settings, 'chunked_generation_enabled', True):
+    if not settings.chunked_generation_enabled:
         return False
     q = query.lower()
     if any(kw in q for kw in _CHUNKED_KEYWORDS):
@@ -659,7 +659,7 @@ def update_open_structures(cursor: GenerationCursor, chunk: str) -> None:
 
 def build_continuation_prompt(cursor: GenerationCursor, original_prompt: str, settings) -> str:
     """Construye el prompt de continuación para el siguiente chunk."""
-    overlap      = getattr(settings, 'chunk_overlap_lines', 15)
+    overlap      = settings.chunk_overlap_lines
     acc_lines    = cursor.accumulated_code.splitlines()
     context_lines = acc_lines[-overlap:] if len(acc_lines) > overlap else acc_lines
     context_snippet = "\n".join(context_lines)

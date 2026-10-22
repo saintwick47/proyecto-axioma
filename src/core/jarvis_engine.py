@@ -315,7 +315,7 @@ class JarvisEngine:
             return Response(
                 content=content,
                 session_id=session_id,
-                model_used=getattr(settings, 'llm_default_model', 'jarvis'),
+                model_used=settings.llm_default_model,
                 task_type=task_type,
                 latency_ms=round(latency, 2),
                 confidence=0.9,

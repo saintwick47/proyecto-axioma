@@ -255,7 +255,7 @@ class NewsTool(BaseTool):
             from config.settings import settings
             # ✅ v0.6.9q: SerpAPI google_news cubre noticias sin NewsAPI
             return bool(settings.news_api_key or settings.tavily_api_key
-                        or getattr(settings, "serpapi_api_key", None))
+                        or settings.serpapi_api_key)
         except ImportError:
             return False
 
@@ -325,7 +325,7 @@ class WebSearchTool(BaseTool):
             from config.settings import settings
             # ✅ v0.6.9q: SerpAPI (serpapi.com) como proveedor de búsqueda
             return bool(settings.tavily_api_key or settings.serper_api_key
-                        or getattr(settings, "serpapi_api_key", None))
+                        or settings.serpapi_api_key)
         except ImportError:
             return False
 

@@ -298,13 +298,13 @@ class CoderAgent(CoderPromptMixin, BaseAgent):
         timeout: Optional[int] = None,
     ) -> Tuple[str, int]:
         """Genera código en chunks progresivos hasta completar el archivo."""
-        chunk_max_tokens = getattr(settings, 'chunk_max_tokens', 1800)
-        chunk_max_iter   = getattr(settings, 'chunk_max_iterations', 20)
-        overlap_lines    = getattr(settings, 'chunk_overlap_lines', 15)
+        chunk_max_tokens = settings.chunk_max_tokens
+        chunk_max_iter   = settings.chunk_max_iterations
+        overlap_lines    = settings.chunk_overlap_lines
         # ✅ v0.7.5 (ISSUE-074/A3b): presupuesto TOTAL por archivo. Sin esto el
         # único tope era `chunk_max_iter × chunk_max_tokens` (20 × 1800 = 36.000
         # tokens ⇒ ~76 min a 7,9 tok/s), muy por encima de los timeouts reales.
-        chunk_token_budget = getattr(settings, 'chunk_total_token_budget', 8192)
+        chunk_token_budget = settings.chunk_total_token_budget
         tokens_usados = 0
         effective_timeout = timeout or settings.get_timeout_for_code_level(4)
 
@@ -725,7 +725,7 @@ class CoderAgent(CoderPromptMixin, BaseAgent):
                 # explicación/revisión) aunque code_require_tests esté False.
                 # Refuerza la capa dinámica real (pytest en sandbox).
                 if (
-                    getattr(settings, "code_require_tests_auto", False)
+                    settings.code_require_tests_auto
                     and not contract.test_files
                     and "tests" not in contract.missing
                 ):

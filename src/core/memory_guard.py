@@ -50,8 +50,8 @@ def _default_ram_ratios() -> Tuple[float, float]:
     try:
         from config.settings import settings
         return (
-            float(getattr(settings, "memory_ram_warn_ratio", 0.85)),
-            float(getattr(settings, "memory_ram_hard_ratio", 0.95)),
+            float(settings.memory_ram_warn_ratio),
+            float(settings.memory_ram_hard_ratio),
         )
     except Exception as e:
         # AUD-SIL: settings ausente → defaults conservadores (degradación).
@@ -62,7 +62,7 @@ def _default_ram_ratios() -> Tuple[float, float]:
 def _default_headroom_gb() -> float:
     try:
         from config.settings import settings
-        return float(getattr(settings, "memory_headroom_gb", 1.5))
+        return float(settings.memory_headroom_gb)
     except Exception as e:
         # AUD-SIL: settings ausente → default (degradación).
         log_degraded(logger, e, "src/core/memory_guard.py:_default_headroom_gb")
@@ -72,7 +72,7 @@ def _default_headroom_gb() -> float:
 def _default_allow_parallel() -> bool:
     try:
         from config.settings import settings
-        return bool(getattr(settings, "allow_parallel_models", False))
+        return bool(settings.allow_parallel_models)
     except Exception as e:
         # AUD-SIL: settings ausente → False (seguro por defecto).
         log_degraded(logger, e, "src/core/memory_guard.py:_default_allow_parallel")
@@ -83,7 +83,7 @@ def _default_overhead_ratio() -> float:
     """Factor de overhead del footprint (sobre required_gb de hardware_fit)."""
     try:
         from config.settings import settings
-        return float(getattr(settings, "memory_guard_overhead_ratio", 1.0))
+        return float(settings.memory_guard_overhead_ratio)
     except Exception as e:
         log_degraded(logger, e, "src/core/memory_guard.py:_default_overhead_ratio")
         return 1.0

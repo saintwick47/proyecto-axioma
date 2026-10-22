@@ -404,7 +404,7 @@ class DispatcherProcessMixin(DispatcherProcessStepsMixin, DispatcherProcessGuard
         _rcache_key = hashlib.sha256(
             f"{message.content}\x00{_ctx_firma}\x00{settings.llm_default_model}".encode()
         ).hexdigest()
-        if not getattr(settings, "cache_respuestas_enabled", True):
+        if not settings.cache_respuestas_enabled:
             _rcache_key = None      # caché de respuesta desactivada por configuración
         with self._response_cache_lock:
             _rcache_entry = self._response_cache.get(_rcache_key) if _rcache_key else None
@@ -452,7 +452,7 @@ class DispatcherProcessMixin(DispatcherProcessStepsMixin, DispatcherProcessGuard
         # default 0.85, (b) **sólo sin historial** — una respuesta contextual nunca
         # sale de un atajo semántico — y (c) se puede apagar por configuración.
         if (_ROUTER_CACHE_AVAILABLE and not _ctx_firma
-                and getattr(settings, "cache_semantica_enabled", True)):
+                and settings.cache_semantica_enabled):
             try:
                 _rc = _get_router_cache()
                 _rc_result = _rc.get(message.content)
@@ -646,7 +646,7 @@ class DispatcherProcessMixin(DispatcherProcessStepsMixin, DispatcherProcessGuard
             # costo extra). Nunca aplica a /plan (ya resuelto arriba).
             # ═══════════════════════════════════════════════════════════════
             if (
-                getattr(settings, "plan_pipeline_enabled", False)
+                settings.plan_pipeline_enabled
                 and len((message.content or "")) >= 40
             ):
                 try:
@@ -778,7 +778,7 @@ class DispatcherProcessMixin(DispatcherProcessStepsMixin, DispatcherProcessGuard
             # preguntas parecidas de otras conversaciones (contaminación).
             if (response.error is None and confidence >= 0.7 and _ROUTER_CACHE_AVAILABLE
                     and _rcache_key and not _ctx_firma
-                    and getattr(settings, "cache_semantica_enabled", True)):
+                    and settings.cache_semantica_enabled):
                 try:
                     _rc = _get_router_cache()
                     _rc_value = {

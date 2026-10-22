@@ -248,13 +248,13 @@ def cmd_check(console: CLIConsole) -> int:
 
     try:
         # Validar settings
-        console.print_success(f"Settings: timeout={settings.ollama_timeout}s")
+        console.print_success(f"Settings: timeout={settings.ollama_timeout_standard}s")
         _log_cli_event("CHECK", "Settings validated",
-                      extra={"timeout": settings.ollama_timeout})
+                      extra={"timeout": settings.ollama_timeout_standard})
 
-        console.print_success(f"Model: {settings.llm_default_model if hasattr(settings, 'llm_default_model') else 'qwen3:8b'}")
+        console.print_success(f"Model: {settings.llm_default_model}")
         _log_cli_event("CHECK", "Default model validated",
-                      extra={"model": settings.llm_default_model if hasattr(settings, 'llm_default_model') else 'qwen3:8b'})
+                      extra={"model": settings.llm_default_model})
 
         # Validar directorios
         for attr in ["ROOT", "DATA", "LOGS", "MEMORY"]:
@@ -281,7 +281,7 @@ def cmd_check(console: CLIConsole) -> int:
             if client.health_check():
                 console.print_success("Ollama: conectado")
                 _log_cli_event("CHECK", "Ollama connection successful")
-                _chat = getattr(settings, "llm_default_model", "qwen3:8b")
+                _chat = settings.llm_default_model
                 _instalados = [m.get("name", "") for m in (client.list_models() or [])]
                 if _instalados and _chat not in _instalados and f"{_chat}:latest" not in _instalados:
                     _bloqueantes.append(
@@ -290,7 +290,7 @@ def cmd_check(console: CLIConsole) -> int:
                 console.print_warning("Ollama: sin respuesta")
                 _log_cli_event("CHECK", "Ollama connection failed", level="WARNING")
                 _bloqueantes.append(
-                    f"Ollama no responde en {getattr(settings, 'ollama_host', '?')}: sin él "
+                    f"Ollama no responde en {settings.ollama_host}: sin él "
                     "AXIOMA no puede responder nada. Instalalo con "
                     "`curl -fsSL https://ollama.com/install.sh | sh` y arrancalo con "
                     "`ollama serve`; o apuntá `OLLAMA_HOST` al equipo donde ya lo tengas")
@@ -560,11 +560,11 @@ def _tts_config_desde_settings(play_audio: bool = True):
     """
     from src.multimodal.tts_engine import TTSConfig
     return TTSConfig(
-        voice=getattr(settings, "tts_voice", "es-AR-TomasNeural"),
-        fallback_voice=getattr(settings, "tts_fallback_voice", "es-AR-ElenaNeural"),
-        rate=getattr(settings, "tts_rate", "+0%"),
-        pitch=getattr(settings, "tts_pitch", "+0Hz"),
-        volume=getattr(settings, "tts_volume", "+0%"),
+        voice=settings.tts_voice,
+        fallback_voice=settings.tts_fallback_voice,
+        rate=settings.tts_rate,
+        pitch=settings.tts_pitch,
+        volume=settings.tts_volume,
         play_audio=play_audio,
     )
 
@@ -743,10 +743,10 @@ def crear_backup_json() -> Path:
             "memory": str(getattr(Paths, "MEMORY", Paths.DATA / "memory")),
         },
         "settings": {
-            "default_model": getattr(settings, "llm_default_model", "qwen3:8b"),
-            "code_model": getattr(settings, "llm_code_model", "qwen2.5-coder:7b"),
-            "ollama_timeout": getattr(settings, "ollama_timeout", 45),
-            "max_retries": getattr(settings, "max_retries", 2),
+            "default_model": settings.llm_default_model,
+            "code_model": settings.llm_code_model,
+            "ollama_timeout": getattr(settings, "ollama_timeout_standard", 45),
+            "max_retries": settings.max_retries,
         },
         "note": "Backup estructural — datos de memoria no incluidos",
     }
@@ -815,8 +815,8 @@ def cmd_info(console: CLIConsole) -> int:
     info = {
         "Versión": "1.0.1",
         "Ruta Raíz": str(Paths.ROOT),
-        "Modelo Default": settings.llm_default_model if hasattr(settings, 'llm_default_model') else "qwen3:8b",
-        "Timeout Ollama": f"{settings.ollama_timeout}s",
+        "Modelo Default": settings.llm_default_model,
+        "Timeout Ollama": f"{settings.ollama_timeout_standard}s",
         "Max Reintentos": settings.max_retries,
         "Rich Disponible": "Sí" if RICH_AVAILABLE else "No",
         "Logger Disponible": "Sí" if LOGGER_AVAILABLE else "No",

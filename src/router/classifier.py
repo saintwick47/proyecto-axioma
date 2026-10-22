@@ -387,11 +387,11 @@ class IntentClassifier(ClassifierExternalDataMixin):
         # 3-6 s y sólo se aceptan categorías de CÓDIGO (ver `LLM_CLASSIFY_ACEPTADOS`).
         # ═══════════════════════════════════════════════════════
         if (result["task_type"] == TaskType.GENERAL_CHAT.value and not force_keywords
-                and getattr(settings, "classifier_llm_enabled", False)):
+                and settings.classifier_llm_enabled):
             # ✅ v0.6.9i: kNN embeddings primero (solo con flag ON; default OFF
             # porque la medición dio 70% con errores de tareas código cercanas)
             knn_task, knn_conf = (self._knn_classify(text)
-                                  if getattr(settings, "classifier_knn_enabled", False)
+                                  if settings.classifier_knn_enabled
                                   else (None, 0.0))
             if knn_task:
                 result["task_type"] = _ensure_str_task_type(knn_task)
@@ -547,9 +547,9 @@ class IntentClassifier(ClassifierExternalDataMixin):
                 "Reply with ONLY this JSON — no markdown, no explanation:\n"
                 '{"task_type": "<category>", "confidence": <0.0-1.0>}'
             )
-            base_url = getattr(settings, "ollama_base_url", "http://localhost:11434")
+            base_url = settings.ollama_host
             payload = {
-                "model": getattr(settings, "llm_default_model", "qwen3:8b"),
+                "model": settings.llm_default_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
                 # ✅ Defecto 1: sin esto el modelo "piensa" y se pasa del límite.

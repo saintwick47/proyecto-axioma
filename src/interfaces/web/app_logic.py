@@ -572,10 +572,10 @@ async def collect_system_status(
         ollama_ok = False
     return {
         "ollama": ollama_ok,
-        "tavily": bool(getattr(settings, "tavily_api_key", None)),
-        "news": bool(getattr(settings, "news_api_key", None)),
-        "serper": bool(getattr(settings, "serper_api_key", None)),
-        "serpapi": bool(getattr(settings, "serpapi_api_key", None)),  # ✅ v0.6.9v
+        "tavily": bool(settings.tavily_api_key),
+        "news": bool(settings.news_api_key),
+        "serper": bool(settings.serper_api_key),
+        "serpapi": bool(settings.serpapi_api_key),  # ✅ v0.6.9v
         "dolar": True,  # dolarapi público (sin key)
     }
 

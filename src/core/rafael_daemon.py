@@ -321,7 +321,7 @@ class RafaelDaemon:
         # reactivar con jarvis_proactive_enabled=True.
         try:
             _proactive_enabled = bool(
-                getattr(settings, "jarvis_proactive_enabled", False)
+                settings.jarvis_proactive_enabled
             )
         except Exception:
             _proactive_enabled = False

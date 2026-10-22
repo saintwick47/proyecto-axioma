@@ -363,10 +363,10 @@ def get_alert_manager() -> AlertManager:
                 try:
                     from config.settings import settings
                     _am_instance = AlertManager(
-                        error_rate_warning=getattr(settings, "alert_error_rate_warning", 0.15),
-                        error_rate_critical=getattr(settings, "alert_error_rate_critical", 0.30),
-                        p95_warning_ms=getattr(settings, "alert_p95_warning_ms", 8000.0),
-                        p95_critical_ms=getattr(settings, "alert_p95_critical_ms", 15000.0),
+                        error_rate_warning=settings.alert_error_rate_warning,
+                        error_rate_critical=settings.alert_error_rate_critical,
+                        p95_warning_ms=settings.alert_p95_warning_ms,
+                        p95_critical_ms=settings.alert_p95_critical_ms,
                     )
                 except Exception:
                     _am_instance = AlertManager()

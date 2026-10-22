@@ -113,7 +113,7 @@ class DispatcherHandlersExtraMixin(DispatcherPlanMixin):
 
     def _coder_de_respaldo(self) -> Optional[Any]:
         """Agente de código con el modelo de respaldo (creado una sola vez)."""
-        nombre = (getattr(settings, "llm_code_model_fallback", "") or "").strip()
+        nombre = (settings.llm_code_model_fallback or "").strip()
         if not nombre or nombre == settings.llm_code_model:
             return None
         agente = getattr(self, "_coder_fallback", None)
@@ -507,7 +507,7 @@ class DispatcherHandlersExtraMixin(DispatcherPlanMixin):
                                  success=result.success, error=result.error)
             return Response(
                 content=result.content,
-                session_id=session_id, model_used=getattr(settings, 'validator_model', None) or settings.llm_fallback_1 or settings.llm_default_model,  # v0.6.9h
+                session_id=session_id, model_used=settings.validator_model or settings.llm_fallback_1 or settings.llm_default_model,  # v0.6.9h
                 task_type=task_type, latency_ms=(time.time() - start) * 1000,
                 confidence=getattr(result, 'confidence', 0.0),
                 sources=[], validation_passed=getattr(result, 'validation_passed', False),
@@ -677,7 +677,7 @@ class DispatcherHandlersExtraMixin(DispatcherPlanMixin):
         # tokens son ~40-50 s más de espera). Respuestas cortas por defecto y
         # ampliar sólo si el usuario lo pide es la palanca de velocidad más
         # barata que existe; el interruptor permite medirlo y revertirlo.
-        if getattr(settings, "chat_respuestas_breves", True):
+        if settings.chat_respuestas_breves:
             system_prompt += (
                 "\n\nSé BREVE: respondé en 1-3 oraciones (o pocos ítems si son "
                 "pasos) y no repitas la pregunta. Si el usuario pide más detalle, "
@@ -737,7 +737,7 @@ class DispatcherHandlersExtraMixin(DispatcherPlanMixin):
         _stream_cb = (getattr(message, "metadata", None) or {}).get("_on_token")
         if (
             not _tools_active
-            and getattr(settings, "stream_chat_tokens", False)
+            and settings.stream_chat_tokens
             and callable(_stream_cb)
         ):
             try:
@@ -1170,7 +1170,7 @@ class DispatcherHandlersExtraMixin(DispatcherPlanMixin):
                 # y en el validation-fallback de dispatcher.py. asyncio.to_thread
                 # + asyncio.wait_for logra lo mismo (override de timeout incluido)
                 # sin congelar nada más mientras espera.
-                base_timeout    = getattr(settings, "ollama_timeout_vision", 150)
+                base_timeout    = settings.ollama_timeout_vision
                 extended_timeout = base_timeout + 90
                 logger.info(f"VisionAgent retry: override timeout {base_timeout}s → {extended_timeout}s")
                 _log_event("VISION_AGENT", "Retry con timeout extendido", extra={

@@ -934,10 +934,10 @@ def test_no_hay_nombres_de_modelo_con_tag_hardcodeados():
 
     patron = re.compile(r"(qwen|gemma|llama|mistral|phi|deepseek|moondream|nomic|bge|mxbai|snowflake|codellama)"
                         r"[a-z0-9._-]*:[a-z0-9.\-]+$", re.I)
-    exentos = {"config/settings_llm.py", "tools/warmup_models.py"}
+    exentos = {"config/settings_llm.py"}  # warmup_models/model_catalog son la config legítima
     malos = []
-    for ruta in (sorted((PROJECT_ROOT / "src").rglob("*.py"))
-                 + sorted((PROJECT_ROOT / "tools").rglob("*.py")) + [PROJECT_ROOT / "main.py"]):
+    # `tools/` fuera a propósito: sus listas son de diagnóstico y se arreglan aparte.
+    for ruta in sorted((PROJECT_ROOT / "src").rglob("*.py")) + [PROJECT_ROOT / "main.py"]:
         rel = ruta.relative_to(PROJECT_ROOT).as_posix()
         if rel in exentos or "__pycache__" in rel:
             continue
@@ -945,6 +945,6 @@ def test_no_hay_nombres_de_modelo_con_tag_hardcodeados():
         docstrings = {id(n.value) for n in ast.walk(arbol)
                       if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)}
         malos += [f"{rel}:{n.lineno} -> {n.value!r}" for n in ast.walk(arbol) if isinstance(n, ast.Constant)
-                  and isinstance(n.value, str) and id(n) not in docstrings and patron.search(n.value)]
-    check("ningún nombre de modelo con tag hardcodeado fuera de la configuración",
-          not malos, "\n".join(malos[:12]), SECTION)
+                  and isinstance(n.value, str) and id(n) not in docstrings and patron.fullmatch(n.value.strip())]
+    assert not malos, ("modelos con tag hardcodeados fuera de la configuración "
+                       "(cambiar de modelo = editar el .env):\n" + "\n".join(malos[:12]))

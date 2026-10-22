@@ -317,15 +317,13 @@ class SemanticCacheL3:
         nunca rompe el set() principal.
         """
         try:
-            if not getattr(settings, "multi_query_store_l3_variants", True):
+            if not settings.multi_query_store_l3_variants:
                 return
-            if len(query.strip()) < getattr(
-                settings, "multi_query_min_length", self.MIN_QUERY_LENGTH_FOR_SEMANTIC_MATCH
-            ):
+            if len(query.strip()) < settings.multi_query_min_length:
                 return
 
             from src.memory.multi_query import expand_query
-            max_variants = getattr(settings, "multi_query_max_variants", 4)
+            max_variants = settings.multi_query_max_variants
             variants = expand_query(query, max_variants=max_variants)
             if len(variants) <= 1:
                 return  # Sin variantes extra — nada que guardar

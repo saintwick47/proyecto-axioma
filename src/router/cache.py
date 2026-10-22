@@ -191,7 +191,7 @@ class RouterCache:
         # ✅ MEDIDO (2026-10-03): default desde `settings.cache_semantica_umbral`
         # (0.60 servía respuestas de preguntas distintas: 0.603-0.635 medidos).
         l3_similarity_threshold: float = float(
-            getattr(settings, "cache_semantica_umbral", 0.85)),
+            settings.cache_semantica_umbral),
         l3_ttl_seconds: int = 3600,
         l3_max_entries: int = 500,
     ):
@@ -688,7 +688,7 @@ def get_router_cache(
     # ✅ MEDIDO (2026-10-03): 0.60 daba falsos positivos; el default sale de
     # `settings.cache_semantica_umbral` (0.85).
     l3_similarity_threshold: float = float(
-        getattr(settings, "cache_semantica_umbral", 0.85)),
+        settings.cache_semantica_umbral),
 ) -> RouterCache:
     """Retorna la instancia singleton de RouterCache."""
     global _router_cache_instance

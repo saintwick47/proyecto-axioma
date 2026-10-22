@@ -47,8 +47,8 @@ def _default_users() -> List[Dict[str, Any]]:
     """
     try:
         from config.settings import settings
-        uid = getattr(settings, "axioma_user_id", "") or ""
-        role = getattr(settings, "axioma_user_role", "user") or "user"
+        uid = settings.axioma_user_id or ""
+        role = settings.axioma_user_role or "user"
     except Exception as e:
         log_degraded(logger, e, "src/memory/user_registry.py:_default_users")
         return []

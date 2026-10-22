@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # ✅ v0.3.1: Modelo principal de código — settings.llm_code_model (qwen2.5-coder:7b).
 # Cambiar aquí afecta todo el sistema de routing de código.
-CODE_MODEL = getattr(settings, "llm_code_model", "qwen2.5-coder:7b")
+CODE_MODEL = settings.llm_code_model
 
 # Umbrales de calidad por nivel de código generado.
 QUALITY_THRESHOLDS: Dict[str, Dict[str, Any]] = {
@@ -91,8 +91,8 @@ class FallbackStrategy:
         if task_type == "code_generation":
             return CODE_MODEL                          # settings.llm_code_model
         if task_type == "complex_reasoning":
-            return getattr(settings, "llm_default_model", "qwen3:8b")  # modelo general instalado
-        return getattr(settings, "llm_fallback_1", "qwen2.5-coder:7b")  # fallback ligero instalado
+            return settings.llm_default_model  # modelo general instalado
+        return settings.llm_fallback_1  # fallback ligero instalado
 
     def get_timeout_for_level(self, level: int) -> int:
         return LEVEL_TIMEOUTS.get(level, 300)
@@ -266,9 +266,9 @@ class APIRequirementEvaluator:
         config = self.API_REQUIRED_TASKS[task_type]
 
         api_keys = {
-            "tavily":  getattr(settings, "tavily_api_key", None) if SETTINGS_AVAILABLE else None,
-            "serper":  getattr(settings, "serper_api_key", None) if SETTINGS_AVAILABLE else None,
-            "newsapi": getattr(settings, "news_api_key", None) if SETTINGS_AVAILABLE else None,
+            "tavily":  settings.tavily_api_key if SETTINGS_AVAILABLE else None,
+            "serper":  settings.serper_api_key if SETTINGS_AVAILABLE else None,
+            "newsapi": settings.news_api_key if SETTINGS_AVAILABLE else None,
         }
 
         available = [api for api in config["apis"] if api_keys.get(api)]
@@ -276,11 +276,11 @@ class APIRequirementEvaluator:
 
     def get_api_status(self) -> Dict[str, Any]:
         """Estado de configuración de APIs externas."""
-        has_tavily = bool(getattr(settings, "tavily_api_key", None)) if SETTINGS_AVAILABLE else False
-        has_serper = bool(getattr(settings, "serper_api_key", None)) if SETTINGS_AVAILABLE else False
-        has_newsapi = bool(getattr(settings, "news_api_key", None)) if SETTINGS_AVAILABLE else False
-        has_google = (bool(getattr(settings, "google_api_key", None)) and
-                      bool(getattr(settings, "search_engine_id", None))) if SETTINGS_AVAILABLE else False
+        has_tavily = bool(settings.tavily_api_key) if SETTINGS_AVAILABLE else False
+        has_serper = bool(settings.serper_api_key) if SETTINGS_AVAILABLE else False
+        has_newsapi = bool(settings.news_api_key) if SETTINGS_AVAILABLE else False
+        has_google = (bool(settings.google_api_key) and
+                      bool(settings.search_engine_id)) if SETTINGS_AVAILABLE else False
 
         return {
             "tavily":        has_tavily,

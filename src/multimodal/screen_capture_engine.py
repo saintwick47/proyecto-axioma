@@ -612,8 +612,8 @@ class ImageProcessor:
         # - native_w/h del monitor detectado es el techo real
         # - settings solo puede bajar (override explícito), nunca subir
         # - fallback 3840x2160 → sin resize en monitores ≤4K
-        cfg_w = getattr(settings, 'vision_capture_max_width',  3840)
-        cfg_h = getattr(settings, 'vision_capture_max_height', 2160)
+        cfg_w = settings.vision_capture_max_width
+        cfg_h = settings.vision_capture_max_height
 
         if native_w > 0 and native_h > 0:
             max_w = native_w if cfg_w >= native_w else cfg_w
@@ -628,7 +628,7 @@ class ImageProcessor:
             w, h = new_w, new_h
             logger.debug(f"[ImageProcessor] resize → {w}x{h} (native={native_w}x{native_h} cfg={cfg_w}x{cfg_h})")
 
-        quality   = getattr(settings, 'vision_jpeg_quality', 82)
+        quality   = settings.vision_jpeg_quality
         max_bytes = 512 * 1024
 
         buf = io.BytesIO()

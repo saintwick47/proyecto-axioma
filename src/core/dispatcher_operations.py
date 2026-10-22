@@ -157,9 +157,9 @@ class DispatcherOperationsMixin:
                 logger.warning(f"[HEALING] CIRCUIT_BREAK: {handler} — rechazo activo en _dispatch()")
 
             elif action_value == "fallback_model":
-                logger.warning(f"[HEALING] FALLBACK_MODEL: {handler} → {getattr(settings, 'llm_fallback_1', 'N/A')}")
+                logger.warning(f"[HEALING] FALLBACK_MODEL: {handler} → {settings.llm_fallback_1}")
                 if self._routing_cache:
-                    fallback_model = getattr(settings, 'llm_fallback_1', settings.llm_default_model)
+                    fallback_model = settings.llm_fallback_1
                     cached = self._routing_cache.get(f"__model_{task_type}")
                     if cached:
                         cached["model"] = fallback_model
@@ -355,9 +355,9 @@ class DispatcherOperationsMixin:
         logger.info("🔥 Iniciando pre-warm cache...")
 
         critical_models = [
-            getattr(settings, "llm_default_model", "qwen3:8b"),
-            getattr(settings, "llm_code_model", "qwen2.5-coder:7b"),
-            getattr(settings, "llm_embed_model", "BAAI/bge-m3"),
+            settings.llm_default_model,
+            settings.llm_code_model,
+            settings.llm_embed_model,
         ]
         for model in critical_models:
             try:

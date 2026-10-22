@@ -102,8 +102,8 @@ def health_check() -> Dict[str, Any]:
 
     return {
         "status": "ok",
-        "host": settings.host if hasattr(settings, 'host') else "127.0.0.1",
-        "port": settings.port if hasattr(settings, 'port') else 8000,
+        "host": settings.host,
+        "port": settings.port,
         "version": __version__,
         "frontend": "nicegui",
         "backend": "fastapi",

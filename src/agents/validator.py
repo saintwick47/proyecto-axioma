@@ -214,7 +214,7 @@ VEREDICTO: APROBADO o RECHAZADO"""
             max_tokens: Máximo de tokens para respuestas (default 512)
         """
         super().__init__(
-            model=model or (getattr(settings, 'validator_model', None) or settings.llm_fallback_1 or settings.llm_default_model),  # v0.6.9h
+            model=model or (settings.validator_model or settings.llm_fallback_1 or settings.llm_default_model),  # v0.6.9h
             temperature=temperature,
             # ✅ FIX: sin resolver acá — None deja que BaseAgent/OllamaClientBase
             # calculen el timeout por scenario (STANDARD por default en Validator).

@@ -295,7 +295,7 @@ class DispatcherPlanMixin:
         if not subtasks or not tokens:
             return None
 
-        max_steps = int(getattr(settings, "plan_max_steps", 2) or 2)
+        max_steps = int(settings.plan_max_steps or 2)
         if max_steps <= 1:
             return tokens[:1]
 
@@ -351,12 +351,12 @@ class DispatcherPlanMixin:
         # generaciones CPU — por eso es opt-in.
         _note = (response.metadata or {}).get("pipeline_validator") or {}
         if (
-            getattr(settings, "plan_refine_enabled", False)
+            settings.plan_refine_enabled
             and pipeline
             and pipeline[-1] == "validator"
             and _note.get("score") is not None
             and float(_note["score"]) < float(
-                getattr(settings, "plan_refine_min_score", 9.0))
+                settings.plan_refine_min_score)
             and (_note.get("note") or "").strip()
         ):
             _critique = _note["note"][:1500]

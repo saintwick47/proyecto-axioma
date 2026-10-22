@@ -391,25 +391,25 @@ class WebServer:
                 print("="*60 + "\n")
 
                 first_load_timeout = settings.get_timeout_for_model(
-                    model_name=settings.llm_default_model if hasattr(settings, 'llm_default_model') else "qwen3:8b",
+                    model_name=settings.llm_default_model,
                     is_first=True
                 ) if hasattr(settings, 'get_timeout_for_model') else 65
 
                 client = OllamaClient(
-                    model=settings.llm_default_model if hasattr(settings, 'llm_default_model') else "qwen3:8b",
+                    model=settings.llm_default_model,
                     timeout=first_load_timeout
                 )
 
                 if not client.health_check(timeout=5.0):
                     _log_web_event("SERVER", "Ollama not available",
-                                  extra={"host": settings.ollama_host if hasattr(settings, 'ollama_host') else 'http://127.0.0.1:11434'})
-                    logger.warning(f"⚠️  Ollama no disponible en {settings.ollama_host if hasattr(settings, 'ollama_host') else 'http://127.0.0.1:11434'}")
+                                  extra={"host": settings.ollama_host})
+                    logger.warning(f"⚠️  Ollama no disponible en {settings.ollama_host}")
                     print(f"⚠️  Ollama no disponible - algunas funciones limitadas")
                     print(f"   💡 Ejecuta: ollama serve")
                     client.close()
                     return
 
-                print(f"✅ Ollama conectado: {settings.ollama_host if hasattr(settings, 'ollama_host') else 'http://127.0.0.1:11434'}")
+                print(f"✅ Ollama conectado: {settings.ollama_host}")
 
                 available_models = {m["name"]: m for m in client.list_models()}
 
@@ -450,11 +450,11 @@ class WebServer:
                 print("=" * 60)
                 print("\nConfiguración de Timeouts Progresivos:")
                 print("  " + "-"*50)
-                print(f"  • Standard (operaciones normales):  {settings.ollama_timeout_standard if hasattr(settings, 'ollama_timeout_standard') else 45}s")
-                print(f"  • First Load (primera carga):       {settings.ollama_timeout_first_load if hasattr(settings, 'ollama_timeout_first_load') else 65}s")
-                print(f"  • Vision (modelos de visión):       {settings.ollama_timeout_vision if hasattr(settings, 'ollama_timeout_vision') else 55}s")
-                print(f"  • Embed (embeddings):               {settings.ollama_timeout_embed if hasattr(settings, 'ollama_timeout_embed') else 35}s")
-                print(f"  • Code (generación código):         {settings.ollama_timeout_code if hasattr(settings, 'ollama_timeout_code') else 150}s")
+                print(f"  • Standard (operaciones normales):  {settings.ollama_timeout_standard}s")
+                print(f"  • First Load (primera carga):       {settings.ollama_timeout_first_load}s")
+                print(f"  • Vision (modelos de visión):       {settings.ollama_timeout_vision}s")
+                print(f"  • Embed (embeddings):               {settings.ollama_timeout_embed}s")
+                print(f"  • Code (generación código):         {settings.ollama_timeout_code}s")
                 print("=" * 60)
 
                 client.close()
@@ -518,9 +518,9 @@ class WebServer:
         print("="*60)
         print(f"\n🌐 Servidor web iniciado en http://{self.host}:{self.port}")
         print(f"📁 Directorio web: {self.static_path}")
-        print(f"⏱️  Timeout estándar: {settings.ollama_timeout_standard if hasattr(settings, 'ollama_timeout_standard') else 45}s")
-        print(f"⏱️  Timeout primera carga: {settings.ollama_timeout_first_load if hasattr(settings, 'ollama_timeout_first_load') else 65}s")
-        print(f"⏱️  Timeout código: {settings.ollama_timeout_code if hasattr(settings, 'ollama_timeout_code') else 150}s")
+        print(f"⏱️  Timeout estándar: {settings.ollama_timeout_standard}s")
+        print(f"⏱️  Timeout primera carga: {settings.ollama_timeout_first_load}s")
+        print(f"⏱️  Timeout código: {settings.ollama_timeout_code}s")
         print("\n🛑 Presiona Ctrl+C para detener\n")
 
         if hasattr(settings, 'should_verify_models_on_startup') and settings.should_verify_models_on_startup:
@@ -655,8 +655,8 @@ if __name__ == "__main__":
     _log_web_event("SERVER", "Direct execution detected")
 
     server = create_web_server(
-        host=settings.host if hasattr(settings, 'host') else "127.0.0.1",
-        port=settings.port if hasattr(settings, 'port') else 8000,
+        host=settings.host,
+        port=settings.port,
         open_browser=True,
     )
     server.start()

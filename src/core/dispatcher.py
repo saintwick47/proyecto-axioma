@@ -191,7 +191,7 @@ class Dispatcher(DispatcherDistributedMixin, DispatcherHandlersMixin, Dispatcher
 
         # ✅ UI de usuarios (2026-08-31): identidad de la sesión → memoria
         # (Capa 2) aislada por usuario. Respaldo: la identidad configurada.
-        self._user_id = user_id or getattr(settings, "axioma_user_id", "")
+        self._user_id = user_id or settings.axioma_user_id
 
         # Agentes lazy
         self._classifier: Optional[IntentClassifier] = None
@@ -437,7 +437,7 @@ class Dispatcher(DispatcherDistributedMixin, DispatcherHandlersMixin, Dispatcher
         if self._validator is None:
             self._validator = (
                 self._agent_factory("validator") if self._agent_factory
-                else ValidatorAgent(model=getattr(settings, 'validator_model', None) or settings.llm_fallback_1 or settings.llm_default_model)  # v0.6.9h
+                else ValidatorAgent(model=settings.validator_model or settings.llm_fallback_1 or settings.llm_default_model)  # v0.6.9h
             )
             logger.debug(f"ValidatorAgent lazy initialized (model={settings.llm_fallback_1})")
             _log_event("DISPATCHER", "ValidatorAgent lazy initialized", extra={
@@ -467,7 +467,7 @@ class Dispatcher(DispatcherDistributedMixin, DispatcherHandlersMixin, Dispatcher
                 self._vision_agent = VisionAgent()
                 logger.debug("VisionAgent lazy initialized")
                 _log_event("DISPATCHER", "VisionAgent lazy initialized", extra={
-                    "model": getattr(settings, "llm_vision_model", "qwen2.5-vl:7b"),
+                    "model": settings.llm_vision_model,
                 })
             except Exception as e:
                 logger.warning(f"VisionAgent no disponible: {e}")

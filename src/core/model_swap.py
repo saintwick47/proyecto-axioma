@@ -269,7 +269,7 @@ class ModelSwap:
                 # modelo) como máximo de ambos.
                 wait_timeout = max(
                     float(self._swap_timeout),
-                    float(getattr(settings, "vram_lock_wait_timeout", 300.0)),
+                    float(settings.vram_lock_wait_timeout),
                 )
                 logger.info("[ModelSwap] VRAM locked — esperando liberación...")
                 unlocked = wait_for_vram_unlock(timeout=wait_timeout)

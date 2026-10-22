@@ -370,7 +370,7 @@ class AgentLoop:
             # Respetar settings.max_reasoning_tokens si disponible
             try:
                 from config.settings import settings
-                max_budget = getattr(settings, "max_reasoning_tokens", 2048)
+                max_budget = settings.max_reasoning_tokens
             except Exception:
                 max_budget = 2048
             return max(512, min(budget, max_budget))

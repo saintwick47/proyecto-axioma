@@ -376,7 +376,7 @@ REGLAS ESTRICTAS:
         Reutiliza ExternalAPIManager.search_engine(engine='google'). Sin key →
         devuelve [] (cae al siguiente proveedor).
         """
-        if not getattr(settings, "serpapi_api_key", None):
+        if not settings.serpapi_api_key:
             return []
         try:
             import asyncio

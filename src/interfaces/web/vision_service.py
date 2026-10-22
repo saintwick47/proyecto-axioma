@@ -154,8 +154,8 @@ def describe_image(
     # ── Modo real: prompt neutro + preprocesado + gestión de RAM ──
     from config.settings import settings
     import time as _time
-    model = getattr(settings, "llm_vision_model", None)
-    host = getattr(settings, "ollama_host", "http://127.0.0.1:11434")
+    model = settings.llm_vision_model
+    host = settings.ollama_host
     t0 = _time.time()
     out: Optional[str] = None
     error: Optional[str] = None
@@ -163,12 +163,11 @@ def describe_image(
     try:
         # ✅ Fase 2: si pide leer/transcribir texto, Tesseract local es más
         # exacto (texto chico/mediano/impreso) y ~100x más rápido que el VLM.
-        if getattr(settings, "vision_ocr_enabled", True) and \
+        if settings.vision_ocr_enabled and \
                 _instruction_pide_lectura(instruction):
             from src.interfaces.web.vision_ocr import ocr_image
             ocr = ocr_image(image_b64)
-            if ocr is not None and ocr.confidence >= getattr(
-                    settings, "vision_ocr_min_conf", 60.0):
+            if ocr is not None and ocr.confidence >= settings.vision_ocr_min_conf:
                 out = ocr.text
                 via = "ocr"
 
@@ -184,7 +183,7 @@ def describe_image(
             from src.agents.vision_agent import describe_generic_image
             variants = build_variants(
                 image_b64,
-                enabled=getattr(settings, "vision_preprocess_enabled", True),
+                enabled=settings.vision_preprocess_enabled,
             )
             last_error: Optional[Exception] = None
             for variant in variants:

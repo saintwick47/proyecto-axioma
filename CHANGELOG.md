@@ -49,6 +49,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   (motor de reglas por palabras clave) y `classifier_scoring.py` (preprocesado, calibración y umbral
   adaptativo). `IntentClassifierCore` hereda esos mixins, así que **nada de lo que ya usaba el
   clasificador cambió**. Cada parte se verificó con la suite completa y el gate **antes y después**.
+- **La misma refactorización siguió con la configuración y el dispatcher**: `config/settings.py` pasó de
+  **1146 a 319 líneas** (10 módulos hermanos por dominio: `settings_llm`, `settings_agents`,
+  `settings_memory`, `settings_tools`, `settings_vision`, `settings_evaluator`, `settings_jarvis`,
+  `settings_paths`, `settings_security`, `settings_web`), con una **huella de `model_fields`** (222 campos:
+  nombre+anotación+default+requerido+alias) verificada idéntica en cada una de las 12 sub-piezas; y
+  `src/core/dispatcher_process.py` de **1423 a 990 líneas** (13 métodos movidos a
+  `dispatcher_process_steps.py`, todos por debajo del umbral de 80 líneas que mide el auditor).
+- **Una sola fuente de verdad para los modelos.** Se agregó un **test-guard que prohíbe los nombres de
+  modelo con tag hardcodeados** fuera de la configuración, se sacaron **175 fallbacks muertos** (la rama
+  `getattr(settings, "X", "…")` nunca corría porque el campo existe) y se corrigieron **tres
+  configuraciones que se ignoraban**: el clasificador consultaba `ollama_base_url` (campo inexistente) en
+  vez de `ollama_host`; el keep-alive de Ollama pasó a ser un campo real (`ollama_keep_alive`, default
+  `30m`) que leen los 5 sitios —los modelos que no son el default pasan de `5m` a `30m`—; y el timeout usa
+  `ollama_timeout_standard` (con su validador de 30-90 s) en lugar de un `ollama_timeout` que no existía.
+  **Cambiar de modelo ahora es editar el `.env`**, y la suite lo defiende.
 - **La imagen instala 5 paquetes menos** (`requirements-ci.txt`): `customtkinter`, `kubernetes`,
   `playwright`, `pyinstaller` y `git-filter-repo`. **Medido antes de sacarlos**: 0 referencias en `src/`,
   `main.py`, `config/` y `tools/`, y 0 en la suite — ni el producto, ni el CI, ni las pruebas los importan

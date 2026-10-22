@@ -74,8 +74,8 @@ def _log_location(method: str, location: str, success: bool, duration: float = N
                level="INFO" if success else "WARNING", extra=extra)
 
 # Fallback location configurable (default: user's known location)
-DEFAULT_LOCATION = getattr(settings, 'default_location', 'Córdoba, Argentina')
-DEFAULT_TIMEZONE = getattr(settings, 'default_timezone', 'America/Argentina/Cordoba')
+DEFAULT_LOCATION = settings.default_location
+DEFAULT_TIMEZONE = settings.default_timezone
 
 # IP Geolocation API (free, no key required)
 IP_API_URL = "http://ip-api.com/json/"
@@ -307,7 +307,7 @@ class Geolocator:
             city = parts[0] if len(parts) >= 1 else ""
             country = parts[1] if len(parts) >= 2 else ""
             location = GeoLocation(city=city, region="", country=country, country_code="",
-                                  timezone=getattr(settings, "default_timezone", DEFAULT_TIMEZONE))
+                                  timezone=settings.default_timezone)
             _log_location("settings_default", location.full_location, success=True, source="settings.py")
             return location
 

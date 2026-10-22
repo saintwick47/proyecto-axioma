@@ -28,6 +28,7 @@ from pathlib import Path
 from nicegui import ui
 
 from src.utils.degradation import log_degraded
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ def _seccion_chequeo_de_modelo() -> None:
                     ui.label(str(resultado["aviso"])).classes('text-xs opacity-70')
 
         with ui.row().classes('items-center gap-2 w-full'):
-            campo = ui.input(placeholder="qwen3:8b").props("dense").classes('flex-1')
+            campo = ui.input(placeholder=settings.llm_default_model).props("dense").classes('flex-1')
             ui.button('Revisar', on_click=revisar).props('dense color=primary')
 
 

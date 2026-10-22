@@ -181,7 +181,7 @@ class MemoryGateway(MemoryGatewayOps):
         # ✅ v0.6.9c (M1): política de retención — poda de sesiones viejas en
         # background (settings.memory_retention_days, 0 = off). No bloquea el
         # init; se ejecuta una vez por gateway con la política activa.
-        _retention = int(getattr(settings, "memory_retention_days", 0) or 0)
+        _retention = int(settings.memory_retention_days or 0)
         if _retention > 0:
             self._submit(self._prune_old_sessions, _retention)
 
@@ -300,8 +300,8 @@ class MemoryGateway(MemoryGatewayOps):
             from .short_term import ShortTermMemory
             self._short_term = ShortTermMemory(
                 session_id=self.session_id,
-                max_messages=settings.max_context_messages if hasattr(settings, 'max_context_messages') else 50,
-                ttl_seconds=settings.session_timeout if hasattr(settings, 'session_timeout') else 3600,
+                max_messages=settings.max_context_messages,
+                ttl_seconds=settings.session_timeout,
             )
             _log_memory("init_short_term", "short_term",
                         session_id=self.session_id, duration=time.time() - start, success=True)
@@ -509,7 +509,7 @@ class MemoryGateway(MemoryGatewayOps):
         # (la validación lo daba por bueno: validaba que funcionara, no qué se pidió).
         # El contexto del código se gana con el pedido, no con la conversación vecina.
         if (str(task_type or "").startswith("code")
-                and not getattr(settings, "cross_session_en_codigo", False)):
+                and not settings.cross_session_en_codigo):
             _log_memory("get_context", "sin_cross_session_por_codigo",
                         session_id=self.session_id, items_count=len(selected),
                         success=True)
@@ -519,8 +519,8 @@ class MemoryGateway(MemoryGatewayOps):
             return selected
         estimator = getattr(self, "_estimator", None)
         try:
-            limit = int(getattr(settings, "cross_session_limit", 3))
-            min_sim = float(getattr(settings, "cross_session_min_similarity", 0.5))
+            limit = int(settings.cross_session_limit)
+            min_sim = float(settings.cross_session_min_similarity)
             if limit <= 0:
                 return selected
             hits = self.search_semantic(
@@ -652,8 +652,8 @@ class MemoryGateway(MemoryGatewayOps):
             # semántica usa expansión determinística + batch BGE-M3 + RRF.
             # El costo extra es de +0-200ms (sin LLM) — ver src/memory/multi_query.py.
             _multi_enabled = (
-                getattr(settings, "multi_query_enabled", True)
-                and len(query.strip()) >= getattr(settings, "multi_query_min_length", 30)
+                settings.multi_query_enabled
+                and len(query.strip()) >= settings.multi_query_min_length
                 and self._semantic is not None
             )
 
@@ -671,10 +671,10 @@ class MemoryGateway(MemoryGatewayOps):
                                 user_id=user_filter,  # ✅ Capa 2
                             ),
                             embed_batch_fn=self._multi_query_embed_batch,
-                            max_variants=getattr(settings, "multi_query_max_variants", 4),
+                            max_variants=settings.multi_query_max_variants,
                             limit=limit,
                             min_similarity=min_similarity,
-                            rrf_k=getattr(settings, "multi_query_rrf_k", 60),
+                            rrf_k=settings.multi_query_rrf_k,
                         )
                     except Exception as e:
                         logger.warning(f"Multi-query search failed, falling back: {e}")
@@ -716,13 +716,13 @@ class MemoryGateway(MemoryGatewayOps):
             # Sume similitud semántica + coincidencia léxica (sin modelos;
             # mejora grounding). OFF por default — activar con
             # settings.hybrid_bm25_enabled = true tras medir.
-            if getattr(settings, "hybrid_bm25_enabled", False) and results:
+            if settings.hybrid_bm25_enabled and results:
                 try:
                     from src.utils.bm25 import bm25_scores
                     texts = [r.get("text", "") for r in results]
                     bm = bm25_scores(query, texts)
                     mx = max(bm) if bm else 0.0
-                    w = float(getattr(settings, "hybrid_bm25_weight", 0.5))
+                    w = float(settings.hybrid_bm25_weight)
                     for r, score in zip(results, bm):
                         lex = score / mx if mx > 0 else 0.0
                         r["similarity"] = round(

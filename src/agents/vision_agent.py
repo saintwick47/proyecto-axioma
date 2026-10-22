@@ -271,9 +271,9 @@ class VisionAgent:
         # ✅ FIX: el fallback ya no apunta a gemma4:e4b (desinstalado) —
         # settings.llm_vision_model es un campo real, este default solo
         # aplica si esa lectura fallara por completo.
-        self.model   = model   or getattr(settings, "llm_vision_model", settings.llm_default_model)
-        self.host    = host    or getattr(settings, "ollama_host", "http://127.0.0.1:11434")
-        self.timeout = timeout or getattr(settings, "ollama_timeout_vision", 120)
+        self.model   = model   or settings.llm_vision_model
+        self.host    = host    or settings.ollama_host
+        self.timeout = timeout or settings.ollama_timeout_vision
         self._client = _OllamaVisionClient(self.host, self.model, self.timeout)
 
         logger.info(
@@ -332,7 +332,7 @@ class VisionAgent:
 
         # ── Configuración de Resize ─────────────────────────────
         # Usamos settings para max width, fallback a 800
-        max_w = getattr(settings, 'vision_capture_max_width', 800)
+        max_w = settings.vision_capture_max_width
         processed_image = _resize_image_b64(image_b64, max_dim=max_w, quality=82)
 
         prompt, system = _build_prompt(user_query, context_hint, active_window)
@@ -485,12 +485,11 @@ def describe_generic_image(
     """
     if not image_b64:
         raise RuntimeError("no hay imagen (image_b64 vacío)")
-    model = model or getattr(settings, "llm_vision_model",
-                             settings.llm_default_model)
-    host = host or getattr(settings, "ollama_host", "http://127.0.0.1:11434")
-    timeout = timeout or getattr(settings, "ollama_timeout_vision", 120)
+    model = model or settings.llm_vision_model
+    host = host or settings.ollama_host
+    timeout = timeout or settings.ollama_timeout_vision
     if num_predict is None:
-        num_predict = getattr(settings, "vision_num_predict", 512)
+        num_predict = settings.vision_num_predict
 
     client = _OllamaVisionClient(host, model, timeout)
     processed = _resize_image_b64(image_b64, max_dim=max_dim, quality=82)

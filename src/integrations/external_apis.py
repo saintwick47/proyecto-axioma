@@ -123,7 +123,7 @@ class ExternalAPIManager:
     def __init__(self, timeout: Optional[int] = None):
         """Inicializa gestor de APIs externas con timeout configurable."""
         start_init = time.time()
-        self.timeout = timeout or getattr(settings, 'ollama_timeout', 25)
+        self.timeout = timeout or getattr(settings, 'ollama_timeout_standard', 25)
         self._initialized = False
         self._session = None
         self._api_status = {api: False for api in self._SUPPORTED_APIS}
@@ -372,7 +372,7 @@ class ExternalAPIManager:
         Motores: google_images, youtube, google_maps, google_shopping,
         google_scholar, google_patents. Devuelve {title, url, content}.
         """
-        key = getattr(settings, "serpapi_api_key", None)
+        key = settings.serpapi_api_key
         if not key:
             logger.warning(f"[external_apis] search_engine({engine}): sin key")
             return []
@@ -416,8 +416,8 @@ class ExternalAPIManager:
         Se activa automáticamente si .env tiene GOOGLE_API_KEY y
         SEARCH_ENGINE_ID (CX).
         """
-        if not (getattr(settings, "google_api_key", None)
-                and getattr(settings, "search_engine_id", None)):
+        if not (settings.google_api_key
+                and settings.search_engine_id):
             return []
         params = {"key": settings.google_api_key,
                   "cx": settings.search_engine_id,
@@ -459,8 +459,8 @@ class ExternalAPIManager:
             logger.warning("No external APIs available for web search")
             return []
         providers = ["tavily", "serper", "serpapi"]
-        if getattr(settings, "google_api_key", None) and \
-                getattr(settings, "search_engine_id", None):
+        if settings.google_api_key and \
+                settings.search_engine_id:
             providers.append("google_cse")  # ✅ v0.6.9q: Google Custom Search
         for api_name in providers:
             if api_name in available or api_name == "google_cse":
@@ -532,7 +532,7 @@ class ExternalAPIManager:
         ✅ v0.6.9q: proveedor nuevo — usa GET con api_key en query string y
         parsea organic_results. Fallback en cascada tras tavily/serper.
         """
-        if not getattr(settings, "serpapi_api_key", None):
+        if not settings.serpapi_api_key:
             return []
         try:
             import httpx
@@ -567,7 +567,7 @@ class ExternalAPIManager:
         ✅ v0.6.9q: mismo formato que NewsAPI para _format_news_results:
         title / description / source / url / published_at.
         """
-        key = getattr(settings, "serpapi_api_key", None)
+        key = settings.serpapi_api_key
         if not key:
             return []
         gl = {"argentina": "ar", "españa": "es", "méxico": "mx"}.get(
@@ -649,7 +649,7 @@ class ExternalAPIManager:
         _log_event("INTEGRATION", f"get_news() started: query='{query[:50]}...', location={location}")
         if not self._api_status.get("newsapi"):
             # ✅ v0.6.9q: sin NewsAPI → SerpAPI google_news como respaldo
-            if getattr(settings, "serpapi_api_key", None):
+            if settings.serpapi_api_key:
                 logger.info("NewsAPI no disponible — usando SerpAPI google_news")
                 return await self._news_serpapi(query, location)
             _log_event("INTEGRATION", "get_news() skipped: NewsAPI not available", level="WARNING")
