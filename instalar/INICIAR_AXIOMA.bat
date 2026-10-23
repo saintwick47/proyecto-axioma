@@ -1,7 +1,7 @@
 @echo off
-REM ═══════════════════════════════════════════════════════════════
+REM ===============================================================
 REM AXIOMA - ARRANCAR EN WINDOWS (DOBLE CLIC)
-REM ═══════════════════════════════════════════════════════════════
+REM ===============================================================
 REM Igual que INSTALAR_AXIOMA.bat pero para el uso diario: enciende AXIOMA,
 REM espera a que responda y abre el navegador.
 REM   -Detener detiene: para eso, abrir PowerShell y correr

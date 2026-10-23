@@ -5,7 +5,25 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Sin publicar] — AXIOMA en contenedores (instalable)
+## [Sin publicar]
+
+### Agregado
+- **El pull de la imagen queda cubierto por la suite** (`tests/test_axioma_32_instaladores_pull.py`):
+  ejecuta el instalador **real** sobre un árbol temporal con un `docker` **falso** en el `PATH` —sin red ni
+  Docker real— que registra cada llamada y falla los `pull` que se le piden por entorno. Cubre los **4
+  escenarios**: baja el tag de `AXIOMA_VERSION` y lo etiqueta `axioma:local` sin construir; si el tag falla
+  prueba `latest` y, si baja, tampoco construye; si fallan los dos hace los dos `pull` **y** el `build`; y
+  sin `AXIOMA_REPO` no intenta ningún `pull` y construye como antes. La suite pasa a **24 archivos y 1130
+  tests** (hermético: 4 pruebas en 0,07 s).
+
+### Cambiado
+- **Los `.bat` de `instalar/` quedaron en ASCII puro en sus comentarios**: el `✅` pasó a `[OK]` y los
+  recuadros, el guion largo y las tildes de los `REM` a ASCII, porque la consola de Windows (CP850) los
+  mostraba como «?». **Sólo cambian líneas `REM`** (24 en total: `AXIOMA.bat` 12,
+  `DIAGNOSTICO_AXIOMA.bat` 8, `INICIAR_AXIOMA.bat` 2, `INSTALAR_AXIOMA.bat` 2): ninguna línea ejecutable,
+  ningún flujo ni ningún contenido funcional cambia. Los cuatro siguen en **CRLF** y **sin BOM**.
+
+## [v0.7.5] — 2026-10-23
 
 ### Agregado
 - **Instaladores de un solo archivo** (`instalar/axioma-instalar.sh` y `instalar/axioma_setup.py`, que el
@@ -41,6 +59,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
     falla en el primer paso.
 
 ### Cambiado
+- **Los instaladores ahora bajan la imagen en vez de construirla.** Antes cada instalación hacía
+  `docker compose build` (~6 min); ahora `instalar_axioma.sh` e `instalar_axioma.ps1` intentan
+  `docker pull ghcr.io/<repo>:<versión>` (con `latest` de segundo intento), la etiquetan como
+  **`axioma:local`** y **sólo construyen si el pull falla** (avisando «No pude bajarla; la construyo»).
+  Antes de bajar usan un **`DOCKER_CONFIG` temporal** con `{"auths":{}}`: la imagen es pública y el
+  ayudante de credenciales (`docker-credential-desktop`), que también afecta al `pull`, no debe romperlo
+  —así **no se toca la configuración del usuario**—. `axioma-instalar.sh` exporta `AXIOMA_VERSION` y
+  `AXIOMA_REPO`, y `axioma_setup.py` los pasa por entorno al instalador del proyecto; sin esos datos (clon
+  directo) el instalador construye como hasta ahora.
 - **Refactorización por partes: `src/router/classifier_core.py` pasó de 1214 a 324 líneas** (−73 %), **sin
   ningún cambio de comportamiento** (misma API pública, mismos `task_type` y confianzas). Las piezas
   salieron a módulos hermanos, siguiendo el patrón que el proyecto ya usaba (`classifier_embedding.py`):
@@ -89,6 +116,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   (`ft = None`) y en el equipo sigue con Flet de verdad (`_build_shapes` → 12 figuras, medido).
 
 ### Corregido
+- **El auditor quedó en MEDIUM 0**: se cerraron los dos hallazgos de `src/core/preflight.py`. El timeout
+  fijo de la descarga de modelos pasó a la constante nombrada `_TIMEOUT_DESCARGA_MODELOS` (mismo valor
+  efectivo; el parámetro `timeout` sigue aceptando otro plazo), y el hilo de descarga ahora tiene ciclo de
+  vida explícito (`esperar`/`cerrar`, y `iniciar(esperar=True)` para el modo síncrono) en vez de quedar sin
+  forma de esperarlo.
+- **Las rutas del RAC son absolutas** (`Paths.ROOT`), con un fixture de aislamiento en los tests: antes el
+  estado del RAC dependía del **directorio desde donde se ejecutara** —y `project_root / ruta_absoluta`
+  hacía que `pathlib` descartara `project_root`—.
+- **`llm_embedding_model` → `llm_embed_model`**: `GET /api/v1/models` omitía el modelo de embeddings porque
+  leía un campo que ya no existía; ahora lo devuelve.
+- **Campos de configuración que no existían**: `enable_context_sensor` y `searcher_fetch_page` se crearon
+  como campos reales (default `True`, sin cambio de comportamiento), y `modals.py` dejó de usar
+  `_REPO_ROOT` y pasa por `settings.base_dir`.
 - **El daemon de Rafael ya no lanza el widget de escritorio cuando no hay pantalla.** Antes lo lanzaba
   igual dentro del contenedor y, como el runner de Flet **se cuelga** en vez de fallar, el
   `await self._widget_proc.wait()` del supervisor quedaba esperando **para siempre**: los 3 reintentos con

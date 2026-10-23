@@ -1,7 +1,7 @@
 @echo off
-REM ═══════════════════════════════════════════════════════════════
+REM ===============================================================
 REM AXIOMA - INSTALAR EN WINDOWS (DOBLE CLIC)
-REM ═══════════════════════════════════════════════════════════════
+REM ===============================================================
 REM Por que existe este .bat:
 REM   Un .ps1 NO se ejecuta con doble clic: Windows lo abre en el editor, o lo corre
 REM   en una consola que se CIERRA sola al terminar (y si falla, el mensaje se pierde).

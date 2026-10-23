@@ -3,9 +3,9 @@ setlocal EnableDelayedExpansion
 title AXIOMA - Diagnostico
 color 0E
 
-REM ══════════════════════════════════════════════════════════════
-REM  DIAGNOSTICO_AXIOMA.bat — Diagnostica y ofrece arrancar AXIOMA
-REM ══════════════════════════════════════════════════════════════
+REM ==============================================================
+REM  DIAGNOSTICO_AXIOMA.bat - Diagnostica y ofrece arrancar AXIOMA
+REM ==============================================================
 
 echo ============================================================
 echo   AXIOMA - Diagnostico
@@ -19,7 +19,7 @@ if errorlevel 1 (
   exit /b 4
 )
 
-REM ── Asegurar Docker (para que el diagnostico sea util) ──────
+REM -- Asegurar Docker (para que el diagnostico sea util) ------
 call :AsegurarDocker
 if errorlevel 1 (
   echo.
@@ -27,7 +27,7 @@ if errorlevel 1 (
   echo.
 )
 
-REM ── Ejecutar diagnostico ────────────────────────────────────
+REM -- Ejecutar diagnostico ------------------------------------
 echo Ejecutando diagnostico...
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0diagnostico_axioma.ps1" %*
@@ -43,7 +43,7 @@ if "%RESULTADO%"=="0" (
 echo ============================================================
 echo.
 
-REM ── Ofrecer arrancar AXIOMA ─────────────────────────────────
+REM -- Ofrecer arrancar AXIOMA ---------------------------------
 set "AXIOMA_BAT=%~dp0AXIOMA.bat"
 if not exist "%AXIOMA_BAT%" set "AXIOMA_BAT=%LOCALAPPDATA%\AXIOMA\AXIOMA.bat"
 
@@ -60,9 +60,9 @@ pause
 exit /b %RESULTADO%
 
 
-REM ══════════════════════════════════════════════════════════════
+REM ==============================================================
 REM  AsegurarDocker (mismo bloque que AXIOMA.bat)
-REM ══════════════════════════════════════════════════════════════
+REM ==============================================================
 :AsegurarDocker
 docker info >nul 2>&1
 if %ERRORLEVEL% EQU 0 (

@@ -3,17 +3,17 @@ setlocal EnableDelayedExpansion
 title AXIOMA
 color 0B
 
-REM ══════════════════════════════════════════════════════════════
-REM  AXIOMA.bat — Unico punto de entrada
+REM ==============================================================
+REM  AXIOMA.bat - Unico punto de entrada
 REM  Instala si hace falta, arranca siempre. Arranca Docker solo.
-REM ══════════════════════════════════════════════════════════════
+REM ==============================================================
 
 echo ============================================================
 echo   AXIOMA
 echo ============================================================
 echo.
 
-REM ── Localizar la raiz de AXIOMA ─────────────────────────────
+REM -- Localizar la raiz de AXIOMA -----------------------------
 set "AXIOMA_ROOT=%LOCALAPPDATA%\AXIOMA"
 if not exist "%AXIOMA_ROOT%\instalar\instalar_axioma.ps1" (
   if exist "%~dp0instalar\instalar_axioma.ps1" (
@@ -31,7 +31,7 @@ if not exist "%AXIOMA_ROOT%\instalar\instalar_axioma.ps1" (
 echo [AXIOMA] Raiz: %AXIOMA_ROOT%
 echo.
 
-REM ── Verificar PowerShell ────────────────────────────────────
+REM -- Verificar PowerShell ------------------------------------
 where powershell >nul 2>&1
 if errorlevel 1 (
   echo [X] No encuentro PowerShell en este Windows.
@@ -39,7 +39,7 @@ if errorlevel 1 (
   exit /b 4
 )
 
-REM ── Asegurar Docker ─────────────────────────────────────────
+REM -- Asegurar Docker -----------------------------------------
 call :AsegurarDocker
 if errorlevel 1 (
   echo.
@@ -51,11 +51,11 @@ if errorlevel 1 (
   exit /b 4
 )
 
-REM ── Decidir: instalar o solo arrancar ───────────────────────
-REM ✅ 2026-10-22: antes bastaba con que existiera `.env`, pero el instalador lo crea en el PASO 3 y
+REM -- Decidir: instalar o solo arrancar -----------------------
+REM [OK] 2026-10-22: antes bastaba con que existiera `.env`, pero el instalador lo crea en el PASO 3 y
 REM el build es el PASO 4: si el build fallaba, el siguiente doble clic entraba por la rama de
-REM ARRANCAR y daba otro error distinto, sin reanudar la instalación. Ahora "instalado" = hay .env
-REM Y existe la imagen. Si falta la imagen, se REANUDA la instalación (que es idempotente).
+REM ARRANCAR y daba otro error distinto, sin reanudar la instalacion. Ahora "instalado" = hay .env
+REM Y existe la imagen. Si falta la imagen, se REANUDA la instalacion (que es idempotente).
 set "INSTALADO=0"
 if exist "%AXIOMA_ROOT%\.env" (
   docker image inspect axioma:local >nul 2>&1
@@ -89,10 +89,10 @@ pause
 exit /b %CODIGO%
 
 
-REM ══════════════════════════════════════════════════════════════
+REM ==============================================================
 REM  AsegurarDocker: si Docker no responde, abre Docker Desktop
 REM  y espera hasta 5 minutos. Devuelve 0 si responde, 1 si no.
-REM ══════════════════════════════════════════════════════════════
+REM ==============================================================
 :AsegurarDocker
 docker info >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
