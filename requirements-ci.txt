@@ -38,6 +38,15 @@
 #                     `pip show`: `darkdetect` ← `customtkinter`; `pyee` ← `playwright`; `altgraph`
 #                     y `pyinstaller-hooks-contrib` ← `pyinstaller`) y el código no los importa.
 #
+# HERRAMIENTAS DE DESARROLLO/DIAGNÓSTICO QUE **SÍ** VAN EN LA IMAGEN (el producto no las importa):
+#   · pipdeptree  → diagnóstico de dependencias (`pipdeptree --reverse`, `pipdeptree --warn fail`);
+#                   sirve para depurar por qué la imagen pesa lo que pesa. No lo importa el código.
+#   · pytest · pytest-asyncio · pytest-cov · pytest-mock
+#                 → la suite corre DENTRO de la imagen (job `test` del CI), por eso viajan acá.
+#   · ruff        → el lint de nombres indefinidos corre en la suite y en el CI.
+#   · build · wheel → empaquetado; se usan en el CI, no en runtime.
+# A diferencia de las de arriba, éstas SÍ se necesitan en la imagen: no quitarlas.
+#
 # ✅ 2026-10-06: se agregó `psutil`. Faltaba acá y el producto lo usa en 5 módulos para medir
 # memoria real: el CI corría siempre por el camino de respaldo (`/proc`) y no probaba el normal.
 # ═══════════════════════════════════════════════════════════════
