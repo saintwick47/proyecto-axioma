@@ -267,56 +267,102 @@ if (-not $Ensayo) {
 
 # ── 4. Imagen ───────────────────────────────────────────────────────────────
 paso "Paso 4 de 6: armando AXIOMA (la primera vez tarda unos minutos)"
+# 2026-10-23: primero se intenta BAJAR la imagen publicada (tarda mucho menos que construirla).
+# El repositorio y la versión vienen de AXIOMA_REPO y AXIOMA_VERSION (los estampa el CI en el
+# instalador de un solo archivo); si no hay versión, o el tag no existe, se prueba `latest`.
+# Si tampoco se puede, se cae al build de siempre: nunca se deja al usuario sin instalación.
+$imagenGhcr = $env:AXIOMA_IMAGEN
+if (-not $imagenGhcr -and $env:AXIOMA_REPO) {
+    $imagenGhcr = "ghcr.io/" + $env:AXIOMA_REPO.ToLowerInvariant()
+}
+$tagsImagen = @()
+if ($env:AXIOMA_VERSION -and $env:AXIOMA_VERSION -ne "main") {
+    $tagsImagen += $env:AXIOMA_VERSION
+}
+if ($tagsImagen -notcontains "latest") { $tagsImagen += "latest" }
 if ($Ensayo) {
+    if ($imagenGhcr) {
+        Write-Host "  (ensayo) bajaría la imagen de AXIOMA ($imagenGhcr) y la etiquetaría axioma:local"
+    }
     Write-Host "  (ensayo) cd $Raiz; docker compose build"
 } else {
     Push-Location $Raiz
-    # 2026-10-22: el build se guarda en un log para poder RECONOCER el fallo. La traza del
-    # 2026-10-13 mostró: `error getting credentials - err: exec: "docker-credential-desktop":
-    # executable file not found in %PATH%`. AXIOMA usa sólo imágenes PÚBLICAS (python:*-slim,
-    # ollama/ollama), así que no necesita credenciales: si falla por eso, se reintenta con un
-    # DOCKER_CONFIG temporal (sin credsStore) y se restaura el del usuario al salir.
-    $logBuild = Join-Path $env:TEMP "axioma-build.log"
-    function Invoke-Build {
-        $armado = $true
-        try { & docker compose build 2>&1 | Tee-Object -FilePath $logBuild } catch { $armado = $false }
-        if ($armado) { $armado = ($LASTEXITCODE -eq 0) }
-        return $armado
-    }
-    function Es-FalloDeCredenciales {
-        return (Test-Path -LiteralPath $logBuild) -and
-               [bool](Select-String -Path $logBuild -Pattern "docker-credential|error getting credentials" -Quiet)
+    $bajada = $false
+    if ($imagenGhcr) {
+        aviso "Bajando la imagen de AXIOMA (más rápido)..."
+        # La imagen es pública: un DOCKER_CONFIG temporal sin credenciales evita que `docker pull`
+        # tropiece con el mismo ayudante roto que el build (`docker-credential-desktop`).
+        $cfgPull = Join-Path $env:TEMP "axioma-docker-config"
+        $cfgPullOriginal = $env:DOCKER_CONFIG
+        try {
+            New-Item -ItemType Directory -Force -Path $cfgPull | Out-Null
+            [IO.File]::WriteAllText((Join-Path $cfgPull "config.json"), '{"auths":{}}',
+                (New-Object System.Text.UTF8Encoding($false)))
+            $env:DOCKER_CONFIG = $cfgPull
+            foreach ($tagImagen in $tagsImagen) {
+                $referencia = "${imagenGhcr}:$tagImagen"
+                $tirada = $true
+                try { & docker pull $referencia } catch { $tirada = $false }
+                if (-not $tirada -or $LASTEXITCODE -ne 0) { continue }
+                $etiquetada = $true
+                try { & docker tag $referencia axioma:local } catch { $etiquetada = $false }
+                if ($etiquetada -and $LASTEXITCODE -eq 0) { $bajada = $true; break }
+            }
+        } finally {
+            if ($null -ne $cfgPullOriginal) { $env:DOCKER_CONFIG = $cfgPullOriginal }
+            else { Remove-Item Env:DOCKER_CONFIG -ErrorAction SilentlyContinue }
+        }
+        if ($bajada) { ok "Imagen bajada (AXIOMA listo, sin construir)" }
+        else { aviso "No pude bajarla; la construyo (tarda unos minutos)." }
     }
     try {
-        $armado = Invoke-Build
-        if (-not $armado -and (Es-FalloDeCredenciales)) {
-            aviso "Docker no encontró su ayudante de credenciales al bajar las imágenes base."
-            aviso "AXIOMA sólo usa imágenes públicas: no hacen falta credenciales. Reintento con una configuración temporal."
-            $cfgTemp = Join-Path $env:TEMP "axioma-docker-config"
-            $cfgOriginal = $env:DOCKER_CONFIG
-            try {
-                New-Item -ItemType Directory -Force -Path $cfgTemp | Out-Null
-                [IO.File]::WriteAllText((Join-Path $cfgTemp "config.json"), '{"auths":{}}',
-                    (New-Object System.Text.UTF8Encoding($false)))
-                $env:DOCKER_CONFIG = $cfgTemp
-                $armado = Invoke-Build
-            } finally {
-                if ($null -ne $cfgOriginal) { $env:DOCKER_CONFIG = $cfgOriginal }
-                else { Remove-Item Env:DOCKER_CONFIG -ErrorAction SilentlyContinue }
+        if (-not $bajada) {
+            # 2026-10-22: el build se guarda en un log para poder RECONOCER el fallo. La traza del
+            # 2026-10-13 mostró: `error getting credentials - err: exec: "docker-credential-desktop":
+            # executable file not found in %PATH%`. AXIOMA usa sólo imágenes PÚBLICAS (python:*-slim,
+            # ollama/ollama), así que no necesita credenciales: si falla por eso, se reintenta con un
+            # DOCKER_CONFIG temporal (sin credsStore) y se restaura el del usuario al salir.
+            $logBuild = Join-Path $env:TEMP "axioma-build.log"
+            function Invoke-Build {
+                $armado = $true
+                try { & docker compose build 2>&1 | Tee-Object -FilePath $logBuild } catch { $armado = $false }
+                if ($armado) { $armado = ($LASTEXITCODE -eq 0) }
+                return $armado
             }
-        }
-        if (-not $armado) {
-            mal "No se pudo armar la imagen (mirá los mensajes de arriba)."
-            if (Es-FalloDeCredenciales) {
-                Anotar-Fallo "4" "Falló 'docker compose build' por el ayudante de credenciales" "Docker no encuentra «docker-credential-desktop». Probá: reinstalar Docker Desktop, o borrar la línea «credsStore» de %USERPROFILE%\.docker\config.json (AXIOMA no necesita credenciales: usa sólo imágenes públicas)."
-                Write-Host "     El log del build quedó en: $logBuild"
-            } else {
-                Anotar-Fallo "4" "Falló 'docker compose build'" "Copiá el error de arriba (el log está en $logBuild). Causas típicas: se cortó internet, o a Docker Desktop le queda poca memoria (Settings -> Resources)."
+            function Es-FalloDeCredenciales {
+                return (Test-Path -LiteralPath $logBuild) -and
+                       [bool](Select-String -Path $logBuild -Pattern "docker-credential|error getting credentials" -Quiet)
             }
-            exit (Mostrar-Resumen -Freno "Paso 4 de 6 (armar la imagen)" -Codigo 4)
+            $armado = Invoke-Build
+            if (-not $armado -and (Es-FalloDeCredenciales)) {
+                aviso "Docker no encontró su ayudante de credenciales al bajar las imágenes base."
+                aviso "AXIOMA sólo usa imágenes públicas: no hacen falta credenciales. Reintento con una configuración temporal."
+                $cfgTemp = Join-Path $env:TEMP "axioma-docker-config"
+                $cfgOriginal = $env:DOCKER_CONFIG
+                try {
+                    New-Item -ItemType Directory -Force -Path $cfgTemp | Out-Null
+                    [IO.File]::WriteAllText((Join-Path $cfgTemp "config.json"), '{"auths":{}}',
+                        (New-Object System.Text.UTF8Encoding($false)))
+                    $env:DOCKER_CONFIG = $cfgTemp
+                    $armado = Invoke-Build
+                } finally {
+                    if ($null -ne $cfgOriginal) { $env:DOCKER_CONFIG = $cfgOriginal }
+                    else { Remove-Item Env:DOCKER_CONFIG -ErrorAction SilentlyContinue }
+                }
+            }
+            if (-not $armado) {
+                mal "No se pudo armar la imagen (mirá los mensajes de arriba)."
+                if (Es-FalloDeCredenciales) {
+                    Anotar-Fallo "4" "Falló 'docker compose build' por el ayudante de credenciales" "Docker no encuentra «docker-credential-desktop». Probá: reinstalar Docker Desktop, o borrar la línea «credsStore» de %USERPROFILE%\.docker\config.json (AXIOMA no necesita credenciales: usa sólo imágenes públicas)."
+                    Write-Host "     El log del build quedó en: $logBuild"
+                } else {
+                    Anotar-Fallo "4" "Falló 'docker compose build'" "Copiá el error de arriba (el log está en $logBuild). Causas típicas: se cortó internet, o a Docker Desktop le queda poca memoria (Settings -> Resources)."
+                }
+                exit (Mostrar-Resumen -Freno "Paso 4 de 6 (armar la imagen)" -Codigo 4)
+            }
+            ok "AXIOMA armado"
         }
     } finally { Pop-Location }
-    ok "AXIOMA armado"
 }
 
 # ── 5. Accesos directos (menú Inicio y Escritorio) ──────────────────────────

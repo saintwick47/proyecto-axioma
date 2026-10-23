@@ -60,38 +60,46 @@ from .app_logic import (
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
-# ✅ v0.0.14: detailed_logger — import seguro (doble capa)
+# ✅ REFACTOR 50/50 (2026-10-22): la mitad de PRESENTACIÓN (encabezado,
+# navegación y UI de usuarios) vive en `app_ui.py`. Este módulo conserva el
+# motor de chat, la página principal, el entry point y el ESTADO de los
+# diálogos con sus handlers; re-importa los nombres movidos para que la API
+# pública (`app.create_header`, `app.clear_chat`, `app._dlog`, …) NO cambie.
 # ═══════════════════════════════════════════════════════════════
-try:
-    from tools.detailed_logger import get_logger as _get_detailed_logger
-    _DETAILED_LOGGER_AVAILABLE = True
-except ImportError:
-    _DETAILED_LOGGER_AVAILABLE = False
-    _get_detailed_logger = None  # type: ignore[assignment]
+from .app_ui import (  # noqa: F401 — re-export: API pública histórica
+    _dlog,
+    _browser_user_id,
+    _set_browser_user_id,
+    _stable_session_id,
+    _on_configurar_click,
+    _nav_btn,
+    _open_dialog,
+    _open_status_dialog,
+    _open_settings_dialog,
+    _open_exit_dialog,
+    _open_file_dialog,
+    _crear_barra_de_acciones,
+    create_header,
+    _VALID_JARVIS_MODES,
+    _JARVIS_MODE_LABELS,
+    _toggle_jarvis_from_header,
+    _select_user,
+    _create_user_and_back,
+    user_select_page,
+    user_new_page,
+    clear_chat,
+)
 
 
-def _dlog() -> Optional[Any]:
-    """Retorna instancia del detailed_logger o None si no disponible."""
-    if not _DETAILED_LOGGER_AVAILABLE:
-        return None
-    try:
-        lgr = _get_detailed_logger()
-        if lgr.is_initialized:
-            return lgr
-    except Exception as _d2e:
-        logging.getLogger(__name__).debug(f"[D2 app.py:74] excepción degradada (intencional): {_d2e}")
-    return None
-
-
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════
 # ✅ v0.1.8: _CODE_PATTERNS — solo términos inequívocamente de código.
-#   Eliminados: \bescribe\b, \bclase\b, \bcódigo\b, \bprograma\b,
-#               \bmake\b, \bbuild\b, \bwrite\b, \bcrea\b, \bgenera\b
-#   (eran fuente de falsos positivos: "escríbeme un poema", "código postal",
-#    "clases de yoga", "no me crees nada", etc.)
-#   Agregado: guard de negación — si el fragmento previo al término contiene
-#   una negación, la query NO se clasifica como código.
-# ============================================================================
+#   Sin \bescribe\b, \bclase\b, \bcódigo\b, \bprograma\b,
+#   \bmake\b, \bbuild\b, \bwrite\b, \bcrea\b, \bgenera\b (falsos
+#   positivos). Guard de negación: si el fragmento previo al término
+#   contiene una negación, la query NO se clasifica como código.
+#   Hoy solo se usa para TELEMETRÍA en send_message.
+# ═══════════════════════════════════════════════════════════════
+
 _CODE_PATTERNS: List[str] = [
     r"\bscript\b",
     r"\bfunción\b",
@@ -138,9 +146,11 @@ def _is_code_task(content: str) -> bool:
     return False
 
 
-# ============================================================================
-# VARIABLES GLOBALES PARA DIÁLOGOS (Test-mockeables)
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════
+# ESTADO DE LOS DIÁLOGOS — dueño: app.py (test-mockeable)
+# main_page los crea; los handlers de abajo los leen directo.
+# ═══════════════════════════════════════════════════════════════
+
 _status_dialog: Optional[ui.dialog] = None
 _settings_dialog: Optional[ui.dialog] = None
 _exit_dialog: Optional[ui.dialog] = None
@@ -149,179 +159,16 @@ _mi_hard_dialog: Optional[ui.dialog] = None   # ✅ F1 "Mi Hard" (2026)
 _export_dialog: Optional[ui.dialog] = None    # ✅ F3 exportar investigación
 _health_badge: Optional[HealthBadge] = None    # ✅ ISSUE-053: salud en el header
 _sessions_dialog: Optional[ui.dialog] = None   # ✅ ISSUE-054: gestor de sesiones
-# ✅ Fase 2 (ISSUE-135): el encabezado necesita al chat para mostrar/ocultar lo
-# avanzado (RAC / Modo Jarvis). El header se crea ANTES del chat, así que se
-# guarda la referencia y el botón la lee al hacer clic (nunca al construir).
+# ✅ Fase 2 (ISSUE-135): el encabezado (en app_ui.py) necesita al chat para
+# mostrar/ocultar lo avanzado (RAC / Modo Jarvis). El header se crea ANTES del
+# chat, así que se guarda la referencia acá (estado compartido: dueño app.py)
+# y el botón la lee al hacer clic (nunca al construir).
 _chat_component_global: Optional['ChatComponent'] = None
 
 
-# ============================================================================
-# COMPONENTES DE UI — PATRONES UNIFICADOS (Con logging para coverage)
-# ============================================================================
-def _on_configurar_click() -> None:
-    """Abre la pantalla "Configurar AXIOMA" (Fase 1 de contenedores).
-
-    Muestra qué le falta al equipo (el preflight), permite descargar los modelos que faltan con un
-    clic —con avance y DETENER— y cargar las claves de API del usuario.
-    """
-    from src.interfaces.components.configurar_axioma import abrir_configurar_axioma
-    abrir_configurar_axioma()
-
-
-def _crear_barra_de_acciones() -> None:
-    """✅ Fase 2 (ISSUE-135): "la conversación primero" en el encabezado.
-
-    Visibles quedan el badge de salud (en `create_header`), *Limpiar chat* y el
-    interruptor **Avanzado**; detrás de ese interruptor van las funciones de
-    power-user: Archivos, Estado, Mi Hard, Exportar, Sesiones, Configuración,
-    Jarvis, *Cambiar de usuario* y Salir. Antes eran **10 controles permanentes**.
-
-    El estado del interruptor **no se persiste a propósito**: cada carga arranca
-    simple. Se extrajo de `create_header` para no cruzar el umbral de método
-    largo del auditor (AUD-PERF, 80 líneas).
-    """
-    _avanzado_visible = {'v': False}
-    avanzado = ui.row().classes('gap-2 items-center')
-    avanzado.set_visibility(False)
-    _btn_avanzado: Any = None
-
-    def _toggle_avanzado() -> None:
-        _avanzado_visible['v'] = not _avanzado_visible['v']
-        avanzado.set_visibility(_avanzado_visible['v'])
-        if _btn_avanzado is not None:
-            _btn_avanzado.props(
-                'unelevated dense color=primary' if _avanzado_visible['v']
-                else 'flat dense')
-        if _chat_component_global is not None:
-            try:
-                _chat_component_global.set_advanced(_avanzado_visible['v'])
-            except Exception as _av_err:
-                logging.getLogger(__name__).debug(
-                    f"[Fase 2] avanzado en el chat: {_av_err}")
-
-    with avanzado:
-        _nav_btn('📁', _open_file_dialog, 'Archivos')
-        # ✅ v0.6.8jj: "Estado" con on_click ASYNC — abre y refresca
-        # (dialog.on('open') nunca disparaba en NiceGUI → diálogo vacío).
-        ui.button('🏥', on_click=_on_estado_click).props(
-            'flat dense').tooltip('Estado')
-        # ✅ F1 "Mi Hard": hardware + qué modelos entran (read-only)
-        ui.button('🖥️', on_click=_on_mi_hard_click).props(
-            'flat dense').tooltip('Mi Hard')
-        # ✅ Fase 1 de contenedores: pantalla "Configurar AXIOMA" (estado + descarga de modelos + claves)
-        ui.button('🧩', on_click=_on_configurar_click).props(
-            'flat dense').tooltip('Configurar AXIOMA (qué falta y qué instalar)')
-        # ✅ F3: exportar la investigación de la sesión (MD/HTML)
-        ui.button('📄', on_click=_on_export_click).props(
-            'flat dense').tooltip('Exportar investigación')
-        # ✅ ISSUE-054: listar / buscar / exportar / borrar sesiones
-        ui.button('🗂️', on_click=_on_sessions_click).props(
-            'flat dense').tooltip('Sesiones')
-        _nav_btn('⚙️', _open_settings_dialog, 'Configuración')
-
-        # ✅ FIX v0.0.13: Botón Modo Jarvis — on_click directo
-        ui.button('🤖', on_click=_toggle_jarvis_from_header).props(
-            'flat dense').tooltip('Modo Jarvis')
-
-        # ✅ Fase 2: la pantalla de usuarios sigue accesible (se elige sola
-        # cuando hay un único usuario).
-        _nav_btn('👤', '/', 'Cambiar de usuario')
-        _nav_btn('🚪', _open_exit_dialog, 'Salir')
-
-    _nav_btn('🗑️', clear_chat, 'Limpiar chat')
-    _btn_avanzado = ui.button('⚙️ Avanzado', on_click=_toggle_avanzado).props(
-        'flat dense').tooltip('Mostrar/ocultar las funciones avanzadas')
-
-
-def create_header() -> None:
-    """
-    Crea header con logo y botones de navegación.
-    Returns:
-        None
-    """
-    start = time.time()
-    _log_web_event("UI", "Creating header component")
-
-    with ui.header().classes('w-full bg-primary text-white'):
-        with ui.row().classes('w-full items-center justify-between px-4'):
-            logo_path = Paths.ROOT / 'src' / 'interfaces' / 'web' / 'logo.png'
-            logo_src = str(logo_path) if logo_path.exists() else ''
-
-            ui.image(logo_src).classes('h-10').on(
-                'error',
-                lambda e: e.source.set_text('📘') if hasattr(e, 'source') else None
-            )
-            ui.label('AXIOMA v0.1.8').classes('text-xl font-bold')
-            # ✅ UI de usuarios (2026-08-31): muestra el usuario activo.
-            _active_user = _browser_user_id()
-            if _active_user:
-                ui.label(f'👤 {_active_user}').classes('text-sm font-medium opacity-90')
-
-            with ui.row().classes('gap-2'):
-                # ✅ ISSUE-053: estado de salud visible sin abrir el diálogo
-                # (refresco MANUAL: al cargar, tras cada respuesta y al abrir
-                # "Estado" — sin timers, regla R7).
-                global _health_badge
-                _health_badge = HealthBadge()
-                _health_badge.create()
-                _crear_barra_de_acciones()
-
-    duration = time.time() - start
-    _log_web_event("UI", "Header component created", extra={
-        "duration": round(duration, 4)
-    })
-
-    # ✅ v0.0.14: Log en detailed_logger
-    dl = _dlog()
-    if dl:
-        dl.log_event("WEB_UI", "Header creado", level="INFO", extra={
-            "duration_ms": round(duration * 1000, 2),
-        })
-
-
-def _nav_btn(icon: str, action: Union[str, Callable[[], None]], tooltip: str) -> None:
-    """
-    Helper para botones de navegación en header.
-    Args:
-        icon: Ícono del botón
-        action: URL string o función callback
-        tooltip: Texto de tooltip
-    Returns:
-        None
-    """
-    def handler() -> None:
-        if isinstance(action, str):
-            ui.navigate.to(action)
-        else:
-            action()
-
-    ui.button(icon, on_click=handler).props('flat dense').tooltip(tooltip)
-
-
-def _open_dialog(dialog: Optional[ui.dialog]) -> None:
-    """
-    Abre diálogo con verificación de null.
-    Args:
-        dialog: Objeto dialog de NiceGUI o None
-    Returns:
-        None
-    """
-    if dialog:
-        _log_web_event("UI", f"Opening dialog: {dialog}")
-        dialog.open()
-
-        # ✅ v0.0.14: Log en detailed_logger
-        dl = _dlog()
-        if dl:
-            dl.log_event("WEB_UI", f"Dialog abierto: {type(dialog).__name__}", level="INFO")
-    else:
-        _log_web_event("UI", "Dialog open attempted but dialog is None", level="WARNING")
-
-
-def _open_status_dialog() -> None:
-    """Wrapper para abrir status dialog."""
-    _open_dialog(_status_dialog)
-
+# ═══════════════════════════════════════════════════════════════
+# HANDLERS DE DIÁLOGOS — estado y apertura viven acá
+# ═══════════════════════════════════════════════════════════════
 
 async def _on_estado_click() -> None:
     """
@@ -402,70 +249,9 @@ def _on_sessions_click() -> None:
             _log_error(e, "_on_sessions_click")
 
 
-def _open_settings_dialog() -> None:
-    """Wrapper para abrir settings dialog."""
-    _open_dialog(_settings_dialog)
-
-
-def _open_exit_dialog() -> None:
-    """Wrapper para abrir exit dialog."""
-    _open_dialog(_exit_dialog)
-
-
-def _open_file_dialog() -> None:
-    """Wrapper para abrir el diálogo de archivos (📁)."""
-    _open_dialog(_file_dialog)
-
-
-_VALID_JARVIS_MODES = ("normal", "jarvis", "voice_only", "silent")
-_JARVIS_MODE_LABELS: Dict[str, str] = {
-    "normal":     "\U0001f464 Normal",
-    "jarvis":     "\U0001f916 Jarvis",
-    "voice_only": "\U0001f399\ufe0f S\u00f3lo voz",
-    "silent":     "\U0001f507 Silencioso",
-}
-
-
-async def _toggle_jarvis_from_header() -> None:
-    """Toggle rápido Normal ↔ Jarvis desde el botón del header."""
-    state = get_current_session(_stable_session_id())
-    current = getattr(state, "jarvis_mode", "normal") or "normal"
-    new_mode = "normal" if current != "normal" else "jarvis"
-
-    try:
-        state.jarvis_mode = new_mode
-    except Exception as _d2e:
-        logging.getLogger(__name__).debug(f"[D2 app.py:294] excepción degradada (intencional): {_d2e}")
-
-    ctx = getattr(state, "context", None)
-    if ctx is not None:
-        if hasattr(ctx, "update_mode"):
-            try:
-                ctx.update_mode(new_mode)
-            except Exception as _d2e:
-                logging.getLogger(__name__).debug(f"[D2 app.py:302] excepción degradada (intencional): {_d2e}")
-        elif hasattr(ctx, "jarvis_mode"):
-            try:
-                ctx.jarvis_mode = new_mode
-            except Exception as _d2e:
-                logging.getLogger(__name__).debug(f"[D2 app.py:307] excepción degradada (intencional): {_d2e}")
-
-    label = _JARVIS_MODE_LABELS.get(new_mode, new_mode)
-    color = "purple" if new_mode != "normal" else "grey"
-
-    # ✅ Ahora ui.notify funciona porque el contexto UI se preservó
-    ui.notify(f"Modo: {label}", color=color, timeout=2, position="top-right")
-    _log_web_event("JARVIS_MODE", f"Header toggle \u2192 {new_mode}")
-
-    # ✅ v0.0.14: Log en detailed_logger
-    dl = _dlog()
-    if dl:
-        dl.log_event("WEB_UI", "Jarvis mode toggled desde header", level="INFO", extra={
-            "old_mode": current,
-            "new_mode": new_mode,
-            "session_id": getattr(state, 'session_id', 'unknown'),
-        })
-
+# ═══════════════════════════════════════════════════════════════
+# LÓGICA DE CHAT — envío, contenedor y scroll
+# ═══════════════════════════════════════════════════════════════
 
 def create_chat_container(state: SessionState) -> ChatComponent:
     """
@@ -518,14 +304,6 @@ def create_chat_container(state: SessionState) -> ChatComponent:
     return chat_component
 
 
-# ============================================================================
-# DIÁLOGOS DE UI — CON LÓGICA SEPARADA PARA TESTING
-# ============================================================================
-
-
-# ============================================================================
-# LÓGICA DE CHAT — FLUJO OPTIMIZADO Y TESTEABLE
-# ============================================================================
 async def send_message(
     textarea: Any,
     state: SessionState,
@@ -814,9 +592,6 @@ async def send_message(
         asyncio.create_task(_safe_scroll())
 
 
-# ============================================================================
-# ✅ v0.1.6a: _safe_scroll convertida a async y await para scroll efectivo
-# ============================================================================
 async def _safe_scroll() -> None:
     """
     Ejecuta scroll automático con manejo seguro de contexto UI.
@@ -832,189 +607,9 @@ async def _safe_scroll() -> None:
         logger.debug(f"Scroll automático falló (no crítico): {e}")
 
 
-def clear_chat() -> None:
-    """
-    Limpia historial de chat y recarga página.
-    Returns:
-        None
-    """
-    state = get_current_session(_stable_session_id())
-    state.clear_history()
-
-    _log_web_event("CHAT", "Chat cleared", extra={
-        "session_id": state.session_id[:16] if state.session_id else "new"
-    })
-    ui.notify('✅ Historial limpiado', color='positive')
-    ui.navigate.reload()
-
-    # ✅ v0.0.14: Log en detailed_logger
-    dl = _dlog()
-    if dl:
-        dl.log_event("WEB_CHAT", "Chat limpiado", level="INFO", extra={
-            "session_id": state.session_id[:16] if state.session_id else "new",
-        })
-
-
-# ============================================================================
-# PÁGINAS PRINCIPALES — CON HANDLERS DE ERROR PARA COBERTURA
-# ============================================================================
 # ═══════════════════════════════════════════════════════════════
-# UI DE USUARIOS (2026-08-31) — ventana preliminar de elección
+# PÁGINA PRINCIPAL — ensambla header + chat + diálogos
 # ═══════════════════════════════════════════════════════════════
-
-def _browser_user_id() -> str:
-    """Usuario activo del navegador (vacío si no se eligió).
-
-    ✅ FIX v0.6.8t: storage.browser → storage.user. En NiceGUI 3.11
-    app.storage.browser es una cookie de SOLO LECTURA después de que la
-    página respondió (ReadOnlyDict): escribir el usuario desde el clic se
-    descartaba silenciosamente y /chat redirigía de vuelta a /. storage.user
-    es server-side, modificable en cualquier momento y sobrevive la
-    navegación (identificado por la cookie de sesión).
-    """
-    try:
-        return str(nicegui_app.storage.user.get("user_id", "") or "")
-    except Exception as e:
-        log_degraded(logger, e, "src/interfaces/web/app.py:_browser_user_id")
-        return ""
-
-
-def _set_browser_user_id(username: str) -> None:
-    try:
-        nicegui_app.storage.user["user_id"] = username
-    except Exception as _d2e:
-        logging.getLogger(__name__).debug(f"[D2 app.py:663] excepción degradada (intencional): {_d2e}")
-
-
-def _stable_session_id() -> Optional[str]:
-    """ID de sesión ESTABLE por usuario+día (✅ v0.6.8oo — opción D).
-
-    ANTES: SessionState generaba `nicegui_<timestamp_micro>` en cada carga de
-    página → el historial persistido (LongTermMemory) quedaba bajo un id nuevo
-    por reload y la hidratación (F5) nunca encontraba los mensajes viejos.
-    AHORA: mismo id todo el día para el mismo usuario → la conversación
-    sobrevive recargas dentro del día.
-    """
-    user = _browser_user_id()
-    if not user:
-        return None
-    from datetime import datetime as _dt
-    return f"{user}_{_dt.now().strftime('%Y%m%d')}"
-
-
-def _select_user(username: str) -> None:
-    """Elige usuario y habilita AXIOMA (abre el chat)."""
-    _set_browser_user_id(username)
-    _log_web_event("UI", f"Usuario seleccionado: {username}", extra={"user_id": username})
-    ui.navigate.to('/chat')
-
-
-def _create_user_and_back(username: str, error_label: Any) -> None:
-    """Crea el usuario y vuelve a la lista para elegirlo (botón 'Crear')."""
-    from src.memory.user_registry import create_user
-    try:
-        user = create_user(username=username)
-        ui.notify(f'Usuario "{user["username"]}" creado — elegilo en la lista',
-                  type='positive')
-        ui.navigate.to('/')
-    except ValueError as e:
-        if error_label is not None:
-            error_label.set_text(str(e))
-        ui.notify(str(e), type='negative')
-
-
-@ui.page('/')
-def user_select_page() -> None:
-    """
-    Ventana preliminar: elegir usuario existente (clic) o crear uno nuevo.
-    Los usuarios creados son normales (sin privilegios); el rol lo elige quien los crea.
-    """
-    _init_browser_storage()
-    try:
-        from src.memory.user_registry import list_users
-        users = list_users()
-    except Exception as e:
-        _log_error(e, "user_select_page", extra={})
-        users = []
-
-    # ✅ Fase 2 (ISSUE-135): con UN solo usuario no hay nada que elegir: se entra
-    # directo al chat. Antes había que tocar el nombre en cada arranque salvo que
-    # el navegador recordara la sesión (y con un único usuario en `users.json`
-    # —el caso de este equipo— era fricción pura). La pantalla sigue existiendo
-    # y es alcanzable desde "Avanzado → 👤" para cuando haya más de uno.
-    if len(users) == 1:
-        _unico = (users[0] or {}).get("username") or ""
-        if _unico:
-            _select_user(_unico)
-            return
-
-    with ui.column().classes('w-full items-center gap-2 p-8'):
-        with ui.card().classes('w-96 max-w-full'):
-            ui.label('👤 AXIOMA — Seleccioná tu usuario').classes('text-xl font-bold')
-            ui.label(
-                'Elegí con quién vas a usar AXIOMA tocando su nombre. '
-                'cada usuario tiene su memoria aparte; los nuevos son normales '
-                '(sin privilegios).'
-            ).classes('text-sm text-gray-500')
-
-            if not users:
-                ui.label('No hay usuarios todavía. Creá el primero.').classes('text-gray-500')
-
-            for u in users:
-                username = u.get("username", "")
-                role = u.get("role", "user")
-                place = u.get("place") or ""
-                country = u.get("country") or ""
-                extra = " · ".join(x for x in (place, country) if x)
-                with ui.card().classes(
-                        'w-full cursor-pointer hover:shadow-lg transition-shadow'
-                ).on('click', lambda n=username: _select_user(n)):
-                    with ui.row().classes('items-center justify-between w-full'):
-                        with ui.row().classes('items-center gap-2'):
-                            ui.icon('person').classes('text-2xl')
-                            ui.label(username).classes('text-lg font-semibold')
-                        ui.badge(role).props(
-                            f'color={("red" if role == "root" else "blue")}'
-                        )
-                    if extra:
-                        ui.label(extra).classes('text-xs text-gray-500')
-
-            ui.separator()
-            ui.button(
-                '➕ Usuario nuevo', on_click=lambda: ui.navigate.to('/user-new'),
-            ).props('flat color=primary').classes('w-full')
-
-
-@ui.page('/user-new')
-def user_new_page() -> None:
-    """
-    Pantalla de creación: 4 campos (solo 'nombre de usuario' habilitado por
-    ahora). Botón 'Crear' → vuelve a la lista para elegir el nuevo usuario.
-    """
-    _init_browser_storage()
-    error_label = ui.label('').classes('text-red-500 text-sm')
-    with ui.column().classes('w-full items-center gap-2 p-8'):
-        with ui.card().classes('w-96 max-w-full'):
-            ui.label('➕ Crear usuario nuevo').classes('text-xl font-bold')
-            ui.label(
-                'Completá el nombre de usuario. Correo, lugar y país quedan '
-                'deshabilitados por ahora.'
-            ).classes('text-sm text-gray-500')
-
-            name_input = ui.input(
-                'Nombre de usuario', placeholder='ej. maria',
-            ).props('outlined')
-            ui.input('Correo electrónico').props('outlined disabled')
-            ui.input('Lugar').props('outlined disabled')
-            ui.input('País').props('outlined disabled')
-
-            with ui.row().classes('w-full gap-2 justify-between pt-2'):
-                ui.button('Cancelar', on_click=lambda: ui.navigate.to('/')
-                          ).props('flat')
-                ui.button('Crear', on_click=lambda: _create_user_and_back(
-                    name_input.value, error_label,
-                )).props('color=primary')
-
 
 @ui.page('/chat')
 def main_page() -> None:
@@ -1080,9 +675,10 @@ def main_page() -> None:
         })
 
 
-# ============================================================================
-# ENTRY POINT — CON LOGGING PARA COBERTURA
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════
+# ENTRY POINT — arranque del servidor NiceGUI
+# ═══════════════════════════════════════════════════════════════
+
 def start_server(
     host: str = '0.0.0.0',
     port: int = 8000,
@@ -1127,8 +723,9 @@ def start_server(
     _log_web_event("SERVER", f"Server started on {host}:{port}")
 
 
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════
 # EJECUCIÓN DIRECTA
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════
+
 if __name__ in {'__main__', 'mp_main'}:
     start_server()

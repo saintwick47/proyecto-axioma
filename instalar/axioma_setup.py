@@ -292,8 +292,17 @@ def main() -> int:
     else:
         orden = ["bash", str(destino / "instalar" / "instalar_axioma.sh")]
     print(f"   Ejecutando: {' '.join(orden)}")
+    # ✅ 2026-10-23: el instalador del proyecto intenta BAJAR la imagen publicada y, si no puede,
+    # construye como siempre. Para eso necesita saber la version (tag) y el repositorio: se los
+    # pasamos por entorno, igual que el instalador de un solo archivo de Linux. La imagen vive en
+    # ghcr.io/<repositorio en minusculas>; sin estos datos el instalador solo construye.
+    entorno = dict(os.environ)
+    entorno["AXIOMA_VERSION"] = args.version
+    if "/" in REPO:
+        entorno.setdefault("AXIOMA_REPO", REPO)
+        entorno.setdefault("AXIOMA_IMAGEN", "ghcr.io/" + REPO.lower())
     try:
-        return subprocess.run(orden, cwd=str(destino)).returncode
+        return subprocess.run(orden, cwd=str(destino), env=entorno).returncode
     except OSError as e:
         mal(f"No pude ejecutar el instalador: {e}")
         return 4

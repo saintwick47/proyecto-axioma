@@ -923,8 +923,8 @@ class IntegrationDetector(BaseDetector):
             and not (p.startswith("src/") and p.endswith("_base.py"))
             # ✅ v0.6.9v: dos falsos positivos reales que inflaban esta categoría:
             #   1) ENTRYPOINTS: un módulo con `if __name__ == "__main__":` se
-            #      EJECUTA, no se importa (diagnostico_v2.py, ptt_axioma.py,
-            #      rafael_widget.py, Rafael.py) → no es un gap de integración.
+            #      EJECUTA, no se importa (ptt_axioma.py, rafael_widget.py,
+            #      Rafael.py) → no es un gap de integración.
             #   2) Referencias desde FUERA del índice: el CodeIndex excluye
             #      `tools/`, así que un módulo usado por tools/ (p. ej.
             #      src/llm/judge.py ← tools/run_evals.py) parecía aislado.

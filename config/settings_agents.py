@@ -146,3 +146,17 @@ class SettingsAgents(BaseModel):
     # === BENCHMARK ===
     # ═══════════════════════════════════════════════════════════
     benchmark_seed: int = Field(42, description="Seed fija")
+
+    # ✅ ContextSensor (Semana 2 D): `dispatcher.py` lo consultaba con
+    # `getattr(settings, "enable_context_sensor", True)` pero el campo NO existía
+    # ⇒ el literal True ganaba siempre y apagarlo por entorno era imposible.
+    # Default True: no cambia nada hasta que alguien ponga
+    # ENABLE_CONTEXT_SENSOR=false (evita psutil+wmctrl en cada mensaje).
+    enable_context_sensor: bool = Field(default=True)
+
+    # ✅ Searcher F4: `searcher.py:694` lo consultaba con
+    # `getattr(settings, "searcher_fetch_page", True)` pero el campo NO existía
+    # (aunque CHANGELOG.md lo documentaba) ⇒ el literal True ganaba siempre.
+    # Default True: cero cambio. Con false se evita el `httpx.get` (timeout 6 s)
+    # del primer resultado y el prompt usa el snippet de 300 chars (no 1200).
+    searcher_fetch_page: bool = Field(default=True)

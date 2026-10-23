@@ -84,29 +84,74 @@ elif [ ! -f .env ] && [ -f .env.example ]; then
   ok "Creé tu .env a partir de la plantilla (ahí se guardan tus claves, y no se publican)"
 fi
 paso "Armando AXIOMA (la primera vez tarda unos minutos)"
+# ✅ 2026-10-23: primero se intenta BAJAR la imagen publicada (tarda mucho menos que construirla).
+# El repositorio de la imagen viene de AXIOMA_REPO (lo estampa el CI en el instalador de un solo
+# archivo) y el tag de AXIOMA_VERSION; si no hay versión, o el tag no existe, se prueba `latest`.
+# Si tampoco se puede, se cae al build de siempre: nunca se deja al usuario sin instalación.
+IMAGEN_GHCR="${AXIOMA_IMAGEN:-}"
+if [ -z "$IMAGEN_GHCR" ] && [ -n "${AXIOMA_REPO:-}" ]; then
+  IMAGEN_GHCR="ghcr.io/$(printf '%s' "$AXIOMA_REPO" | tr '[:upper:]' '[:lower:]')"
+fi
+TAGS_IMAGEN=""
+if [ -n "${AXIOMA_VERSION:-}" ] && [ "$AXIOMA_VERSION" != "main" ]; then
+  TAGS_IMAGEN="$AXIOMA_VERSION"
+fi
+case " $TAGS_IMAGEN " in
+  *" latest "*) ;;
+  *) TAGS_IMAGEN="${TAGS_IMAGEN:+$TAGS_IMAGEN }latest" ;;
+esac
 if $DRY; then
-  echo "  (ensayo) cd $RAIZ && docker compose build"
+  if [ -n "$IMAGEN_GHCR" ]; then
+    echo "  (ensayo) bajaría la imagen de AXIOMA ($IMAGEN_GHCR con tag $TAGS_IMAGEN) y la etiquetaría axioma:local"
+    echo "  (ensayo) si no se puede: cd $RAIZ && docker compose build"
+  else
+    echo "  (ensayo) cd $RAIZ && docker compose build"
+  fi
 else
   cd "$RAIZ"
-  # ✅ 2026-10-22: antes se decía «AXIOMA armado» sin mirar el código de salida. Ahora se captura el
-  # build y, si falla por el ayudante de credenciales, se reintenta con un DOCKER_CONFIG temporal:
-  # AXIOMA sólo usa imágenes públicas y no necesita credenciales. (`set -o pipefail` ya está activo.)
-  LOG_BUILD="${TMPDIR:-/tmp}/axioma-build.log"
-  if docker compose build 2>&1 | tee "$LOG_BUILD"; then
-    ok "AXIOMA armado"
-  elif grep -qiE "docker-credential|error getting credentials" "$LOG_BUILD" 2>/dev/null; then
-    aviso "Docker no encontró su ayudante de credenciales. AXIOMA usa sólo imágenes públicas: reintento con una configuración temporal."
-    CFG_TMP="${TMPDIR:-/tmp}/axioma-docker-config"
-    mkdir -p "$CFG_TMP" && printf '{"auths":{}}\n' > "$CFG_TMP/config.json"
-    if DOCKER_CONFIG="$CFG_TMP" docker compose build 2>&1 | tee "$LOG_BUILD"; then
-      ok "AXIOMA armado (con configuración temporal de Docker)"
+  BAJADA=false
+  if [ -n "$IMAGEN_GHCR" ]; then
+    aviso "Bajando la imagen de AXIOMA (más rápido)..."
+    # La imagen es pública: un DOCKER_CONFIG temporal sin credenciales evita que `docker pull`
+    # tropiece con el mismo ayudante roto que el build (`docker-credential-desktop`).
+    CFG_PULL="${TMPDIR:-/tmp}/axioma-docker-config"
+    mkdir -p "$CFG_PULL" && printf '{"auths":{}}\n' > "$CFG_PULL/config.json"
+    LOG_PULL="${TMPDIR:-/tmp}/axioma-pull.log"
+    for TAG in $TAGS_IMAGEN; do
+      if DOCKER_CONFIG="$CFG_PULL" docker pull "$IMAGEN_GHCR:$TAG" 2>&1 | tee "$LOG_PULL"; then
+        if DOCKER_CONFIG="$CFG_PULL" docker tag "$IMAGEN_GHCR:$TAG" axioma:local; then
+          BAJADA=true
+          break
+        fi
+      fi
+    done
+    if $BAJADA; then
+      ok "Imagen bajada (AXIOMA listo, sin construir)"
+    else
+      aviso "No pude bajarla; la construyo (tarda unos minutos)."
+    fi
+  fi
+  if ! $BAJADA; then
+    # ✅ 2026-10-22: antes se decía «AXIOMA armado» sin mirar el código de salida. Ahora se captura el
+    # build y, si falla por el ayudante de credenciales, se reintenta con un DOCKER_CONFIG temporal:
+    # AXIOMA sólo usa imágenes públicas y no necesita credenciales. (`set -o pipefail` ya está activo.)
+    LOG_BUILD="${TMPDIR:-/tmp}/axioma-build.log"
+    if docker compose build 2>&1 | tee "$LOG_BUILD"; then
+      ok "AXIOMA armado"
+    elif grep -qiE "docker-credential|error getting credentials" "$LOG_BUILD" 2>/dev/null; then
+      aviso "Docker no encontró su ayudante de credenciales. AXIOMA usa sólo imágenes públicas: reintento con una configuración temporal."
+      CFG_TMP="${TMPDIR:-/tmp}/axioma-docker-config"
+      mkdir -p "$CFG_TMP" && printf '{"auths":{}}\n' > "$CFG_TMP/config.json"
+      if DOCKER_CONFIG="$CFG_TMP" docker compose build 2>&1 | tee "$LOG_BUILD"; then
+        ok "AXIOMA armado (con configuración temporal de Docker)"
+      else
+        mal "No se pudo armar la imagen. El log quedó en $LOG_BUILD"
+        exit 1
+      fi
     else
       mal "No se pudo armar la imagen. El log quedó en $LOG_BUILD"
       exit 1
     fi
-  else
-    mal "No se pudo armar la imagen. El log quedó en $LOG_BUILD"
-    exit 1
   fi
 fi
 

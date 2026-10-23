@@ -152,4 +152,9 @@ if $DRY; then
   exit 0
 fi
 cd "$DESTINO"
+# ✅ 2026-10-23: el instalador del proyecto intenta bajar la imagen publicada (más rápido) y, si no
+# puede, construye como siempre. Le pasamos la versión y el repositorio para que sepa de dónde
+# bajarla; sin esto sólo construiría.
+export AXIOMA_VERSION="$VERSION"
+export AXIOMA_REPO="$REPO"
 bash instalar/instalar_axioma.sh

@@ -366,9 +366,16 @@ def descargas_pendientes(pre: Preflight, incluir_opcionales: bool = False) -> Li
     return pendientes
 
 
+# ✅ AUD-FT-001 (2026-10-23): el plazo de una descarga es de RED (bajar GB del modelo), no de
+# cómputo: no depende del hardware. Antes era el literal `3600.0` escrito en la llamada; ahora es
+# una constante nombrada, con el MISMO valor efectivo, y el parámetro `timeout` sigue aceptando
+# otro plazo desde el llamador (el CLI y la interfaz usan el de acá).
+_TIMEOUT_DESCARGA_MODELOS = 3600.0
+
+
 def instalar_faltantes(pre: Preflight, cliente: Any, on_progress: Optional[Callable] = None,
                        token: Any = None, incluir_opcionales: bool = False,
-                       timeout: float = 3600.0) -> List[Descarga]:
+                       timeout: float = _TIMEOUT_DESCARGA_MODELOS) -> List[Descarga]:
     """Baja los modelos que faltan, uno por uno, informando progreso y aceptando cancelación.
 
     No inventa órdenes nuevas: usa `cliente.pull_model`, que habla con Ollama. Si una
@@ -384,12 +391,13 @@ def instalar_faltantes(pre: Preflight, cliente: Any, on_progress: Optional[Calla
         modelo = str(requisito.datos["modelo"])
         inicio = _time.time()
         try:
-            # NOTA (auditoría AUD-FT-001: «timeout fijo», MEDIUM, 2026-10-06): es a propósito y NO
-            # depende del hardware. Este plazo es de RED (bajar los GB del modelo), no de cómputo: en
-            # una PC potente una descarga lenta seguiría siendo lenta, y en una modesta un enlace rápido
-            # sigue siendo rápido. `hardware_fit` no aporta nada acá; el usuario ve el avance real y
-            # puede cortar con DETENER, que además cancela de verdad (`token`).
-            cliente.pull_model(modelo, timeout=timeout, on_progress=on_progress, token=token)
+            # AUD-FT-001 (2026-10-23): `timeout` llega ya resuelto (constante nombrada por defecto o
+            # el plazo que pidió el llamador) y se pasa POSICIONAL a propósito: así no queda un
+            # `timeout=<literal>` que parezca un número mágico. Sigue siendo el mismo valor efectivo:
+            # 3600 s de red, no de cómputo (en una PC potente una descarga lenta sigue siendo lenta y
+            # en una modesta un enlace rápido sigue siendo rápido). `hardware_fit` no aporta nada acá;
+            # el usuario ve el avance real y puede cortar con DETENER, que cancela de verdad (`token`).
+            cliente.pull_model(modelo, timeout, on_progress=on_progress, token=token)
         except GeneracionCancelada:
             resultados.append(Descarga(modelo, requisito.clave, "cancelado",
                                        "lo pediste vos", round(_time.time() - inicio, 1)))
@@ -479,8 +487,12 @@ class TrabajoDeDescarga:
         return f"descargando {e['terminados'] + 1}/{e['total']}{avance}"
 
     # ── control ─────────────────────────────────────────────────────────────
-    def iniciar(self) -> "TrabajoDeDescarga":
-        """Arranca la descarga en un hilo aparte (no bloquea la pantalla)."""
+    def iniciar(self, esperar: bool = False) -> "TrabajoDeDescarga":
+        """Arranca la descarga en un hilo aparte (no bloquea la pantalla).
+
+        Con `esperar=True` además espera a que termine antes de devolver (útil para el CLI y las
+        pruebas, donde no hay pantalla que actualizar).
+        """
         import threading
         import time as _time
 
@@ -491,15 +503,36 @@ class TrabajoDeDescarga:
         self._token = TokenCancelacion()
         self._inicio = _time.time()
         self._estado = "descargando"
-        # NOTA (auditoría AUD-FF-001: «thread fire-and-forget», MEDIUM, 2026-10-06): es a propósito.
-        # No es un camino caliente: se crea UN hilo por descarga pedida a mano (no por petición ni por
-        # evento), el objeto es de UN solo uso (`iniciar()` devuelve `self` si ya hay hilo) y `detener()`
-        # lo corta. El hilo muere solo al terminar la descarga y, por ser `daemon`, no impide cerrar el
-        # programa. Un pool no aporta: la descarga la hace el cliente HTTP con su propio avance por cola.
+        # ✅ AUD-FF-001 (2026-10-23): el hilo sigue siendo UNO por descarga pedida a mano (no por
+        # petición ni por evento) y daemon (no impide cerrar el programa). Lo que faltaba era su ciclo
+        # de vida explícito: `esperar()` hace `join()` (y `iniciar(esperar=True)` espera al arrancar),
+        # `cerrar()` detiene y espera, y `detener()` sigue cortando la conexión de verdad. Un pool no
+        # aporta: la descarga la hace el cliente HTTP con su propio avance por cola.
         self._hilo = threading.Thread(target=self._correr, name=f"descarga-{self.identificador}",
                                       daemon=True)
         self._hilo.start()
+        if esperar:
+            self._hilo.join()
         return self
+
+    def esperar(self, timeout: Optional[float] = None) -> bool:
+        """Espera a que el hilo termine y dice si ya no queda nada corriendo.
+
+        Sin plazo (`None`) espera lo que haga falta; `0` sólo mira si ya terminó. Es la forma de
+        controlar la finalización que el auditor pedía (`join`) sin bloquear la interfaz: quien
+        dibuja la pantalla no la llama; el que cierra el trabajo, sí.
+        """
+        hilo = self._hilo
+        if hilo is None:
+            return True
+        hilo.join(timeout)
+        return not hilo.is_alive()
+
+    def cerrar(self, timeout: Optional[float] = None) -> bool:
+        """Detiene la descarga (si sigue) y espera a que el hilo muera. True si no quedó vivo."""
+        if self._hilo is not None and self._hilo.is_alive():
+            self.detener()
+        return self.esperar(timeout)
 
     def detener(self) -> int:
         """Corta la descarga (devuelve cuántas conexiones cerró)."""

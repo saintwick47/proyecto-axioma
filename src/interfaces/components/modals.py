@@ -19,7 +19,6 @@ import time
 from typing import Optional, Dict, Any, Callable, List
 from nicegui import ui
 from datetime import datetime
-from pathlib import Path
 from config.settings import settings
 
 # ============================================================================
@@ -653,10 +652,11 @@ def _build_file_dialog(state: Optional[Any] = None,
         ui.separator()
         ui.label('📂 Explorá carpetas (📄 archivo = seleccionar)'
                  ).classes('text-sm font-semibold text-gray-400')
-        try:
-            _root = str(getattr(settings, "_REPO_ROOT", Path.cwd()))
-        except Exception:
-            _root = str(Path.cwd())
+        # ✅ E2: `_REPO_ROOT` NO es un campo de settings ⇒ el `getattr` caía
+        # siempre en `Path.cwd()` y el explorador abría la carpeta desde la
+        # que se lanzó la app. `base_dir` es el campo real
+        # (config/settings_paths.py): absoluto y anclado al archivo.
+        _root = str(settings.base_dir)
         _cur = {"path": _root}
         path_label = ui.label('').classes(
             'text-xs font-mono text-blue-300 truncate w-full')

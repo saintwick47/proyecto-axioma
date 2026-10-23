@@ -22,6 +22,28 @@ from src.agents import rac_static as rs
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+
+@pytest.fixture(autouse=True)
+def _sin_centinela_de_pausa():
+    """Borra `data/rac_pause` antes y despues de cada test.
+
+    Si un test ejercita `rac_control('pause')` y deja el centinela en disco, el `while` de
+    `review_system` (que espera a que desaparezca) se queda esperando para siempre: con el
+    `time.sleep` parcheado a no-op, es un bucle infinito. Esto garantiza que nunca quede
+    una bomba en disco.
+    """
+    centinela = analyst_mod.RAC_PAUSE_PATH
+
+    def _borrar() -> None:
+        try:
+            centinela.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    _borrar()
+    yield
+    _borrar()
+
 ARCHIVOS_GRANDES = [
     "src/core/dispatcher_process.py",
     "src/core/task_queue.py",
@@ -210,6 +232,32 @@ def proyecto_falso(tmp_path):
     return tmp_path
 
 
+@pytest.fixture()
+def rac_aislado(tmp_path, monkeypatch):
+    """Aísla las 4 rutas del RAC al `tmp_path`: los tests NUNCA tocan el `data/` real.
+
+    Las rutas del RAC son absolutas (`Paths.ROOT / "data" / ...`). `review_system`
+    las usa como `project_root / RAC_*`, y en `pathlib` un operando absoluto
+    **descarta** `project_root`: sin este fixture, el estado y la caché irían al
+    repo real aunque `find_project_root` devuelva un proyecto falso. Se replican
+    las dos carpetas que el RAC espera (`data/` y `data/cache/`) para que el
+    guardado de la caché incremental no dependa del `data/` real.
+    """
+    datos = tmp_path / "data"
+    (datos / "cache").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(analyst_mod, "RAC_STATE_PATH", str(datos / "rac_state.json"))
+    monkeypatch.setattr(analyst_mod, "RAC_STOP_PATH", datos / "rac_stop")
+    monkeypatch.setattr(analyst_mod, "RAC_PAUSE_PATH", datos / "rac_pause")
+    monkeypatch.setattr(
+        analyst_mod, "RAC_CACHE_REL", str(datos / "cache" / "rac_analisis.json"))
+    # Globales derivados: que una corrida anterior no deje valores apuntando al repo.
+    monkeypatch.setattr(
+        analyst_mod, "_rac_cache_path", datos / "cache" / "rac_analisis.json", raising=False)
+    monkeypatch.setattr(analyst_mod, "_rac_cfg", {}, raising=False)
+    return tmp_path
+
+
+@pytest.mark.usefixtures("rac_aislado")
 class TestRACEndToEnd:
     def _ejecutar(self, monkeypatch, proyecto):
         _ClienteFalso.prompts = []
@@ -659,6 +707,7 @@ class TestNumCtxFijoParaElRac:
         assert 300 <= RAC_NUM_PREDICT <= 512, RAC_NUM_PREDICT
 
 
+@pytest.mark.usefixtures("rac_aislado")
 class TestRacIncremental:
     """`ISSUE-115`: RAC incremental — reutiliza el análisis si el archivo NO cambió.
 

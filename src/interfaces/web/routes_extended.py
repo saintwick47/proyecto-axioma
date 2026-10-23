@@ -267,7 +267,7 @@ async def list_models() -> Dict[str, Any]:
                     ("llm_default_model", "default"),
                     ("llm_code_model",    "code"),
                     ("llm_vision_model",  "vision"),
-                    ("llm_embedding_model", "embedding"),
+                    ("llm_embed_model", "embedding"),
                     ("llm_fallback_1",    "fallback"),
                 ]
                 for name in [getattr(settings, attr, None)]
