@@ -28,6 +28,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ✅ 2026-10-24: artefactos locales que la suite espera y el repo público NO versiona.
+      # El `.env` está excluido de la publicación a propósito y `docs/` es generado, así que
+      # un clon limpio no tiene ninguno de los dos y 4 `check()` de estructura fallaban
+      # (el CI se ponía ROJO sólo por eso). Se crean acá, antes de los tests.
+      - name: Preparar artefactos locales que la suite espera
+        run: |
+          [ -f .env ] || cp .env.example .env
+          mkdir -p docs
+
       # ✅ v0.7.3: `@v5` → `@v6`. Las versiones viejas del action resuelven contra
       # un manifiesto de Pythons que puede no incluir 3.14 (v7.0.0 es la última).
       - uses: actions/setup-python@v6
