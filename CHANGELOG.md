@@ -8,6 +8,24 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 ## [Sin publicar]
 
 ### Agregado
+- **`--backup --full`: el backup ahora protege los DATOS, no sólo las rutas.** Hasta hoy
+  `crear_backup_json()` guardaba un JSON estructural (rutas + configuración) y **nada de memoria**: si se
+  perdía `data/memory` (LanceDB: embeddings y memoria vectorial cross-sesión) o `data/knowledge`, no había
+  forma de recuperarlos. Con `--full` se crea al lado `axioma_backup_<ts>.tar.gz` (mismo nombre base) con
+  **`Paths.MEMORY` y `Paths.KNOWLEDGE`**; `data/cache` (regenerable) y `data/logs` quedan afuera a
+  propósito. Usa sólo **`tarfile` de la biblioteca estándar** (sin dependencias nuevas) y escribe a un
+  temporal + `replace`, así un fallo no deja un `.tar.gz` a medias. Los directorios ausentes se omiten sin
+  fallar y quedan registrados en el JSON: `"archivos": {"memory": {"incluido": true, "bytes": N,
+  "archivos": M}, "knowledge": {...}}` (con `"motivo": "no existe"` si falta). La lógica vive en
+  `src/interfaces/cli/backup.py` (hermano de `main.py` desde la partición 50/50; `main.py` la re-importa) y
+  la raíz (`main.py --backup`) sigue delegando en la misma función.
+- **Aviso de consistencia si AXIOMA está corriendo.** `--backup --full` busca un lock/PID
+  (`data/axioma.lock`, `.axioma.lock`, `axioma.pid`, `.axioma.pid`) y, con `psutil`, procesos que
+  delaten la app (`axioma`, `axioma-web`, argumentos `src.interfaces.web`/`uvicorn ... axioma`/
+  `main.py --web`; se excluyen este proceso y sus padres, y **no** se usa la ruta: node/esbuild viven en el
+  checkout y darían falso positivo). Si la detecta **avisa** que LanceDB son archivos abiertos, que el
+  `.tar.gz` puede quedar inconsistente y que conviene detener AXIOMA, pero **no aborta**: el usuario
+  decide.
 - **El pull de la imagen queda cubierto por la suite** (`tests/test_axioma_32_instaladores_pull.py`):
   ejecuta el instalador **real** sobre un árbol temporal con un `docker` **falso** en el `PATH` —sin red ni
   Docker real— que registra cada llamada y falla los `pull` que se le piden por entorno. Cubre los **4
@@ -17,11 +35,42 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   tests** (hermético: 4 pruebas en 0,07 s).
 
 ### Cambiado
+- **Partición 50/50 de `src/interfaces/cli/main.py` (1215 → 863 líneas) + hermano
+  `src/interfaces/cli/backup.py` (421 líneas).** El archivo superaba las 1000 líneas y el auditor lo
+  marcaba como «Archivo pesado» (LOW). La lógica del backup se fue completa al hermano:
+  `_BACKUP_MAX`/`_BACKUP_LOCK`, `_directorio_backups`, `_agrupar_backups`, `_timestamp_unico`,
+  `_escribir_json`, `_crear_tar`, `_aplicar_retencion`, `_pid_activo`, `_lock_activo`, `_procesos_axioma`,
+  `_avisar_si_axioma_corre`, `crear_backup_json` y `cmd_backup`, más los helpers compartidos
+  `_log_cli_event`/`_log_error`. `main.py` los re-importa con los **mismos nombres y objetos** (la API
+  pública no cambia: `main.cmd_backup is backup.cmd_backup`) y la dependencia queda en un solo sentido
+  (`main.py` → `backup.py`). Los tests que parchean `LOGGER_AVAILABLE`/`get_logger` sobre `main` siguen
+  funcionando porque `_log_*` los lee del original con import diferido. Sin cambios de comportamiento:
+  sonda real de `--backup` y `--backup --full` sobre árboles temporales (13/13 checks) y por subproceso
+  real (JSON, par JSON+tar, retención). Auditor 183/178 → **182/177** (desaparece «Archivo pesado», sin
+  hallazgos nuevos); suite 24/24 (1130 tests), gate OK.
+- **Retención de backups: máximo 3, rotando el par `.json` + `.tar.gz` junto.** Después de crear un
+  backup (con o sin `--full`) se borran los más viejos y quedan los **3 más recientes**; como un backup es
+  el par JSON+tar, se conservan o se borran **juntos** (no queda un tar huérfano ni un JSON sin su tar) y
+  un `.json` estructural de antes **también cuenta** como uno de los 3. Si dos corridas caen en el mismo
+  segundo, la segunda usa el timestamp siguiente libre en vez de pisar el archivo (el recién creado **nunca**
+  se borra). La salida informa cuántos se borraron. **Sin `--full` el JSON sigue siendo idéntico al de
+  siempre** (verificado ejecutando la implementación de `HEAD` y comparando campo por campo, salvo el
+  timestamp): lo único que cambia es que ahora también rota los backups viejos.
 - **Los `.bat` de `instalar/` quedaron en ASCII puro en sus comentarios**: el `✅` pasó a `[OK]` y los
   recuadros, el guion largo y las tildes de los `REM` a ASCII, porque la consola de Windows (CP850) los
   mostraba como «?». **Sólo cambian líneas `REM`** (24 en total: `AXIOMA.bat` 12,
   `DIAGNOSTICO_AXIOMA.bat` 8, `INICIAR_AXIOMA.bat` 2, `INSTALAR_AXIOMA.bat` 2): ninguna línea ejecutable,
   ningún flujo ni ningún contenido funcional cambia. Los cuatro siguen en **CRLF** y **sin BOM**.
+
+### Corregido
+- **El CLI ahora sale con código distinto de 0 cuando el comando falla.** `_ejecutar_comando()` despachaba
+  el comando y guardaba el resultado, pero **no lo devolvía**: `main()` recibía `None` y `sys.exit(None)`
+  lo normaliza a 0, así que un fallo (p. ej. `--voice-file` con un archivo inexistente, que ya devolvía 3)
+  terminaba con éxito para el shell. Ahora devuelve `result` y el código de salida refleja el resultado
+  real (0 si todo bien, distinto de 0 si falló). Sonda real antes/después:
+  `--voice-file /tmp/no-existe.wav` salía 0 y ahora sale 3; `--info`, sin argumentos y `--check` (Ollama
+  conectado) siguen saliendo 0. Cambio mínimo, sin rediseñar el CLI. Auditor 182/177 sin cambios; suite
+  24/24 (1130 tests), gate OK.
 
 ## [v0.7.5] — 2026-10-23
 

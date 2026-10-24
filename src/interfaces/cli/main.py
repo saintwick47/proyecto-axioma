@@ -17,7 +17,6 @@ import argparse
 import asyncio
 import sys
 import time
-import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -52,53 +51,29 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
-def _log_cli_event(category: str, message: str, extra: dict = None,
-                   level: str = "INFO"):
-    """
-    Helper para logging de eventos CLI.
-
-    ✅ ISSUE-144 (MEDIDO 2026-10-04): faltaba el parámetro `level` y **12 llamadas**
-    de este mismo módulo se lo pasaban (`level="ERROR"`/`"WARNING"`, justo en los
-    caminos de error y aviso). El error de argumentos salta ANTES de entrar a la
-    función, así que el `try/except` de acá no podía atraparlo: medido, con Ollama
-    caído `main.py --check` imprimía `TypeError: _log_cli_event() got an unexpected
-    keyword argument 'level'` en lugar de decir qué faltaba instalar. Ninguna prueba
-    cubría esa función.
-
-    Args:
-        category: Categoría del evento (CLI, CHECK, CHAT, BACKUP, INFO)
-        message: Mensaje descriptivo
-        extra: Información adicional para el log
-        level: Nivel del evento (INFO por defecto; ERROR/WARNING en los avisos)
-    """
-    if not LOGGER_AVAILABLE:
-        return
-    try:
-        log = get_logger()
-        if hasattr(log, '_initialized') and log._initialized:
-            log.log_event(category, message, level=level, extra=extra)
-    except Exception as _d2e:
-        logging.getLogger(__name__).debug(f"[D2 main.py:69] excepción degradada (intencional): {_d2e}")
+# ✅ PARTICIÓN 50/50 (2026-10-24): la lógica del backup se movió al hermano
+# `backup.py`; se re-importa con los MISMOS nombres para que `main.cmd_backup`,
+# `main.crear_backup_json` y los helpers sigan existiendo como los mismos objetos.
+from .backup import (
+    _BACKUP_LOCK,
+    _BACKUP_MAX,
+    _aplicar_retencion,
+    _agrupar_backups,
+    _avisar_si_axioma_corre,
+    _crear_tar,
+    _directorio_backups,
+    _escribir_json,
+    _lock_activo,
+    _log_cli_event,
+    _log_error,
+    _pid_activo,
+    _procesos_axioma,
+    _timestamp_unico,
+    cmd_backup,
+    crear_backup_json,
+)
 
 
-def _log_error(error: Exception, context: str, extra: dict = None):
-    """
-    Helper para logging de errores.
-
-    Args:
-        error: Excepción capturada
-        context: Contexto donde ocurrió el error
-        extra: Información adicional para el log
-    """
-    if not LOGGER_AVAILABLE:
-        return
-    try:
-        log = get_logger()
-        if hasattr(log, '_initialized') and log._initialized:
-            log.log_error(error, context=context, extra_info=extra)
-    except Exception as _d2e:
-        logging.getLogger(__name__).debug(f"[D2 main.py:88] excepción degradada (intencional): {_d2e}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -714,81 +689,6 @@ def cmd_voice(console: CLIConsole, model: Optional[str] = None) -> int:
         return 3
 
 
-# ═══════════════════════════════════════════════════════════════
-# COMANDO: --backup
-# ═══════════════════════════════════════════════════════════════
-def crear_backup_json() -> Path:
-    """Crea el backup estructural y devuelve su ruta — **implementación ÚNICA**.
-
-    ✅ 2026-09-29 (unificación de CLIs): antes había DOS implementaciones del mismo
-    backup (`main.py` escribía `axioma_state_<ts>.json` en `DATA_DIR/backups` y este
-    módulo `axioma_backup_<ts>.json` en `Paths.BACKUPS`), con contenidos y resoluciones
-    de ruta distintas. Ahora la raíz delega acá (`main.py::cmd_backup`).
-
-    Nombre unificado: `axioma_backup_<timestamp>.json`.
-    """
-    backup_dir = Paths.BACKUPS if hasattr(Paths, "BACKUPS") else Paths.DATA / "backups"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = backup_dir / f"axioma_backup_{timestamp}.json"
-    state = {
-        "version": "1.0.0",
-        "timestamp": timestamp,
-        "backup_created_at": datetime.now().isoformat(),
-        "paths": {
-            "root": str(Paths.ROOT),
-            "data": str(Paths.DATA),
-            "logs": str(Paths.LOGS),
-            "memory": str(getattr(Paths, "MEMORY", Paths.DATA / "memory")),
-        },
-        "settings": {
-            "default_model": settings.llm_default_model,
-            "code_model": settings.llm_code_model,
-            "ollama_timeout": getattr(settings, "ollama_timeout_standard", 45),
-            "max_retries": settings.max_retries,
-        },
-        "note": "Backup estructural — datos de memoria no incluidos",
-    }
-    with open(backup_file, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, ensure_ascii=False)
-    return backup_file
-
-
-def cmd_backup(console: CLIConsole) -> int:
-    """
-    Crea backup del sistema.
-
-    Args:
-        console: Instancia de CLIConsole
-
-    Returns:
-        int: Código de salida (0=éxito, 3=error inesperado)
-
-    Logging:
-        - Registra inicio/fin del backup
-        - Ruta del archivo creado
-        - Tamaño del backup
-        - Errores en creación
-    """
-    start = time.time()
-    _log_cli_event("BACKUP", "Backup process started")
-    console.print_panel("BACKUP", "Iniciando respaldo...", style="cyan")
-    try:
-        backup_file = crear_backup_json()
-        file_size = backup_file.stat().st_size
-        duration = time.time() - start
-        _log_cli_event("BACKUP", f"Backup completed in {duration:.4f}s",
-                       extra={"duration": round(duration, 4),
-                              "file_path": str(backup_file), "file_size": file_size})
-        console.print_success(f"Guardado: {backup_file}")
-        console.print_info(f"Tamaño: {file_size} bytes")
-        return 0
-    except Exception as e:
-        _log_error(e, "CLI.cmd_backup", extra={"duration": time.time() - start})
-        _log_cli_event("BACKUP", f"Backup failed: {type(e).__name__}: {str(e)}", level="ERROR")
-        console.print_error(f"{type(e).__name__}: {e}")
-        return 3
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -851,13 +751,17 @@ def _ejecutar_comando(args, console: CLIConsole) -> int:
         _log_cli_event("CLI", "Command: --voice")
         result = cmd_voice(console, model=getattr(args, "model", None))
     elif args.backup:
-        _log_cli_event("CLI", "Command: --backup")
-        result = cmd_backup(console)
+        _log_cli_event("CLI", f"Command: --backup{' --full' if getattr(args, 'full', False) else ''}")
+        result = cmd_backup(console, full=getattr(args, "full", False))
     elif args.info:
         _log_cli_event("CLI", "Command: --info")
         result = cmd_info(console)
     else:
         result = 0
+    # ✅ 2026-10-24: faltaba devolver el resultado. `main()` recibía `None` y
+    # `sys.exit(None)` lo normaliza a 0 ⇒ un comando que fallaba (p. ej.
+    # `--voice-file` con un archivo inexistente) salía SIEMPRE con éxito.
+    return result
 
 
 def main() -> int:
@@ -885,6 +789,7 @@ Ejemplos:
   python -m src.interfaces.cli.main --chat "¿Qué es Python?"
   python -m src.interfaces.cli.main --chat
   python -m src.interfaces.cli.main --backup
+  python -m src.interfaces.cli.main --backup --full
   python -m src.interfaces.cli.main --info
   python -m src.interfaces.cli.main --voice
   python -m src.interfaces.cli.main --voice --model small
@@ -904,6 +809,10 @@ Ejemplos:
     group.add_argument("--info",   action="store_true", help="Información del sistema")
     group.add_argument("--no-rich",    action="store_true", help="Desactivar rich")
     group.add_argument("--no-logging", action="store_true", help="Desactivar logging")
+    # ✅ v1.0.2: con --backup, agrega los DATOS (LanceDB y knowledge) en un .tar.gz.
+    parser.add_argument("--full", action="store_true",
+                        help="Con --backup: agrega un .tar.gz con data/memory y "
+                             "data/knowledge (rotación: máx. 3 backups)")
     # ✅ v1.0.0: Argumentos opcionales transversales
     parser.add_argument("--model", metavar="MODEL", default=None,
                         help=f"Modelo LLM a usar (ej: {settings.llm_code_model}, small para voz)")
