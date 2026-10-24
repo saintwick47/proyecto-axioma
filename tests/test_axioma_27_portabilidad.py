@@ -520,6 +520,7 @@ _OMITIDOS_A_PROPOSITO = {
     "customtkinter", "kubernetes", "playwright", "pyinstaller", "git-filter-repo",  # 2026-10-12: 0 refs
     "flet", "flet-cli", "flet-desktop", "flet-web",  # GUI del widget de escritorio (sin pantalla no corre)
     "darkdetect", "pyee", "altgraph", "pyinstaller-hooks-contrib",  # huérfanos: su requirente ya no está
+    "opentelemetry-api", "opentelemetry-sdk", "opentelemetry-proto", "opentelemetry-semantic-conventions", "opentelemetry-exporter-otlp-proto-common", "opentelemetry-exporter-otlp-proto-grpc", "grpcio", "googleapis-common-protos",  # 2026-10-24: OTel fantasma (0 imports) + huérfanos; sólo fuera de la imagen
 }
 
 

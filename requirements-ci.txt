@@ -37,6 +37,17 @@
 #                   → 2026-10-12: quedaron huérfanos al sacar sus únicos requirentes (verificado con
 #                     `pip show`: `darkdetect` ← `customtkinter`; `pyee` ← `playwright`; `altgraph`
 #                     y `pyinstaller-hooks-contrib` ← `pyinstaller`) y el código no los importa.
+#   · opentelemetry-api · opentelemetry-sdk · opentelemetry-proto
+#     · opentelemetry-semantic-conventions · opentelemetry-exporter-otlp-proto-common
+#     · opentelemetry-exporter-otlp-proto-grpc · grpcio · googleapis-common-protos
+#                   → 2026-10-24: 0 imports y 0 referencias en `src/`, `main.py`, `config/`, `tools/`
+#                     y la suite (verificado con `git grep`); sólo el propio cluster OTel los
+#                     requiere, y `transformers` sólo como extra `open-telemetry` (no se instala).
+#                     Al sacar OTel quedan huérfanos `grpcio` y `googleapis-common-protos`
+#                     (verificado con `pip show`/`pipdeptree`: su único requirente era el exporter
+#                     OTLP). `protobuf` SE QUEDA: lo usa `onnxruntime`. Son **~30 MB** menos en la
+#                     imagen (medido: 31,5 MiB). ⛔ EL VENV NO SE TOCA (compartido): siguen declarados en
+#                     `requirements.txt`; acá sólo se dejan de instalar.
 #
 # HERRAMIENTAS DE DESARROLLO/DIAGNÓSTICO QUE **SÍ** VAN EN LA IMAGEN (el producto no las importa):
 #   · pipdeptree  → diagnóstico de dependencias (`pipdeptree --reverse`, `pipdeptree --warn fail`);
@@ -190,21 +201,10 @@ coverage==7.14.0
 iniconfig==2.3.0
 pluggy==1.6.0
 # ═══════════════════════════════════════════════════════════════
-# === PROTOCOL BUFFERS / GRPC ===
+# === PROTOCOL BUFFERS ===
 # ═══════════════════════════════════════════════════════════════
 protobuf==6.33.6
-grpcio==1.80.0
-googleapis-common-protos==1.75.0
 flatbuffers==25.12.19
-# ═══════════════════════════════════════════════════════════════
-# === OBSERVABILITY (OpenTelemetry) ===
-# ═══════════════════════════════════════════════════════════════
-opentelemetry-api==1.41.1
-opentelemetry-sdk==1.41.1
-opentelemetry-proto==1.41.1
-opentelemetry-semantic-conventions==0.62b1
-opentelemetry-exporter-otlp-proto-common==1.41.1
-opentelemetry-exporter-otlp-proto-grpc==1.41.1
 # ═══════════════════════════════════════════════════════════════
 # === NETWORK / SEARCH ===
 # ═══════════════════════════════════════════════════════════════
