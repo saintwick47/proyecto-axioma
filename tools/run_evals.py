@@ -41,7 +41,6 @@ def _build_agent(agent_name: str):
     if agent_name == "coder":
         from src.agents.coder import CoderAgent
         agent = CoderAgent()
-        msg = None
 
         def run(instruction: str):
             return agent.execute(Message(content=instruction, role="user"))

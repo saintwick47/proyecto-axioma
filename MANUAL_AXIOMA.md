@@ -11,13 +11,16 @@ búsqueda web, archivos y memoria persistente por usuario.
 0. **La interfaz queda en tu equipo**: AXIOMA escucha en `127.0.0.1:8080` por defecto (no en la red
    local) y la clave de las sesiones es propia de tu equipo (`data/.storage_secret`, permisos 600).
    Para exponerlo a la red local hay que pedirlo a propósito: `AXIOMA_WEB_HOST=0.0.0.0`. En ese caso
-   definí **`AXIOMA_WEB_TOKEN`**: protege las rutas que escriben el `.env`
-   (`POST /api/v1/preflight/claves` y `POST /api/v1/preflight/modelos`). Sin token, si está expuesto,
-   esas rutas responden **403**; con token, se exige siempre en el header **`X-AXIOMA-Token`**
-   (ausente o inválido → **401**). El resto de la API no tiene autenticación.
+   **no hay que generar ningún token a mano**: AXIOMA genera un código de acceso y lo guarda en
+   `data/.web_token` (permisos **0600**), lo muestra en la consola y en un banner de la interfaz.
+   Protege las rutas que escriben el `.env` (`POST /api/v1/preflight/claves` y
+   `POST /api/v1/preflight/modelos`); se manda en el header **`X-AXIOMA-Token`** (ausente o inválido
+   → **401**). Para rotarlo: `python main.py --rotar-token`. `AXIOMA_WEB_TOKEN` (entorno o `.env`)
+   sigue siendo la opción avanzada para fijarlo a mano. El resto de la API no tiene autenticación.
 
    ```bash
-   export AXIOMA_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+   # el código se genera solo al arrancar expuesto; también se puede leer del archivo
+   export AXIOMA_WEB_TOKEN="$(cat data/.web_token)"
    curl -X POST http://127.0.0.1:8080/api/v1/preflight/claves \
      -H "X-AXIOMA-Token: $AXIOMA_WEB_TOKEN" -H "Content-Type: application/json" \
      -d '{"TAVILY_API_KEY": "tvly-tu-clave"}'
@@ -28,7 +31,10 @@ búsqueda web, archivos y memoria persistente por usuario.
    En **Windows** es `instalar/instalar_axioma.ps1`:
    `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`; deja acceso
    directo en el menú Inicio y en el Escritorio. Ahí el puerto es 8080 fijo (no hay `network_mode: host`)
-   y la voz todavía no está disponible.
+   y la voz todavía no está disponible. **El instalador pregunta cómo vas a usar AXIOMA** (1: sólo esta
+   computadora —recomendado—, 2: otros equipos de tu casa/oficina, 3: desde internet) y guarda
+   `AXIOMA_WEB_HOST` en el `.env`; en el primer arranque del CLI aparece el mismo aviso, una sola vez
+   (marcador `data/.primer_arranque`).
 3. De ahí en adelante, **doble clic en el icono «AXIOMA»**: se enciende y se abre en el navegador.
 4. La primera vez, AXIOMA **pide crear tu usuario** (no hay ninguno predefinido) y abre la pantalla
    **🧩 Configurar AXIOMA**, que dice qué falta y lo instala con un clic.

@@ -603,7 +603,6 @@ class ResearcherSources:
                 precip = curr.get("precipitation", "?")
                 tmax = daily.get("temperature_2m_max", [None])[0]
                 tmin = daily.get("temperature_2m_min", [None])[0]
-                precip_sum = daily.get("precipitation_sum", [None])[0]
                 precip_prob = daily.get("precipitation_probability_max", [None])[0]
                 lines_out = [
                     f"📍 {resolved_name} — {date_str}",

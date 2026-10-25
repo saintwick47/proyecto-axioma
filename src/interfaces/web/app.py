@@ -28,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config.paths import Paths
+from config.acceso_web import host_expuesto, token_de_web   # ✅ token automático (0600)
 from .sesion_segura import secreto_de_sesion   # ✅ secreto de sesión por equipo
 from src.domain.entities import Message
 # ✅ v0.1.6b: Import no utilizado eliminado
@@ -638,6 +639,14 @@ def main_page() -> None:
 
     create_header()
 
+    # ✅ Parte B.3: si AXIOMA está expuesto a la red, el banner con el código de acceso
+    # queda visible mientras siga expuesto (y explica cómo volver a sólo esta computadora).
+    try:
+        from .app_ui import create_aviso_de_acceso
+        create_aviso_de_acceso()
+    except Exception as _aviso_err:  # noqa: BLE001 — el banner no puede romper la página
+        logging.getLogger(__name__).debug(f"[aviso de acceso] no se pudo mostrar: {_aviso_err}")
+
     # ✅ Primer arranque guiado: la primera vez, la pantalla de configuración se abre SOLA y explica
     # qué falta (y lo instala con un clic). Se marca en `data/`, así se muestra una única vez.
     try:
@@ -700,6 +709,20 @@ def start_server(
     """
     _log_web_event("SERVER", f"Starting on {host}:{port}")
     logger.info(f'Starting NiceGUI server on http://{host}:{port}')
+
+    # ✅ 2026-10-25: la misma fuente de verdad que `server.WebServer` para saber si
+    # AXIOMA quedó expuesto, y generación automática del código de acceso (0600).
+    # Antes este entry point ni siquiera dejaba `AXIOMA_WEB_HOST` puesto.
+    import os as _os
+    _os.environ["AXIOMA_WEB_HOST"] = str(host)
+    if host_expuesto(host):
+        token = token_de_web()
+        if token:
+            print(f"\n🔐 AXIOMA está abierto a otros equipos. Código de acceso: {token}")
+            print("   Para volver a sólo esta computadora: AXIOMA_WEB_HOST=127.0.0.1 en el .env\n")
+        else:
+            print("\n⚠️  AXIOMA está abierto a otros equipos y no tiene código de acceso.")
+            print("   Cerrá AXIOMA o poné AXIOMA_WEB_HOST=127.0.0.1 en el .env\n")
 
     # ✅ v0.0.14: Log en detailed_logger
     dl = _dlog()

@@ -21,6 +21,7 @@ import hashlib
 import sqlite3 as _sqlite3
 import threading as _threading
 from collections import deque
+from contextlib import closing
 from enum import Enum, IntEnum
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, timezone
@@ -363,7 +364,7 @@ class QualityMetrics:
         try:
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
 
-            with _sqlite3.connect(self.db_path) as conn:
+            with closing(_sqlite3.connect(self.db_path)) as conn, conn:
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS quality_metrics (
                         task_type         TEXT NOT NULL,
@@ -462,7 +463,7 @@ class EWMAThresholdOptimizer:
         import os
         os.makedirs(os.path.dirname(self._db_path) if os.path.dirname(self._db_path) else ".", exist_ok=True)
         try:
-            with _sqlite3.connect(self._db_path) as conn:
+            with closing(_sqlite3.connect(self._db_path)) as conn, conn:
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS interaction_metrics (
                         session_id        TEXT NOT NULL,
@@ -544,7 +545,7 @@ class EWMAThresholdOptimizer:
     def _load_from_db(self) -> None:
         """Carga umbrales actuales desde SQLite al cache en memoria."""
         try:
-            with _sqlite3.connect(self._db_path) as conn:
+            with closing(_sqlite3.connect(self._db_path)) as conn, conn:
                 rows = conn.execute(
                     "SELECT task_type, threshold, ewma_value, samples FROM ewma_thresholds"
                 ).fetchall()
@@ -654,7 +655,7 @@ class EWMAThresholdOptimizer:
     ) -> None:
         """Persiste interacción y umbral actualizado en SQLite."""
         try:
-            with _sqlite3.connect(self._db_path) as conn:
+            with closing(_sqlite3.connect(self._db_path)) as conn, conn:
                 import datetime as _dt
                 ts_micro = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
                 conn.execute(

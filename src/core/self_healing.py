@@ -196,7 +196,6 @@ class SelfHealingMonitor:
             if h.status == HealthStatus.HEALTHY:
                 return HealingAction.NONE
 
-            error_rate = h.error_rate
             p95 = h.p95_latency_ms
 
             # ✅ FIX FASE 4: Alinear acción con severidad real.

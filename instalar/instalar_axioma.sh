@@ -31,6 +31,82 @@ ok()   { printf '  ✅ %s\n' "$*"; }
 aviso(){ printf '  ⚠️  %s\n' "$*"; }
 mal()  { printf '  ❌ %s\n' "$*"; }
 
+# ── ¿Cómo vas a usar AXIOMA? (lenguaje llano, sin jerga) ────────────────────
+# El token de la web ya no se genera a mano: con la opción 2 o 3 AXIOMA lo genera
+# solo al arrancar y lo guarda en data/.web_token. Acá sólo se elige la dirección
+# (queda en el .env). Se respeta AXIOMA_MODO_ACCESO=1|2|3 si lo pasó otro
+# instalador (por ejemplo el .exe), para no preguntar dos veces.
+fijar_variable_env() {
+  # Reemplaza/agrega `CLAVE=valor` sin tocar el resto del .env. Sin `sed -i`:
+  # no es portable entre GNU y BSD/macOS.
+  local clave="$1"
+  local valor="$2"
+  [ -f .env ] || return 0
+  if grep -qE "^[[:space:]]*${clave}=" .env 2>/dev/null; then
+    local temporal
+    temporal="$(mktemp "${TMPDIR:-/tmp}/axioma-env.XXXXXX")" || return 1
+    if awk -v c="$clave" -v v="$valor" 'index($0, c "=") == 1 { print c "=" v; next } { print }' \
+         .env > "$temporal"; then
+      cat "$temporal" > .env
+    fi
+    rm -f "$temporal"
+  else
+    printf '\n# Elegido en el instalador: cómo se usa AXIOMA (127.0.0.1 = sólo este equipo).\n%s=%s\n' \
+      "$clave" "$valor" >> .env
+  fi
+}
+
+elegir_modo_de_acceso() {
+  local opcion="${AXIOMA_MODO_ACCESO:-}"
+  if [[ "$opcion" =~ ^[123]$ ]]; then
+    # Ya lo eligió el instalador de un solo archivo (el .exe): no repetir el cartel.
+    printf '\n  Usando el modo de acceso elegido antes: %s\n' "$opcion"
+  else
+    printf '\n  ¿Cómo vas a usar AXIOMA?\n\n'
+    printf '  1) Sólo en esta computadora  (recomendado)\n'
+    printf '     Nadie más puede entrar. No hay que configurar nada.\n\n'
+    printf '  2) Desde otros equipos de mi casa/oficina\n'
+    printf '     AXIOMA pedirá un código de acceso que se genera solo.\n\n'
+    printf '  3) Desde internet\n'
+    printf '     No recomendado sin ayuda técnica: además del código,\n'
+    printf '     conviene un candado extra (HTTPS).\n\n'
+    printf '  [1]  [2]  [3]        opción por defecto: 1\n'
+    # [ -t 1 ] también: con la salida a un archivo/tubería no hay persona mirando
+    # (los tests y el CI corren este instalador así; antes se quedaría esperando).
+    if [ -t 0 ] && [ -t 1 ]; then
+      while :; do
+        printf '\n  Elegí una opción [1]: '
+        read -r opcion || opcion=""
+        opcion="${opcion:-1}"
+        case "$opcion" in
+          1|2|3) break ;;
+          *) printf '  Escribí 1, 2 o 3 (o Enter para la 1).\n' ;;
+        esac
+      done
+    else
+      opcion=1
+      printf '\n  (sin una persona para elegir: sigo con la opción 1, la recomendada)\n'
+    fi
+  fi
+
+  local host="127.0.0.1"
+  local mensaje="Listo: AXIOMA queda sólo en esta computadora (lo recomendado)."
+  case "$opcion" in
+    2) host="0.0.0.0"
+       mensaje="AXIOMA va a pedir un código de acceso que se genera solo (te lo muestro al arrancar)." ;;
+    3) host="0.0.0.0"
+       mensaje="AXIOMA va a pedir un código; para internet, además pedí ayuda para poner HTTPS." ;;
+  esac
+
+  if $DRY; then
+    printf '  (ensayo) dejaría AXIOMA_WEB_HOST=%s en el .env\n' "$host"
+  elif fijar_variable_env "AXIOMA_WEB_HOST" "$host"; then
+    ok "$mensaje"
+  else
+    aviso "No pude guardar AXIOMA_WEB_HOST en el .env (revisá los permisos)."
+  fi
+}
+
 paso "AXIOMA — instalación (una sola vez)"
 echo "   Carpeta del proyecto: $RAIZ"
 
@@ -83,6 +159,10 @@ elif [ ! -f .env ] && [ -f .env.example ]; then
   cp .env.example .env
   ok "Creé tu .env a partir de la plantilla (ahí se guardan tus claves, y no se publican)"
 fi
+
+# ── 2b. Cómo se va a usar (la elección queda en el .env) ─────────────────────
+elegir_modo_de_acceso
+
 paso "Armando AXIOMA (la primera vez tarda unos minutos)"
 # ✅ 2026-10-23: primero se intenta BAJAR la imagen publicada (tarda mucho menos que construirla).
 # El repositorio de la imagen viene de AXIOMA_REPO (lo estampa el CI en el instalador de un solo

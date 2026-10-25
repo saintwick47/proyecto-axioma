@@ -27,13 +27,16 @@ class SettingsWeb(BaseModel):
     reload: bool = False
 
     # 🔐 Token de las rutas que ESCRIBEN configuración por la API
-    # (`/api/v1/preflight/claves` y `/modelos`). Vacío = sin token: se permite
-    # en loopback y se rechaza si AXIOMA está expuesto a la red. Se manda en el
-    # header `X-AXIOMA-Token` (ver `routes_preflight.exigir_token_de_escritura`).
+    # (`/api/v1/preflight/claves` y `/modelos`). **No hace falta generarlo a mano**:
+    # si está vacío, AXIOMA usa (o genera) `data/.web_token` mediante
+    # `config.acceso_web.token_de_web()`, con permisos 0600. Este campo queda como
+    # opción AVANZADA para fijarlo desde `AXIOMA_WEB_TOKEN` (entorno o `.env`);
+    # si tiene valor, manda sobre el archivo. Se manda en el header
+    # `X-AXIOMA-Token` (ver `routes_preflight.exigir_token_de_escritura`).
     axioma_web_token: str = Field(
         default="",
-        description="Token para las rutas de la API que escriben el .env "
-                    "(header X-AXIOMA-Token); vacío = sólo loopback",
+        description="Override AVANZADO del token de escritura de la API "
+                    "(header X-AXIOMA-Token). Vacío = se usa/genera data/.web_token",
     )
 
     # ═══════════════════════════════════════════════════════════

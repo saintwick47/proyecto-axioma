@@ -13,19 +13,13 @@ import ast
 import json
 import logging
 import re
-import subprocess
-import sys
-import textwrap
-import time
-from dataclasses import asdict, dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 from tools.auditor.aud_core import (
-    BaseDetector, CodeIndex, DetectorResult, AudFinding, AudSeverity, AudVerdict,
+    BaseDetector, AudSeverity, AudVerdict,
     _resolve_imports_for, _resolve_top_level_imports_for, _to_snake_case,
 )
 

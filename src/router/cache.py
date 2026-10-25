@@ -352,7 +352,6 @@ class RouterCache:
             self._stats["expirations"] += 1
 
         # ✅ v0.5.2: O(1) lookup en OrderedDict en vez de O(N) en List
-        original_l2_size = len(self._l2_cache)
         expired_l2_keys = [k for k, e in self._l2_cache.items() if e.is_expired()]
         for k in expired_l2_keys:
             del self._l2_cache[k]

@@ -546,7 +546,7 @@ def test_coder_retries_conservan_identidad():
     # Contenido sin bloques markdown → calidad baja → dispara retries
     agent._generate = lambda **k: "codigo sin docstrings ni bloques"
 
-    result = agent.execute(
+    result = agent.execute(  # noqa: F841
         msg, task_type="code_generation", session_id="s1", user_id="u1",
     )
     assert len(llamadas) >= 2, f"esperaba retries, hubo {len(llamadas)} llamadas a _build_prompt"

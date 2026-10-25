@@ -81,6 +81,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from config.settings import settings
 from config.paths import Paths
+from config.acceso_web import host_expuesto, token_de_web, token_configurado
 # ✅ 2026-10-25 (fuente única): la versión de FastAPI y la que se muestra al
 # arrancar salen de `src/__init__.py`, no de literales.
 from src import __version__ as AXIOMA_VERSION
@@ -365,10 +366,45 @@ class WebServer:
         self.app = None
         self.static_path = Paths.ROOT / "src" / "interfaces" / "web"
 
+        # ✅ 2026-10-25 (token automático): si AXIOMA se expone a la red, el código de
+        # acceso se genera y se guarda solo en `data/.web_token` (0600). El usuario ya
+        # no tiene que generarlo ni pegarlo a mano. Si no se puede escribir, se sigue
+        # sin token: la web local funciona y las rutas de escritura quedan cerradas
+        # para la red (default seguro). Ver `config/acceso_web.py`.
+        self.token_acceso = ""
+        if host_expuesto(host):
+            self.token_acceso = token_de_web()
+
         duration = time.time() - start
         _log_web_event("SERVER", "WebServer initialized",
                       extra={"duration": round(duration, 4), "host": host, "port": port})
         logger.info(f"WebServer initialized: {self.host}:{self.port}")
+
+    def _mostrar_aviso_de_acceso(self) -> None:
+        """Aviso EN LENGUAJE LLANO si AXIOMA quedó abierto a otros equipos.
+
+        Muestra el código de acceso (el usuario lo necesita para guardar
+        configuración desde otro equipo) y cómo volver a «sólo esta computadora».
+        **No** se registra el código en los logs: sólo se imprime en la consola de
+        quien arrancó AXIOMA.
+        """
+        if not host_expuesto(self.host):
+            return
+        token = self.token_acceso or token_configurado()
+        print("\n" + "-" * 60)
+        print("  🔐 AXIOMA está abierto a otros equipos de tu red.")
+        if token:
+            print(f"  Código de acceso: {token}")
+            print("  Guardalo: te lo va a pedir para guardar la configuración desde otro equipo.")
+        else:
+            print("  ⚠️  No hay código de acceso: no se pudo guardar en data/.web_token.")
+            print("     Mientras tanto, la configuración sólo se puede guardar en esta computadora.")
+        print("  Para volver a sólo esta computadora: cerrá AXIOMA y poné")
+        print("    AXIOMA_WEB_HOST=127.0.0.1")
+        print("  en el archivo .env de la carpeta de AXIOMA. Después abrilo otra vez.")
+        print("-" * 60 + "\n")
+        _log_web_event("SERVER", "AXIOMA expuesto a la red: aviso de acceso mostrado",
+                       extra={"tiene_token": bool(token)})
 
     def _check_models_on_startup(self) -> None:
         """
@@ -380,7 +416,6 @@ class WebServer:
             - Warnings de modelos críticos
             - Errores en verificación
         """
-        start = time.time()
         _log_web_event("SERVER", "Model startup check initiated")
 
         def _check():
@@ -425,8 +460,6 @@ class WebServer:
 
                 all_critical_ok = True
                 for role, model_name, scenario in critical_models:
-                    timeout = settings.get_timeout_for_model(model_name, is_first=True) if hasattr(settings, 'get_timeout_for_model') else 65
-
                     if model_name in available_models:
                         model_info = available_models[model_name]
                         size_gb = model_info.get("size", 0) / (1024**3)
@@ -523,6 +556,7 @@ class WebServer:
         print(f"⏱️  Timeout estándar: {settings.ollama_timeout_standard}s")
         print(f"⏱️  Timeout primera carga: {settings.ollama_timeout_first_load}s")
         print(f"⏱️  Timeout código: {settings.ollama_timeout_code}s")
+        self._mostrar_aviso_de_acceso()
         print("\n🛑 Presiona Ctrl+C para detener\n")
 
         if hasattr(settings, 'should_verify_models_on_startup') and settings.should_verify_models_on_startup:

@@ -17,6 +17,7 @@ import time
 import json
 import hashlib
 import sqlite3 as _sqlite3
+from contextlib import closing
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -246,7 +247,7 @@ class FeedbackLoop:
         os.makedirs(os.path.dirname(self._db_path) if os.path.dirname(self._db_path) else ".", exist_ok=True)
 
         try:
-            with _sqlite3.connect(self._db_path) as conn:
+            with closing(_sqlite3.connect(self._db_path)) as conn, conn:
                 # Asegurar que la tabla existe
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS quality_metrics (

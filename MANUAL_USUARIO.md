@@ -75,6 +75,34 @@ Dentro de la carpeta `proyecto-axioma` hay una carpeta **`instalar`**. Ahí est�
 > En Windows, AXIOMA usa el puerto **8080** (ahí no se puede cambiar) y la **voz todavía no está
 > disponible**: el chat y los modelos funcionan igual.
 
+### El instalador te pregunta cómo vas a usar AXIOMA
+
+Antes de armar todo, te muestra estas tres opciones (elegís con el número y Enter):
+
+```
+  ¿Cómo vas a usar AXIOMA?
+
+  1) Sólo en esta computadora  (recomendado)
+     Nadie más puede entrar. No hay que configurar nada.
+
+  2) Desde otros equipos de mi casa/oficina
+     AXIOMA pedirá un código de acceso que se genera solo.
+
+  3) Desde internet
+     No recomendado sin ayuda técnica: además del código,
+     conviene un candado extra (HTTPS).
+
+  [1]  [2]  [3]        opción por defecto: 1
+```
+
+- Si no elegís nada (o apretás Enter), queda la **1**, que es la recomendada.
+- La **2** y la **3** dejan AXIOMA visible para otros equipos. No tenés que inventar ninguna clave:
+  **AXIOMA genera el código de acceso solo** y te lo muestra al arrancar (también en un cartel arriba
+  de la pantalla). Ese código te lo va a pedir si guardás la configuración desde otro equipo.
+- La **3** además necesita un candado **HTTPS**: pedile ayuda a alguien que sepa antes de usarla.
+- La elección queda guardada en el archivo `.env`; se puede cambiar después (el cartel de la pantalla
+  te explica cómo volver a la opción 1).
+
 Vas a ver cómo avanza:
 
 ```
@@ -110,7 +138,7 @@ La primera vez se abre sola la pantalla **🧩 Configurar AXIOMA**. Arriba te sa
 por punto, el estado de tu equipo:
 
 ```
-✅ Intérprete de Python: 3.12.x con dependencias
+✅ Intérprete de Python: 3.14.x con dependencias
 ✅ Motor de modelos (Ollama): responde
 ⚠️  Memoria RAM: 14,7 GB: AXIOMA funciona, con restricciones (16 GB es el nivel recomendado)
 ❌ Modelo de chat: no está descargado: qwen3:8b (4,87 GB en disco)

@@ -211,7 +211,6 @@ class ChatAttachmentsMixin:
         try:
             file_bytes = None
             filename = 'unknown.txt'
-            original_size = 0
 
             if hasattr(e, 'name') and e.name:
                 filename = e.name

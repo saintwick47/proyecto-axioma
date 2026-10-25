@@ -256,7 +256,6 @@ class ExternalAPIManager:
         Retorna dict con 'success' bool, 'summary' str, 'results' list.
         RouterAPIExecutor usa result.get("success") y result.get("summary").
         """
-        start = time.time()
         _log_event("INTEGRATION", f"execute() called: intent={intent}, query='{query[:50]}...'")
         try:
             match intent:
@@ -333,7 +332,6 @@ class ExternalAPIManager:
                         }
                     return {"success": False, "error": f"Intent '{intent}' no soportado y búsqueda web fallida"}
         except Exception as e:
-            duration = time.time() - start
             _log_error(e, "execute", extra_info={"intent": intent, "query": query[:50]})
             logger.error(f"execute() failed: intent={intent} error={e}")
             return {"success": False, "error": f"{type(e).__name__}: {e}"}

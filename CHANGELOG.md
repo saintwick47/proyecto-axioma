@@ -33,7 +33,50 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   monkeypatcheado la llamada real recibió `host='127.0.0.1'`; antes recibía `'0.0.0.0'`.
 - **Lectura arbitraria de archivos y borrado fuera del base por `session_id` (workspaces).** `WorkspaceManager` usaba el `session_id` como nombre de directorio sin validarlo: en `Path(base) / sid`, un valor absoluto **descarta el base** (`/etc` → `/etc`) y `..` permite traversal (`../evil`). Medido con `TestClient` sobre `build_api_app()`: `GET /api/v1/workspace/download?session_id=/etc&filename=passwd` devolvía **200 con 2182 B** de `/etc/passwd` —el chequeo de contención se calculaba contra el «workspace» del propio atacante, así que nunca bloqueaba—, `GET /api/v1/workspace/attempts?session_id=/etc` respondía 200 y el GET creaba directorios. `cleanup('../evil')` borraba un archivo externo al base (`'../../..'` resolvía al home), alcanzable por prompt injection vía `workspace_manage(action='cleanup')` (permiso `EXECUTE` por defecto). Ahora el `session_id` se valida en un único punto (`WorkspaceManager._workspace_path`): sólo `^[A-Za-z0-9_-]{1,64}$` y contención real con `resolve().is_relative_to(base)`, **rechazando con `ValueError`** (sin sanear en silencio); `/workspace/download` y `/workspace/attempts` devuelven **400**, y la tool devuelve un fallo con el mensaje. Tests de regresión en `tests/test_axioma_29_seguridad_web.py` (base `tmp_path`, incluido un symlink y un archivo externo). Las formas legítimas relevadas en el repo y la suite (`default`, UUIDs con `-`, `nicegui_YYYYMMDD_HHMMSS_microseg`, `<usuario>_YYYYMMDD`, ids de tests) entran en la regex y siguen andando.
 
+### Agregado
+- **Código de acceso de la web AUTOMÁTICO (Parte A).** Antes había que generar el token a mano y
+  pegarlo en `AXIOMA_WEB_TOKEN`: un usuario inexperto no tenía forma de saberlo. Ahora
+  `config/acceso_web.py` resuelve, en orden: `AXIOMA_WEB_TOKEN` (entorno o `.env`, opción **avanzada**
+  para fijarlo) → `data/.web_token` → si no existe, lo genera con `secrets.token_urlsafe(32)` y lo
+  guarda con permisos **0600** (escritura atómica a un temporal + `os.replace`). La lectura/generación
+  es perezosa, barata y tolerante a fallos: si no se puede escribir, AXIOMA **sigue sin código**
+  (la web local funciona; la API de escritura queda cerrada si está expuesta) y lo registra. **No se
+  lee ni se crea nada al importar `config.settings`** (la suite importa todo el tiempo; los tests usan
+  `tmp_path`/`AXIOMA_WEB_TOKEN_FILE`). El modo local sigue **sin token**; al arrancar expuesto,
+  `WebServer` (y `start_server`) genera el código y lo imprime en la consola. Rotación:
+  `python main.py --rotar-token` (los procesos abiertos lo toman sin reiniciar). Sonda real:
+  `WebServer(host="0.0.0.0")` con `AXIOMA_WEB_TOKEN_FILE` temporal → token de 43 caracteres y archivo
+  `0600`; `--rotar-token` → código nuevo persistido; el POST sin header da **401** y con el código del
+  archivo **200**. Se actualizaron `.env.example`, README, manuales y COMANDOS.
+- **Aviso de primer arranque en lenguaje llano (Parte B).** La primera vez que se ejecuta el CLI se
+  muestran las tres formas de usar AXIOMA (1: sólo esta computadora —recomendada—, 2: otros equipos de
+  la casa/oficina, 3: desde internet con la advertencia de HTTPS), sin «bind», «loopback» ni «header».
+  Se muestra **una sola vez** (marcador `data/.primer_arranque`) y **funciona sin terminal**: muestra
+  el aviso y sigue con la opción 1 sin bloquearse (`src/interfaces/cli/primer_arranque.py`). Los
+  **instaladores** (`instalar_axioma.sh`, `instalar_axioma.ps1` y `axioma_setup.py`, fuente del `.exe`)
+  hacen la misma pregunta —respetan `AXIOMA_MODO_ACCESO` para no preguntar dos veces— y escriben
+  `AXIOMA_WEB_HOST` en el `.env` (1 → `127.0.0.1`; 2/3 → `0.0.0.0`). En la **UI**, si AXIOMA está
+  expuesto se muestra un banner **permanente** con el código de acceso y el botón **«Volver a sólo
+  esta computadora»**, que abre las instrucciones exactas (cerrar, editar `AXIOMA_WEB_HOST` en el
+  `.env`, volver a abrir). En modo local no aparece nada.
+- **`python main.py --check` avisa si está expuesto sin código (Parte C).**
+  `src/interfaces/cli/acceso.py::avisar_acceso_expuesto()` detecta `AXIOMA_WEB_HOST=0.0.0.0` (o
+  `--host 0.0.0.0`) sin token y muestra qué hacer (`python main.py --rotar-token` o volver a
+  `127.0.0.1`); si ya hay código, recuerda dónde está y cómo volver al modo local. Sonda real:
+  `--check` con `AXIOMA_WEB_HOST=0.0.0.0` sin archivo → warning con las dos salidas; con el archivo
+  generado → aviso informativo. Con la Parte A ese caso casi no ocurre: el arranque de la web genera
+  el código solo.
+
 ### Cambiado
+- **F541 restantes en `tools/` y restitución de `tests/test_axioma_02_core.py`.** `ruff --select F541
+  tools/` marcaba **56** f-strings sin placeholders en 16 archivos (`benchmark_*`,
+  `tools/documentador/`, `run_diagnostic_suite.py`, `verify_axioma.py`, `structure_detector.py`,
+  `hardware_report.py`, `system_check.py`); se quitó sólo el prefijo `f` (56 líneas, textos intactos) y
+  el selector queda en **0**. En `tests/test_axioma_02_core.py` se revirtió `_ = agent.execute(...)` a
+  `result = agent.execute(...)  # noqa: F841` (el archivo estaba en la lista de «no tocar» del usuario);
+  conserva **946 líneas** (R13 ≤ 950) y sus **62** tests pasan. `ruff --select F821,F811,W605` limpio en
+  los 17 archivos tocados. Protocolo: suite **24/24 (1147 tests)**, auditor **181/177** (MEDIUM 0,
+  SCORE 100), gate ✅.
 - **Limpieza de imports sin usar (F401) y f-strings sin placeholders (F541).** Alcance medido:
   `src/`, `main.py` y `tests/` (118 archivos con hallazgos). F541: **41** f-strings corregidas
   (20 archivos) sin cambiar el texto. F401: **472** hallazgos, **456** imports eliminados; los **16**
@@ -123,6 +166,77 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   ningún flujo ni ningún contenido funcional cambia. Los cuatro siguen en **CRLF** y **sin BOM**.
 
 ### Corregido
+- **22 variables muertas (F841) + una verificación que faltaba en el staging.** `ruff --select F841`
+  en el repo: **28 → 5**; los 5 que quedan son los intencionales y **no se tocaron**
+  (`stm`/`ltm`/`sm`/`gw` en `src/memory/__init__.py:118-142` y `loop` en
+  `src/multimodal/tts_engine.py:406`). **`original_checksum` en `src/tools_mcp/sandbox_staging.py`
+  no se borró: se implementó la verificación que faltaba.** `stage_write()` ya calculaba el SHA256
+  del archivo destino antes de respaldarlo, pero lo descartaba (`StagingEntry` ni tenía el campo).
+  Ahora se guarda en `StagingEntry.original_checksum` y `commit()` lo compara con el archivo actual:
+  si otro proceso/persona lo editó entre el stage y el commit (TOCTOU), **aborta sin sobrescribir**
+  (no revierte, porque restaurar el backup también pisaría la edición externa). Sonda real con
+  archivo en `tmp` (stage_write("v2") sobre "v1", luego `write_text("cambio externo")`, commit):
+  **antes → `ok=True` y el archivo quedaba en "v2" (pérdida silenciosa del cambio externo);
+  después → `ok=False`, error «El archivo cambió desde el staging — commit abortado sin
+  sobrescribir» y el contenido sigue siendo "cambio externo"**. Flujo normal (stage+commit → "v2"),
+  archivo nuevo (commit OK) y `revert()` (vuelve a "v1") dan idéntico antes y después.
+  Resto borrado uno por uno: `precip_sum` (researcher_sources), `error_rate` (self_healing),
+  `duration` y su `start` ya sin uso (external_apis), `original_size` inicial (chat_attachments),
+  `start` y `timeout` (web/server.py), `original_l2_size` (router/cache), `src`
+  (aud_detectors_regresiones), `exc` (aud_detectors_salud), `class_code`
+  (axioma_doc_analysis_passes), `classes` en axioma_doc_extractors_advanced (más su import, que
+  quedaba sin uso), `async_pfx` (validate_docs), `msg` (run_evals), `config_ok` (system_check; se
+  conserva el `yaml.safe_load` como validación), `resp` ×2 (verify_axioma: `with … as resp` →
+  `with …`), `input_devices` y `settings` (test_audio_diagnostic). Donde la variable mantenía vivo
+  un objeto se usó `_ = …` (misma vida, sin F841): `m1` en test_03, `out` en test_08, `c` en
+  test_23 y `result` en test_02_core (sólo cambia el destino de la asignación; el archivo queda en
+  **946 líneas ≤ R13** y no se agregó ni un test). `py_compile` de los 20 archivos tocados OK;
+  `ruff F821/F811/W605` en los tocados, limpio (el único F821 del repo es el **preexistente** de
+  `config/settings_paths.py:45`, anotación `"Settings"`, archivo no tocado). Suite 24/24
+  (1147 tests), auditor 181/177 MEDIUM 0 SCORE 100, health OK, gate OK.
+- **7 f-strings sin placeholder (F541): se quitó la `f`.** `tools/security_audit.py` (2: «No se
+  detectaron amenazas reales sin control.» y «Acción requerida: remediar antes del próximo push.»;
+  quedan en 795/802 tras quitar imports de la tanda anterior), `tools/speedtest.py:442`,
+  `tools/vision_battery.py:205` y `tools/warmup_models.py:375,386,393`. Sólo cambia el prefijo: el
+  texto es idéntico. `ruff --select F541` en esos 4 archivos: **7 → 0**; `py_compile` OK y
+  `ruff F821/F811/W605` limpio. Quedan **56** F541 en otros archivos de `tools/`
+  (`benchmark_*`, `documentador/`, `run_diagnostic_suite.py`, `verify_axioma.py`…) **fuera del
+  alcance pedido** (no se tocaron). Suite 24/24 (1147 tests), auditor 181/177 MEDIUM 0 SCORE 100,
+  gate OK.
+- **79 imports sin usar fuera de `src/` (F401), en 2 tandas.** Alcance pedido: `config/settings*.py`
+  (13: `settings.py` 9, `settings_memory.py` 3, `settings_vision.py` 1), `tools/auditor/*` (63) y
+  `tools/security_audit.py` + `tools/audit_silent_excepts.py` (3). Antes de borrar se verificó por AST
+  que **no** hubiera imports de disponibilidad en `try/except ImportError` (0 en el alcance), ni
+  re-exports: `tools/auditor/__init__.py` importa de `aud_core`/`aud_main`, no de los detectores, y
+  nada importa `CodeIndex`/`DetectorResult`/`AudFinding`/`_resolve_imports_for` desde los módulos de
+  detectores. Los 2 intencionales siguen intactos: `SQLiteConnectionPool` en `src/memory/long_term.py`
+  (check de API pública del test 03) y `log_degraded` en `src/interfaces/cli/command_parser.py`
+  (regresión del 18). Nota: el alcance listado da **79** F401 removibles por ruff, no 81;
+  79 + los 2 intencionales = 81 (el resto de los 95 queda fuera de esos archivos). Tandas:
+  (A) `config/` 13 quitados → `test_axioma_01` + `test_axioma_11` (112 passed, 10 skipped);
+  (B) `tools/` 66 quitados → `test_axioma_18/26/22` (209 passed), `py_compile` de los 11 archivos,
+  `audit_silent_excepts.py --top 3` rc=0 e `import tools.security_audit` OK. `ruff --select F401`
+  en el alcance: **79 → 0**. Suite 24/24 (1147 tests), auditor 181/177 MEDIUM 0 SCORE 100, gate OK.
+- **Conexiones SQLite sin cerrar: 49 → 0 al apagar.** `with sqlite3.connect(...)` hace commit pero
+  **no cierra**, y `SQLiteConnectionPool.close_all()` existía pero **nadie lo llamaba**. Los 5 usos
+  reales de `with _sqlite3.connect(...)` (4 en `src/core/feedback_loop_components.py:367,466,548,658`,
+  1 en `src/core/feedback_loop.py:250`) pasan a
+  `with closing(_sqlite3.connect(...)) as conn, conn:`: el segundo `conn` conserva el commit/rollback
+  que daba el `with` original y `closing` garantiza el `close()`. El «sexto uso» que se iba a tocar en
+  `tools/auditor/aud_detectors_infra.py` **no existe**: ese archivo sólo contiene el texto
+  `with sqlite3.connect` dentro del detector `ConnectionPerMethodDetector` (verificado por AST: no hay
+  ninguna llamada `connect()`); no se inventó un cambio. Cierre ordenado: `close_all_pools()` nuevo en
+  `src/utils/db_pool.py` cierra todos los pools vivos (registro `weakref.WeakSet`; no alarga la vida de
+  ningún pool) y se llama al final de `Dispatcher.cleanup()` (`main.py:763`, **después** de apagar
+  `_l3_write_executor` y TraceStore, cuando ya no hay requests ni writes en vuelo), con `atexit` como
+  red de seguridad para procesos que no pasan por el dispatcher (tests, scripts, CLI de una corrida).
+  Cada pool además usa `weakref.finalize` para cerrar sus conexiones si muere sin `close_all()`
+  (KnowledgeGraph temporal de un test, cache descartado); `close_all()` ahora también cierra las
+  conexiones prestadas (`_in_use`), que antes se vaciaban sin cerrar. Sonda (mismo probe instrumentando
+  `sqlite3.connect` antes y después, `tests/test_axioma_03_llm_router_memory.py`): antes **49 abiertas**
+  al terminar (46 de pools + 3 de feedback_loop) y 49 en el atexit; después **13** al terminar
+  `pytest.main` (sólo los 3 pools aún vivos) y **0** tras el atexit; `ResourceWarning: unclosed database`
+  **60 → 0**. Suite 24/24 (1147 tests), auditor 181/177 MEDIUM 0 SCORE 100, health OK, gate OK.
 - **`asyncio.iscoroutinefunction` → `inspect.iscoroutinefunction`** (deprecado en Python 3.14, se elimina
   en 3.16). Estaba en `src/agents/parallel_executor.py:160`, `src/core/task_queue.py:314` y
   `src/core/dispatcher_handlers.py:341`; se agregó `import inspect` en los dos primeros (el tercero ya lo
@@ -167,6 +281,27 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   `--voice-file /tmp/no-existe.wav` salía 0 y ahora sale 3; `--info`, sin argumentos y `--check` (Ollama
   conectado) siguen saliendo 0. Cambio mínimo, sin rediseñar el CLI. Auditor 182/177 sin cambios; suite
   24/24 (1130 tests), gate OK.
+
+### Corregido
+- **`python main.py --backup --full` ahora existe de verdad (D1).** El README y los manuales lo
+  anunciaban, pero el argparse de la raíz sólo tenía `--backup`: el `--full` vivía únicamente en
+  `python -m src.interfaces.cli.main`, así que la raíz fallaba con `unrecognized arguments: --full`
+  (sonda real sobre `HEAD`: rc=2). `main.py` acepta `--full`, lo pasa a `cmd_backup(full=...)` y
+  `crear_backup_json(full=True)`; `--full` sin `--backup` se explica con rc=2 en vez de imprimir la
+  ayuda. Sonda en un `DATA_DIR` temporal con `data/memory` y `data/knowledge` reales: rc=0, JSON con
+  `"full": true` y `.tar.gz` que contiene `memory/recuerdo.txt` y `knowledge/doc.txt`.
+- **Enlaces a documentación que no se publica (D2).** `README.md` enlazaba
+  `docs/STRUCTURE_REPORT.md`, `docs/AXIOMA_COMPLETE_CONTEXT.md` y `docs/AGENT_GUIDE.md`, pero `docs/`
+  está gitignored y no viaja en la copia pública: los enlaces daban 404. Ahora el README explica que
+  se **generan localmente** con `python tools/structure_detector.py` y
+  `python tools/documentador/axioma_doc_main.py`, y la regla R13 queda explicada ahí mismo.
+  (El README de usuario, `README_PUBLICO.md`, no tenía enlaces a `docs/`.)
+- **`.env.example` ya no nombra al autor ni inventa un usuario root (D3).** El comentario de la
+  «CAPA 2 — IDENTIDAD DE USUARIO» decía «saintwick es el usuario root (admin)», pero **no hay usuario
+  predefinido**: la primera vez se crea desde la interfaz con rol `user`. Se reemplazó por un texto
+  genérico (y la plantilla pública deja de exponer el nombre del autor).
+- **`MANUAL_USUARIO.md` mostraba Python 3.12.x (D4).** El proyecto usa **3.14** (contenedor y
+  desarrollo); el ejemplo del chequeo de primer arranque ahora dice `3.14.x`.
 
 ## [v0.7.5] — 2026-10-23
 

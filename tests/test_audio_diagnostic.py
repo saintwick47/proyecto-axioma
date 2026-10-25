@@ -104,7 +104,6 @@ class AudioDiagnostic:
         try:
             if AUDIO_DEPS:
                 devices = sd.query_devices()
-                input_devices = [d for d in devices if d['max_input_channels'] > 0]
                 hw["input_devices"] = [
                     {"name": d['name'], "index": i, "channels": d['max_input_channels']}
                     for i, d in enumerate(devices) if d['max_input_channels'] > 0
@@ -162,8 +161,6 @@ class AudioDiagnostic:
         cfg = {}
         if AXIOMA_AVAILABLE:
             try:
-                from config.settings import get_settings
-                settings = get_settings()
                 import yaml
                 multimodal_path = Path("config/multimodal.yaml")
                 if multimodal_path.exists():

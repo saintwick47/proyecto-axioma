@@ -18,6 +18,7 @@ from typing import Any, Dict
 from fastapi import Depends, HTTPException, Request
 
 from config.settings import settings
+from config.acceso_web import token_configurado
 from src.interfaces.web.routes import (
     router,
     _log_web_event,
@@ -34,8 +35,10 @@ from src.interfaces.web.routes import (
 # `AXIOMA_WEB_HOST=0.0.0.0` un `Host` ajeno pasaba y la escritura también.
 #
 # Diseño (el más simple que cierra el agujero sin romper la UI local):
-#   · Token en `AXIOMA_WEB_TOKEN`, enviado en el header `X-AXIOMA-Token` y
-#     comparado con `hmac.compare_digest` (no se filtra por tiempo).
+#   · Token en `data/.web_token` (lo genera solo AXIOMA al exponerse; 0600),
+#     enviado en el header `X-AXIOMA-Token` y comparado con `hmac.compare_digest`
+#     (no se filtra por tiempo). `AXIOMA_WEB_TOKEN` (entorno o `.env`) sigue
+#     siendo la opción AVANZADA para fijarlo. Ver `config/acceso_web.py`.
 #   · Si hay token configurado, se EXIGE siempre (también en loopback): una
 #     página local maliciosa puede llamar a 127.0.0.1 con el `Host` correcto.
 #   · Si NO hay token configurado: se permite en loopback (la UI y el uso local
@@ -45,7 +48,6 @@ from src.interfaces.web.routes import (
 # configuración (`/preflight/claves` y `/preflight/modelos`); las de lectura
 # siguen abiertas para no romper la pantalla.
 TOKEN_HEADER = "X-AXIOMA-Token"
-VARIABLE_TOKEN = "AXIOMA_WEB_TOKEN"
 _BIND_LOCAL = {"127.0.0.1", "localhost", "::1"}
 
 
@@ -60,20 +62,18 @@ def _bind_es_local() -> bool:
 
 
 def _token_esperado() -> str:
-    """Token configurado, o cadena vacía si nadie lo configuró.
+    """Token disponible para autorizar la escritura, o cadena vacía si no hay.
 
-    Se mira primero `os.environ` (exportado al arrancar) y después el valor que
-    `config.settings` leyó del `.env` (pydantic-settings NO copia el `.env` a
-    `os.environ`, así que sin este segundo paso ponerlo sólo en el archivo no
-    tendría efecto). Un `AXIOMA_WEB_TOKEN=""` exportado desactiva el token a
-    propósito, sin caer al valor del `.env`.
+    ✅ 2026-10-25 (token automático): la resolución completa vive en
+    `config/acceso_web.py` y es, en orden: `AXIOMA_WEB_TOKEN` del entorno → el
+    valor del `.env` (`settings.axioma_web_token`) → `data/.web_token`. El
+    archivo lo genera solo el arranque de AXIOMA cuando está expuesto (o
+    `python main.py --rotar-token`), así que el usuario **nunca** tiene que
+    pegar un token a mano. Acá NO se genera nada durante un request: esta
+    función sólo pregunta (escribir por request sería un efecto raro y, si el
+    disco falla, el error aparecería en el peor lugar).
     """
-    crudo = os.environ.get(VARIABLE_TOKEN)
-    if crudo is None:
-        # `settings` ya leyó el `.env` (pydantic-settings); no hay excepción que
-        # tragarse porque el import es obligatorio para el resto del módulo.
-        crudo = settings.axioma_web_token or ""
-    return (crudo or "").strip()
+    return token_configurado()
 
 
 async def exigir_token_de_escritura(request: Request) -> None:
@@ -92,8 +92,8 @@ async def exigir_token_de_escritura(request: Request) -> None:
             _log_web_event("API", "POST de configuración rechazado: token inválido o ausente")
             raise HTTPException(
                 status_code=401,
-                detail=(f"Token inválido o ausente. Mandá el header {TOKEN_HEADER} con el valor "
-                        f"de {VARIABLE_TOKEN}."),
+                detail=(f"Token inválido o ausente. Mandá el header {TOKEN_HEADER} con el código "
+                        "de acceso (data/.web_token; también vale AXIOMA_WEB_TOKEN)."),
             )
         return
 
@@ -101,9 +101,10 @@ async def exigir_token_de_escritura(request: Request) -> None:
         _log_web_event("API", "POST de configuración rechazado: expuesto sin token configurado")
         raise HTTPException(
             status_code=403,
-            detail=("Esta AXIOMA está expuesta a la red y no tiene token de escritura configurado. "
-                    f"Definí {VARIABLE_TOKEN} y mandalo en el header {TOKEN_HEADER} para poder "
-                    "guardar configuración desde la API."),
+            detail=("Esta AXIOMA está expuesta a la red y no tiene token de acceso guardado "
+                    "(el código que se genera solo). Reiniciá AXIOMA para que lo genere, o "
+                    "generá uno con «python main.py --rotar-token»; después mandalo en el header "
+                    f"{TOKEN_HEADER} para poder guardar configuración desde la API."),
         )
 
 
@@ -303,7 +304,6 @@ VARIABLES_DE_ROL: Dict[str, str] = {
 
 def _ollama_host() -> str:
     """El Ollama a consultar (el del equipo por defecto)."""
-    from config.settings import settings
     return str(settings.ollama_host or "http://127.0.0.1:11434")
 
 
@@ -323,7 +323,6 @@ async def _modelos_en_ollama() -> list:
 @router.get("/preflight/modelos")
 async def preflight_modelos() -> Dict[str, Any]:
     """Qué modelos hay en Ollama y cuáles están configurados hoy por rol (para poder elegir)."""
-    from config.settings import settings
     instalados = await _modelos_en_ollama()
     # ✅ 2026-10-10: MEDIDO con la prueba visual (`tools/verificar_primer_arranque.py`, comprobación 3):
     # acá el nombre del atributo se armaba desde el ROL (`llm_codigo_model`, `llm_codigo_respaldo_model`),
@@ -377,7 +376,6 @@ async def preflight_guardar_modelos(datos: Dict[str, str]) -> Dict[str, Any]:
             # `settings`, no el archivo— seguía mostrando el modelo viejo, mientras este mensaje decía
             # «AXIOMA lo usa para ese rol» (falso hasta reiniciar). Se actualiza la copia en memoria y se
             # descarta el router para que la próxima consulta se rearme leyendo los valores nuevos.
-            from config.settings import settings
             for variable, nombre in a_guardar.items():
                 setattr(settings, variable.lower(), nombre)
             try:

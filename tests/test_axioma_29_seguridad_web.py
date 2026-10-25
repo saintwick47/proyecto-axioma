@@ -491,6 +491,9 @@ def _cliente_config(tmp_path, monkeypatch, *, bind="127.0.0.1", token=None, host
     monkeypatch.setattr(apikeys, "ENV_POR_DEFECTO", env, raising=False)
     # Aislar también la copia que settings leyó del `.env` real (si tuviera token).
     monkeypatch.setattr(settings, "axioma_web_token", token or "", raising=False)
+    # Y el token automático: nunca el `data/.web_token` real del equipo (lo genera el uso
+    # normal de AXIOMA); cada prueba mira su propio archivo dentro de tmp_path.
+    monkeypatch.setenv("AXIOMA_WEB_TOKEN_FILE", str(tmp_path / ".web_token"))
     monkeypatch.setenv("AXIOMA_WEB_HOST", bind)
     if token is None:
         monkeypatch.delenv("AXIOMA_WEB_TOKEN", raising=False)
@@ -769,3 +772,146 @@ def test_la_tool_workspace_rechaza_el_cleanup_malicioso(tmp_path, monkeypatch):
     assert resultado.success is True, resultado
     assert not ws.exists()
     assert base.is_dir()
+
+
+# ═══════════════════════════════════════════════════════════════
+# TOKEN AUTOMÁTICO (2026-10-25)
+# ═══════════════════════════════════════════════════════════════
+# Antes había que generar el token a mano y pegarlo en `AXIOMA_WEB_TOKEN`: un
+# usuario inexperto no tenía forma de saberlo. Ahora `config/acceso_web.py` resuelve
+# entorno/.env → `data/.web_token` (0600) → lo genera. Estas pruebas usan `tmp_path`
+# SIEMPRE: el archivo real del equipo no se toca ni se lee.
+
+def test_sin_token_se_genera_solo_y_se_guarda_con_0600(tmp_path):
+    from config.acceso_web import token_de_web
+
+    archivo = tmp_path / "data" / ".web_token"
+    assert not archivo.exists(), "la prueba tiene que empezar sin token"
+
+    token = token_de_web(ruta=archivo, entorno={})
+    assert token and len(token) >= 40, token
+    assert archivo.read_text(encoding="utf-8").strip() == token, "el token no quedó guardado"
+    if os.name == "posix":
+        assert (archivo.stat().st_mode & 0o777) == 0o600, oct(archivo.stat().st_mode)
+
+    # Es estable: el mismo archivo devuelve el mismo código (si no, cada request pediría otro).
+    assert token_de_web(ruta=archivo, entorno={}) == token
+
+
+def test_el_entorno_manda_y_no_pisa_el_archivo(tmp_path):
+    from config.acceso_web import token_configurado, token_de_web
+
+    archivo = tmp_path / ".web_token"
+    archivo.write_text("guardado-en-el-archivo-0123456789\n", encoding="utf-8")
+    del_entorno = "fijado-a-mano-para-la-prueba-0123456789"
+
+    assert token_configurado(ruta=archivo, entorno={"AXIOMA_WEB_TOKEN": del_entorno}) == del_entorno
+    assert token_de_web(ruta=archivo, entorno={"AXIOMA_WEB_TOKEN": del_entorno}) == del_entorno
+    assert archivo.read_text(encoding="utf-8").strip() == "guardado-en-el-archivo-0123456789"
+
+
+def test_si_no_se_puede_escribir_sigue_sin_token_y_no_falla(tmp_path):
+    """Requisito: lectura/generación tolerante a fallos; AXIOMA no se cae por esto."""
+    from config.acceso_web import token_de_web
+
+    no_es_carpeta = tmp_path / "soy_un_archivo"
+    no_es_carpeta.write_text("x", encoding="utf-8")
+    assert token_de_web(ruta=no_es_carpeta / ".web_token", entorno={}) == ""
+
+
+def test_rotar_token_genera_otro_y_lo_persiste(tmp_path):
+    from config.acceso_web import rotar_token_web, token_de_web
+
+    archivo = tmp_path / ".web_token"
+    viejo = token_de_web(ruta=archivo, entorno={})
+    nuevo = rotar_token_web(ruta=archivo)
+
+    assert nuevo and nuevo != viejo, "rotar tiene que cambiar el código"
+    assert archivo.read_text(encoding="utf-8").strip() == nuevo
+    if os.name == "posix":
+        assert (archivo.stat().st_mode & 0o777) == 0o600, oct(archivo.stat().st_mode)
+
+
+def test_el_token_del_archivo_autoriza_las_rutas_de_escritura(tmp_path, monkeypatch):
+    """El código generado se usa de verdad: sin header → 401, con header → 200."""
+    from config.acceso_web import token_de_web
+
+    token = token_de_web(ruta=tmp_path / ".web_token", entorno={})
+    cliente, env = _cliente_config(tmp_path, monkeypatch, bind="0.0.0.0",
+                                   host="192.168.1.50:8000")
+    sin = cliente.post("/v1/preflight/claves", json={"TAVILY_API_KEY": "sin-token"})
+    assert sin.status_code == 401, sin.text[:160]
+    assert "sin-token" not in env.read_text(encoding="utf-8")
+
+    con = cliente.post("/v1/preflight/claves", json={"TAVILY_API_KEY": "con-token"},
+                       headers={"X-AXIOMA-Token": token})
+    assert con.status_code == 200, con.text[:160]
+    assert "TAVILY_API_KEY=con-token" in env.read_text(encoding="utf-8")
+
+
+def test_host_expuesto_reconoce_las_direcciones_locales():
+    from config.acceso_web import host_expuesto, host_local
+
+    for local in ("127.0.0.1", "localhost", "::1", "[::1]:8080", "127.0.0.1:8000", "", None):
+        assert host_local(local) is True, local
+        assert host_expuesto(local) is False, local
+    for abierta in ("0.0.0.0", "192.168.1.50", "[::]:8080", "::", "fe80::1", "mi-pc.local"):
+        assert host_expuesto(abierta) is True, abierta
+
+
+def test_el_chequeo_avisa_si_esta_expuesto_sin_token(tmp_path, monkeypatch, capsys):
+    """Parte C: expuesto a la red sin código ⇒ warning visible con qué hacer."""
+    from config.settings import settings
+    monkeypatch.setenv("AXIOMA_WEB_TOKEN_FILE", str(tmp_path / ".web_token"))
+    monkeypatch.setenv("AXIOMA_WEB_HOST", "0.0.0.0")
+    monkeypatch.delenv("AXIOMA_WEB_TOKEN", raising=False)
+    monkeypatch.setattr(settings, "axioma_web_token", "", raising=False)
+
+    from src.interfaces.cli.acceso import avisar_acceso_expuesto
+    avisar_acceso_expuesto("0.0.0.0")
+    salida = capsys.readouterr().out
+    assert "TODAVÍA no tiene código de acceso" in salida, salida
+    assert "--rotar-token" in salida, salida
+    assert "AXIOMA_WEB_HOST=127.0.0.1" in salida, salida
+
+    # Con el código ya guardado, el aviso cambia a informativo (no alarma).
+    from config.acceso_web import token_de_web
+    token_de_web(ruta=tmp_path / ".web_token", entorno={})
+    avisar_acceso_expuesto("0.0.0.0")
+    salida2 = capsys.readouterr().out
+    assert "código de acceso está guardado" in salida2, salida2
+
+
+def test_el_aviso_de_primer_arranque_se_muestra_una_vez_y_sin_tty(tmp_path):
+    import io
+    from src.interfaces.cli.primer_arranque import mostrar_aviso_de_modo_de_acceso
+
+    marca = tmp_path / ".primer_arranque"
+    salida = io.StringIO()
+    opcion = mostrar_aviso_de_modo_de_acceso(ruta_marcador=marca, interactivo=False, salida=salida)
+    texto = salida.getvalue()
+
+    assert opcion == 1, "sin terminal tiene que seguir con la opción 1"
+    assert "¿Cómo vas a usar AXIOMA?" in texto
+    assert "Sólo en esta computadora" in texto and "opción por defecto: 1" in texto
+    assert "opción 1" in texto
+    for jerga in ("bind", "loopback", "header"):
+        assert jerga not in texto.lower(), f"jerga técnica en el aviso: {jerga}"
+    assert marca.exists(), "tiene que quedar el marcador para no repetirlo"
+
+    salida2 = io.StringIO()
+    assert mostrar_aviso_de_modo_de_acceso(ruta_marcador=marca, interactivo=False,
+                                           salida=salida2) == 0
+    assert salida2.getvalue() == "", "la segunda vez no tiene que molestar"
+
+
+def test_el_aviso_de_primer_arranque_respeta_la_opcion_elegida(tmp_path):
+    import io
+    from src.interfaces.cli.primer_arranque import mostrar_aviso_de_modo_de_acceso
+
+    salida = io.StringIO()
+    opcion = mostrar_aviso_de_modo_de_acceso(ruta_marcador=tmp_path / ".primer_arranque",
+                                             interactivo=True, entrada=io.StringIO("2\n"),
+                                             salida=salida)
+    assert opcion == 2
+    assert "AXIOMA_WEB_HOST=0.0.0.0" in salida.getvalue(), salida.getvalue()

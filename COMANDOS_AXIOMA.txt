@@ -25,8 +25,9 @@ No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CL
     viene con AXIOMA (perfil `ollama-local`, modelos en un volumen).
   · La interfaz escucha SÓLO en este equipo (127.0.0.1), no en la red local. Para exponerla A
     PROPÓSITO: AXIOMA_WEB_HOST=0.0.0.0 docker compose up -d
-    (el resto de la API no tiene autenticación; las rutas que ESCRIBEN el `.env` sí:
-    definí AXIOMA_WEB_TOKEN y mandá el header X-AXIOMA-Token — ver §1).
+    (el resto de la API no tiene autenticación; las rutas que ESCRIBEN el `.env` sí: al arrancar
+    expuesto AXIOMA genera el código de acceso en data/.web_token (0600) y lo muestra en la consola
+    y en el banner de la UI — ver §1). El instalador pregunta cómo vas a usarla y lo deja en el .env.
   · La clave con la que se firman las sesiones es propia de cada equipo: se genera sola la primera
     vez en `data/.storage_secret` (permisos 600). Si querés gestionarla vos:
         AXIOMA_STORAGE_SECRET=<64 caracteres> docker compose up -d
@@ -97,21 +98,24 @@ python main.py --chat "consulta"
 python main.py --chat                    # interactivo
 python main.py --web                     # escucha en 127.0.0.1 por defecto
 python main.py --backup                  # backup ESTRUCTURAL: sólo el JSON en data/backups/
-python -m src.interfaces.cli.main --backup --full
-                                         # + .tar.gz con data/memory (LanceDB) + data/knowledge
+python main.py --backup --full           # + .tar.gz con data/memory (LanceDB) + data/knowledge
+python -m src.interfaces.cli.main --backup --full   # equivalente (misma implementación)
 #   --full: retención MÁXIMO 3 backups (rota el par {json, tar} junto), aviso si AXIOMA
-#   parece estar corriendo y escritura atómica del tar. `main.py --backup` NO acepta
-#   --full: el backup completo se pide por el módulo CLI.
+#   parece estar corriendo y escritura atómica del tar.
+python main.py --rotar-token             # código de acceso nuevo de la API web (data/.web_token)
 python main.py --info                    # info del sistema (unificado 2026-09-29)
 python main.py --voice                   # modo voz: VAD→STT→Dispatcher→TTS
 python main.py --rac status              # estado del RAC (avance, ritmo, ETA)
 python main.py --rac stop | pause | resume
 
 # Token de escritura (rutas que ESCRIBEN configuración):
-#   definí AXIOMA_WEB_TOKEN y mandá el header X-AXIOMA-Token en
-#   POST /api/v1/preflight/claves y POST /api/v1/preflight/modelos.
-#   Sin token definido sólo se permite desde loopback (si está expuesto: 403).
-#   Con token definido se exige SIEMPRE (ausente o inválido: 401).
+#   NO hace falta generarlo a mano: al arrancar expuesto a la red, AXIOMA genera
+#   el código solo y lo guarda en data/.web_token (0600); lo muestra en la consola
+#   y en un banner de la UI. Rotarlo: python main.py --rotar-token.
+#   Opción avanzada: AXIOMA_WEB_TOKEN (entorno o .env) manda sobre el archivo.
+#   Se manda el header X-AXIOMA-Token en POST /api/v1/preflight/claves y
+#   POST /api/v1/preflight/modelos. Sin código (sólo modo local) se permite en
+#   loopback; expuesto sin código: 403. Con código: ausente o inválido, 401.
 
 # ✅ 2026-09-29 (unificación de CLIs): `main.py` es el ENTRY POINT y DELEGA la
 # implementación de check/chat/backup/info/voice en `src/interfaces/cli/main.py`

@@ -10,23 +10,15 @@ compatibilidad (CLI y exports idénticos).
 from __future__ import annotations
 
 import ast
-import json
 import logging
 import re
-import subprocess
-import sys
-import textwrap
-import time
-from dataclasses import asdict, dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 from tools.auditor.aud_core import (
-    BaseDetector, CodeIndex, DetectorResult, AudFinding, AudSeverity, AudVerdict,
-    _resolve_imports_for, _resolve_top_level_imports_for, _to_snake_case,
+    BaseDetector, AudSeverity, AudVerdict,
 )
 
 
@@ -500,7 +492,6 @@ class SilentExceptionsDetector(BaseDetector):
                 if not isinstance(node, ast.ExceptHandler):
                     continue
                 body = node.body
-                exc = self._exc_name(node.type)
 
                 # bare except: captura KeyboardInterrupt/SystemExit
                 if node.type is None:

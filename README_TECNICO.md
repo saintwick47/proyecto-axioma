@@ -17,8 +17,13 @@
 
 ## 📚 Documentación (fuentes fiables)
 
-| Documento | Contenido |
-|---|---|
+La documentación de detalle se **genera localmente** y no se publica en el repositorio (`docs/` está
+fuera de la copia pública). Los comandos para generarla son:
+
+  verificadas).
+  completo; las secciones enriquecidas por IA dependen del modelo usado).
+- `docs/AGENT_GUIDE.md` es una guía de trabajo interna que **no se distribuye**; las reglas que cita
+  este README (por ejemplo R13: ≤950 líneas por archivo de tests) están explicadas acá mismo.
 
 ---
 
@@ -116,11 +121,11 @@ python main.py --check                # verificación de dependencias/hardware
 python main.py --chat "consulta"      # chat por CLI (--chat sin args = interactivo)
 python main.py --web                  # servidor web NiceGUI + API en http://127.0.0.1:8000 (sólo loopback)
 python main.py --backup               # backup ESTRUCTURAL: sólo el JSON en data/backups/
-python -m src.interfaces.cli.main --backup --full
-                                      # + .tar.gz con data/memory (LanceDB) y data/knowledge
+python main.py --backup --full        # + .tar.gz con data/memory (LanceDB) y data/knowledge
 # --full: retención MÁXIMO 3 backups (rota el par {json, tar} junto), aviso si AXIOMA
 # parece estar corriendo (el tar podría ser inconsistente) y escritura atómica del tar
-# (temporal + rename: si falla no queda un .tar.gz a medias). `main.py --backup` sólo hace el JSON.
+# (temporal + rename: si falla no queda un .tar.gz a medias). También vale `python -m src.interfaces.cli.main --backup --full`.
+python main.py --rotar-token          # código de acceso nuevo para la API web (data/.web_token)
 
 # Tests
 pytest tests/ -v
@@ -142,6 +147,13 @@ python axioma_auditor.py --detectors plan_v2_protections # solo protecciones PLA
 # Evals (requiere Ollama con qwen2.5-coder:7b)
 python tools/run_evals.py                       # ejecuta tests/dataset_evals.yaml con LLMJudge
 ```
+
+**Primer arranque del CLI**: la primera vez que se ejecuta `python main.py …` aparece una sola vez un
+aviso en lenguaje llano con las tres formas de usar AXIOMA (sólo esta computadora —recomendada—, otros
+equipos de la casa/oficina, o desde internet). La elección por defecto es la 1 y, si no hay terminal
+(CI, doble clic sin consola), se muestra el aviso y se sigue con la 1 sin bloquearse. El marcador queda en
+`data/.primer_arranque`; para volver a verlo, borralo. Los **instaladores** (`instalar_axioma.sh`,
+`instalar_axioma.ps1` y el `.exe`) hacen la misma pregunta y guardan `AXIOMA_WEB_HOST` en el `.env`.
 
 ## 🛡️ Seguridad y modos de ejecución (implementado)
 
@@ -177,14 +189,15 @@ python tools/run_evals.py                       # ejecuta tests/dataset_evals.ya
 ### Token de escritura, bind y workspaces
 
 - **Bind por defecto**: `start_server()` escucha en **`127.0.0.1`** (antes `0.0.0.0`). Para exponerlo a la red hay que pedirlo explícitamente con `host='0.0.0.0'` (o `AXIOMA_WEB_HOST=0.0.0.0` en el contenedor).
-- **Token de escritura**: `AXIOMA_WEB_TOKEN` + header **`X-AXIOMA-Token`** protege las rutas que escriben el `.env`: `POST /api/v1/preflight/claves` y `POST /api/v1/preflight/modelos` (comparación con `hmac.compare_digest`; el valor nunca se registra).
-  - **Sin token definido**: sólo se permite en loopback. Si AXIOMA está expuesto, esas rutas responden **403** y no escriben nada.
-  - **Con token definido**: es obligatorio siempre (también en loopback); ausente o inválido → **401**.
+- **Código de acceso automático**: protege las rutas que escriben el `.env` (`POST /api/v1/preflight/claves` y `POST /api/v1/preflight/modelos`). **No hay que generarlo a mano**: el orden de resolución es `AXIOMA_WEB_TOKEN` (entorno o `.env`, opción avanzada para fijarlo) → `data/.web_token` → si no existe, se genera con `secrets.token_urlsafe(32)` y se guarda con permisos **0600** (`config/acceso_web.py`). Se envía en el header **`X-AXIOMA-Token`** y se compara con `hmac.compare_digest`; el valor nunca se registra en los logs.
+  - **Sólo esta computadora**: no hace falta código; las rutas de escritura se permiten en loopback (la UI llama en proceso y sigue funcionando igual).
+  - **Expuesto a la red**: al arrancar, AXIOMA genera el código solo y lo muestra en la consola y en un **banner permanente de la UI** (con el botón «volver a sólo esta computadora»). Ausente o inválido → **401**. Si el archivo no se pudo guardar, el arranque lo avisa y esas rutas responden **403**.
+  - **Rotación**: `python main.py --rotar-token` genera uno nuevo (los procesos abiertos lo toman sin reiniciar). También `python main.py --check` avisa si está expuesto y todavía no hay código.
 - **`session_id` validado**: en los workspaces sólo se acepta `[A-Za-z0-9_-]{1,64}`. Se rechaza con `ValueError` (400 en HTTP) cualquier ruta absoluta, `..` o separador, y el `cleanup` no puede salir del directorio base.
 
 ```bash
-# El token va en el .env (o exportado) y se manda en cada POST que escribe configuración
-export AXIOMA_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+# El código se genera solo en data/.web_token; también podés fijarlo con AXIOMA_WEB_TOKEN
+export AXIOMA_WEB_TOKEN="$(cat data/.web_token)"   # o el que muestra el banner de la UI
 curl -X POST http://127.0.0.1:8080/api/v1/preflight/claves \
   -H "X-AXIOMA-Token: $AXIOMA_WEB_TOKEN" \
   -H "Content-Type: application/json" \
@@ -216,6 +229,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/preflight/claves \
 | **📄 Exportar** | Investigación (respuestas con citas) **y** conversación completa (incluye el código generado) en MD/HTML/JSON |
 | **🖥️ Mi Hard** | Hardware detectado + qué modelos entran (`hardware_fit`) y ranking de instalados |
 | **🏥 Estado** | Servicios y APIs (con el motivo real: `Sin key (.env)` vs `No responde`) |
+| **🔐 Banner de acceso** (sólo si está expuesto) | Aviso permanente de que AXIOMA está abierto a la red, con el **código de acceso** y el botón **«volver a sólo esta computadora»** (pasos exactos para el `.env`). En modo local no aparece |
 | **📁 Archivos / 📎 Imagen** | Explorar, leer y adjuntar archivos; imágenes por canal de visión |
 
 ### Endpoints nuevos (además de los históricos)
@@ -264,7 +278,7 @@ otros proyectos que puedan estar adentro del árbol de trabajo y no tengan nada 
 > **2026-10-25:** suite en verde con **24 archivos** `test_axioma_*.py` (**1138 tests**,
 SCORE AXIOMA **100/100**, MEDIUM 0) y **gate de calidad** en CI. Los archivos de
 test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líneas
-(regla R13 — ver `docs/AGENT_GUIDE.md`). Se sumaron el canal de imágenes (visión +
+(regla R13 del proyecto: ≤950 líneas por archivo de tests). Se sumaron el canal de imágenes (visión +
 OCR híbrido, `tests/test_axioma_11_vision_imagenes.py`), calculadora y
 fuentes/citas (hoy dentro de `test_axioma_10_plan_v2.py`), el health report v2 y
 las pruebas de seguridad web y audio opcional — regenerar estructura con
@@ -297,5 +311,7 @@ axioma/
 ├── data/                    # BD SQLite, memoria vectorial, backups, salidas
 ├── tests/                   # Suite pytest (24 test_axioma_*.py: axioma integral + diagnósticos)
 ├── logs/                    # Logs del sistema
+└── docs/                    # Documentación generada localmente (no se publica)
 ```
 
+en `docs/STRUCTURE_REPORT.md` (ese archivo no se publica).

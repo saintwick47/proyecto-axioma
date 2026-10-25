@@ -10,9 +10,8 @@
 #
 # La indentacion del bloque NO se toca: va al cuerpo de OTRA clase.
 # ===============================================================
-from typing import List, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class SettingsMemory(BaseModel):

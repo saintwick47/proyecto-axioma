@@ -248,7 +248,7 @@ class TestCoordinatorSwap:
         board = TaskBoard()
         coord = AgentCoordinator(swap=FakeSwap(), guard=GuardOOM(), board=board,
                                  allow_parallel=False)
-        out = coord.run_on_model("qwen3:8b", lambda m: 1, caller="oom_task")
+        _ = coord.run_on_model("qwen3:8b", lambda m: 1, caller="oom_task")
         tasks = board.list_by_status(BoardTaskStatus.REFUSED_OOM)
         check("tarea marcada refused_oom en tablero", len(tasks) == 1,
               str([t.name for t in tasks]), SECTION)

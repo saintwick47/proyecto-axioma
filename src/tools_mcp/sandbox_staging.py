@@ -35,6 +35,8 @@ class StagingEntry:
         path            : Ruta destino final
         checksum        : SHA256 del contenido staged (primeros 16 chars)
         backup_path     : Ruta al backup del archivo original (None si no existía)
+        original_checksum: SHA256 del original al hacer el staging ("" si era nuevo);
+                         commit() lo compara con el archivo para detectar cambios externos
         staged_at       : Timestamp de la operación de staging
         committed       : True si ya se hizo commit permanente
         _staged_content : Contenido en memoria para commit
@@ -45,7 +47,7 @@ class StagingEntry:
     # ✅ CORREGIDO v0.5.1: Agregar atributos internos a __slots__
     # ✅ NUEVO (agente filesystem) v1.6.0: _errors — ver stage_write().
     __slots__ = [
-        "path", "checksum", "backup_path", "staged_at", "committed",
+        "path", "checksum", "backup_path", "original_checksum", "staged_at", "committed",
         "_staged_content", "_staging_path", "_encoding", "_errors",
     ]
 
@@ -54,10 +56,12 @@ class StagingEntry:
         path: Path,
         checksum: str,
         backup_path: Optional[Path],
+        original_checksum: str = "",
     ) -> None:
         self.path = path
         self.checksum = checksum
         self.backup_path = backup_path
+        self.original_checksum = original_checksum
         self.staged_at = time.time()
         self.committed = False
         # ✅ CORREGIDO v0.5.1: Inicializar nuevos slots
@@ -245,6 +249,7 @@ class StagingFS:
                     path=path,
                     checksum=staged_checksum,
                     backup_path=backup_path,
+                    original_checksum=original_checksum,
                 )
                 self._registry[path_key] = entry
 
@@ -301,6 +306,26 @@ class StagingFS:
                     )
                     self._do_revert(entry)
                     return False, "Checksum mismatch — revert aplicado"
+
+                # ✅ 2026-10-25: verificación que faltaba. En stage_write()
+                # se calculaba `original_checksum` del archivo destino y se
+                # descartaba. Sirve para detectar un cambio externo entre
+                # stage y commit (TOCTOU): si otro proceso/persona editó el
+                # archivo, sobrescribirlo perdería ese cambio. Se aborta SIN
+                # revertir, porque restaurar el backup también pisaría la
+                # edición externa.
+                if entry.backup_path is not None:
+                    actual_checksum = self._checksum_file(path)
+                    if actual_checksum != entry.original_checksum:
+                        logger.error(
+                            f"[StagingFS] {path} cambió desde el staging "
+                            f"({entry.original_checksum} → {actual_checksum}); "
+                            "commit abortado para no perder el cambio externo"
+                        )
+                        return False, (
+                            "El archivo cambió desde el staging — "
+                            "commit abortado sin sobrescribir"
+                        )
 
                 # Crear directorios si no existen
                 path.parent.mkdir(parents=True, exist_ok=True)

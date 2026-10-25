@@ -50,7 +50,7 @@ def _logs_at_debug(handler: ast.ExceptHandler) -> tuple[bool, str]:
     mensajes de debug informativos como si fueran errores tragados).
     """
     from tools.auditor.aud_detectors_regresiones import (
-        _handler_calls, _handler_reraises, _own_nodes,
+        _handler_calls, _handler_reraises,
     )
     calls = _handler_calls(handler)          # solo lo propio (sin anidados)
     if _handler_reraises(handler):

@@ -434,7 +434,7 @@ def _consola_raiz() -> "_ConsolaRaiz":
     return _ConsolaRaiz()
 
 
-def cmd_check() -> int:
+def cmd_check(host: Optional[str] = None) -> int:
     """Validación del entorno — pre-flight propio + validación UNIFICADA del módulo.
 
     ✅ Unificación de CLIs: la validación de settings/directorios/Ollama es la del
@@ -450,6 +450,10 @@ def cmd_check() -> int:
         print("🔹 [CHECK] Validando entorno AXIOMA...")
 
         _check_and_update_deps(auto_update=False)
+
+        # ✅ Parte C: si está expuesto a la red y no hay código de acceso, avisar acá.
+        from src.interfaces.cli.acceso import avisar_acceso_expuesto
+        avisar_acceso_expuesto(host)
 
         from src.interfaces.cli.main import cmd_check as _check_modulo
         rc = _check_modulo(_consola_raiz())
@@ -499,32 +503,42 @@ def cmd_chat(query: Optional[str] = None) -> int:
         return 1
 
 
-def cmd_backup() -> int:
-    """Backup estructural — DELEGA en `crear_backup_json()` (✅ unificación de CLIs).
+def cmd_backup(full: bool = False) -> int:
+    """Backup estructural (y, con `full`, completo) — DELEGA en `crear_backup_json()`.
 
-    Antes este comando tenía su propia implementación (nombre `axioma_state_*.json`,
-    contenido distinto al del módulo CLI) y **estaba ROTO**: pasaba `size=` a
-    `_log_file()`, que no acepta ese argumento ⇒ `TypeError` siempre (medido: el
-    `python main.py --backup` de HEAD no funcionaba). Ahora la lógica vive en un solo
-    lugar (`src/interfaces/cli/main.py::crear_backup_json`) y acá queda la telemetría
+    ✅ Unificación de CLIs: la lógica vive en un solo lugar
+    (`src/interfaces/cli/backup.py::crear_backup_json`) y acá queda la telemetría
     propia del entry point.
+
+    ✅ 2026-10-25 (corrección documental D1): `python main.py --backup --full` **no
+    existía** — el argparse de la raíz sólo tenía `--backup` y el `--full` vivía
+    únicamente en `python -m src.interfaces.cli.main`. El README ya lo anunciaba,
+    así que la raíz ahora acepta `--full` y lo pasa al backup (JSON + `.tar.gz` con
+    `data/memory` y `data/knowledge`).
     """
     start = time.time()
-    _log_func_call("cmd_backup")
+    _log_func_call("cmd_backup", {"full": full})
     try:
         _ensure_logger("cmd_backup")
-        _log("BACKUP", "Iniciando proceso de backup", extra={"timestamp": datetime.now().isoformat()})
-        print("🔹 [BACKUP] Iniciando respaldo...")
+        _log("BACKUP", "Iniciando proceso de backup",
+             extra={"timestamp": datetime.now().isoformat(), "full": full})
+        print("🔹 [BACKUP] Iniciando respaldo completo..." if full else
+              "🔹 [BACKUP] Iniciando respaldo...")
 
         from src.interfaces.cli.main import crear_backup_json
-        backup_file = crear_backup_json()
+        backup_file = crear_backup_json(full=full)
 
         size = backup_file.stat().st_size if backup_file.exists() else 0
         _log_file(str(backup_file.parent), "create", "backup")
         _log_file(str(backup_file), "write", "backup")
-        _log("BACKUP", f"Backup guardado: {backup_file}", extra={"size_bytes": size})
+        _log("BACKUP", f"Backup guardado: {backup_file}", extra={"size_bytes": size, "full": full})
         print(f"✅ [BACKUP] Guardado: {backup_file}")
         print(f"📦 Tamaño: {size} bytes")
+        if full:
+            tar_file = backup_file.with_suffix(".tar.gz")
+            if tar_file.exists():
+                print(f"🗜️  [BACKUP] Datos comprimidos: {tar_file}")
+                print(f"📦 Tamaño del tar: {tar_file.stat().st_size} bytes")
         _log_func_return("cmd_backup", True, time.time() - start)
         return 0
     except Exception as e:
@@ -797,8 +811,10 @@ Ejemplos:
   python main.py --chat "¿Qué es Python?"   # Consulta única
   python main.py --chat                     # Modo interactivo
   python main.py --backup                   # Crear respaldo
+  python main.py --backup --full            # Respaldo completo (JSON + datos comprimidos)
   python main.py --web                      # Iniciar UI web (NiceGUI + API)
   python main.py --web --host 0.0.0.0 --port 8080  # Servidor público
+  python main.py --rotar-token              # Código de acceso nuevo de la API web
 
 Rutas absolutas:
   Proyecto: {PROJECT_ROOT} | Datos: {DATA_DIR} | Logs: {LOGS_DIR}
@@ -836,7 +852,11 @@ VRAM Management (v1.0.6):
     parser.add_argument("--rac", metavar="ACCION", default=None,
                         choices=["status", "stop", "pause", "resume"])   # ISSUE-113
     group.add_argument("--web", action="store_true", help="Iniciar UI web NiceGUI + API")
+    parser.add_argument("--rotar-token", action="store_true", dest="rotar_token",
+                        help="Generar un código de acceso nuevo para la API web (data/.web_token)")
 
+    parser.add_argument("--full", action="store_true",
+                        help="Con --backup: incluye data/memory y data/knowledge en un .tar.gz")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host servidor web")
     parser.add_argument("--port", type=int, default=8000, help="Puerto servidor web")
     parser.add_argument("--no-browser", action="store_true", help="No abrir navegador")
@@ -860,10 +880,27 @@ def main() -> int:
 
         args = parser.parse_args()
 
+        # ✅ D1: `--full` sólo tiene sentido con `--backup`. Antes de la corrección el
+        # flag no existía; ahora un uso suelto se explica en vez de imprimir la ayuda.
+        if getattr(args, "full", False) and not args.backup:
+            print("❌ --full se usa junto con --backup:  python main.py --backup --full")
+            return 2
+
+        if getattr(args, "rotar_token", False):
+            from src.interfaces.cli.acceso import cmd_rotar_token
+            return cmd_rotar_token()
 
         if getattr(args, "rac", None):    # ✅ ISSUE-113: estado/control del RAC
             from src.agents.analyst import rac_control
             print(rac_control(args.rac)); return 0
+
+        # ✅ Parte B.1: aviso de primer arranque, UNA sola vez (marcador en data/).
+        # Si no hay terminal, muestra el aviso y sigue con la opción 1 (recomendada).
+        try:
+            from src.interfaces.cli.primer_arranque import mostrar_aviso_de_modo_de_acceso
+            mostrar_aviso_de_modo_de_acceso()
+        except Exception as e:  # noqa: BLE001 — un aviso no puede romper el arranque
+            _log("MAIN", f"No se pudo mostrar el aviso de primer arranque: {e}", level="WARNING")
 
         if args.info:      # ✅ unificación: implementación del módulo CLI
             from src.interfaces.cli.main import cmd_info
@@ -878,14 +915,14 @@ def main() -> int:
             parser.print_help()
             return 0
 
-        _log("MAIN", f"Arguments parsed: check={args.check}, chat={args.chat}, backup={args.backup}, web={args.web}")
+        _log("MAIN", f"Arguments parsed: check={args.check}, chat={args.chat}, backup={args.backup}, full={getattr(args, 'full', False)}, web={args.web}")
 
         if args.check:
-            return cmd_check()
+            return cmd_check(host=args.host)
         elif args.chat is not None:
             return cmd_chat(args.chat)
         elif args.backup:
-            return cmd_backup()
+            return cmd_backup(full=getattr(args, "full", False))
         elif args.web:
             return cmd_web(host=args.host, port=args.port, open_browser=not args.no_browser)
 

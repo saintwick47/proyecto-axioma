@@ -176,7 +176,7 @@ class TestSignalNormalization:
     def test_classification_survives_db_roundtrip(self):
         """Regresión: al recargar de la DB la señal llega como STRING y la
         clasificación comparaba contra el ENUM → devolvía None en silencio."""
-        c = _comp()
+        _ = _comp()
         copy_str = _rec("ImplicitSignal.COPY_ACTION")
         requery_str = _rec("ImplicitSignal.RE_QUERY")
         check("COPY_ACTION string sigue siendo positivo",

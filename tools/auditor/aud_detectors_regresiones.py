@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import ast
 import re
-from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
 from tools.auditor.aud_core import (
@@ -426,7 +425,6 @@ class ConfigTaskKeysDetector(BaseDetector):
         for rel, tree in self.index.asts.items():
             if not str(rel).endswith("llm/config.py"):
                 continue
-            src = self.index.files[rel]
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.ClassDef)) \
                         and node.name == "from_dict":

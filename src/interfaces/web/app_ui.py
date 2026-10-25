@@ -266,6 +266,68 @@ def _crear_barra_de_acciones() -> None:
         'flat dense').tooltip('Mostrar/ocultar las funciones avanzadas')
 
 
+def _pasos_para_volver_a_solo_esta_computadora() -> None:
+    """Explica, sin jerga, cómo dejar AXIOMA accesible sólo en este equipo.
+
+    No se puede cambiar en caliente: la dirección con la que escucha el servidor
+    se fija al arrancar. Por eso el botón abre esta ayuda con los pasos exactos
+    en vez de prometer una acción que no haría nada hasta reiniciar.
+    """
+    with ui.dialog() as dialogo, ui.card().classes('w-[32rem] max-w-full'):
+        ui.label('Volver a sólo esta computadora').classes('text-lg font-bold')
+        ui.label('Esto se cambia al arrancar, así que hay que cerrar y abrir AXIOMA:'
+                 ).classes('text-sm')
+        for paso in (
+            '1. Cerrá AXIOMA (el botón «Salir» o Ctrl+C en la consola).',
+            '2. Abrí con un editor de texto el archivo «.env» de la carpeta de AXIOMA.',
+            '3. Buscá la línea que empieza con AXIOMA_WEB_HOST=0.0.0.0 y cambiala por:',
+            '       AXIOMA_WEB_HOST=127.0.0.1',
+            '4. Abrí AXIOMA otra vez. Listo: nadie más puede entrar y el código deja de hacer falta.',
+        ):
+            ui.label(paso).classes('text-sm font-mono' if paso.strip().startswith('AXIOMA') else 'text-sm')
+        ui.label('Si no encontrás esa línea, borrala: AXIOMA usa 127.0.0.1 por defecto.'
+                 ).classes('text-xs opacity-70')
+        ui.button('Entendido', on_click=dialogo.close).props('dense')
+    dialogo.open()
+
+
+def create_aviso_de_acceso() -> None:
+    """Banner PERMANENTE cuando AXIOMA está expuesto a la red (Parte B.3).
+
+    Muestra el código de acceso (el mismo que exige la API para guardar
+    configuración) y el botón «volver a sólo esta computadora», con la
+    instrucción exacta. Si no hay terminal ni archivo, no rompe la pantalla: la
+    UI local tiene que seguir andando igual.
+    """
+    try:
+        from config.acceso_web import host_expuesto, token_configurado
+        if not host_expuesto():
+            return
+        token = token_configurado()
+    except Exception as e:  # noqa: BLE001 — el banner no puede tumbar la página
+        logging.getLogger(__name__).debug(f"[aviso de acceso] no se pudo preparar: {e}")
+        return
+
+    with ui.column().classes('w-full gap-1 bg-orange-100 text-black px-4 py-2'):
+        with ui.row().classes('w-full items-center gap-3'):
+            ui.icon('warning').classes('text-2xl')
+            ui.label('AXIOMA está abierto a otros equipos de tu red.').classes('font-bold')
+            ui.button('Volver a sólo esta computadora',
+                      on_click=_pasos_para_volver_a_solo_esta_computadora
+                      ).props('flat dense color=black')
+        if token:
+            with ui.row().classes('items-center gap-2'):
+                ui.label('Código de acceso:').classes('text-sm')
+                ui.label(token).classes('text-sm font-mono bg-white px-2 py-0.5 rounded'
+                                        ).style('user-select: all')
+            ui.label('Se lo pide para guardar la configuración desde otro equipo. '
+                     'Guardalo; si se pierde, generá otro con: python main.py --rotar-token'
+                     ).classes('text-xs opacity-80')
+        else:
+            ui.label('⚠️ No se encontró el código de acceso: reiniciá AXIOMA para generarlo.'
+                     ).classes('text-sm font-bold')
+
+
 def create_header() -> None:
     """
     Crea header con logo y botones de navegación.

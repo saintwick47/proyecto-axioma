@@ -206,6 +206,49 @@ def extraer(tarball: Path, destino: Path) -> bool:
     return True
 
 
+def elegir_modo_de_acceso(ensayo: bool) -> str:
+    """Pregunta —en lenguaje llano— cómo se va a usar AXIOMA y devuelve "1", "2" o "3".
+
+    La elección se le pasa al instalador del proyecto por `AXIOMA_MODO_ACCESO`,
+    que la escribe en el `.env` (`AXIOMA_WEB_HOST`). El código de acceso de la web
+    ya no se genera a mano: AXIOMA lo genera solo al arrancar expuesto.
+    Sin terminal (o en ensayo) sigue con la opción 1, la recomendada.
+    """
+    modo = (os.environ.get("AXIOMA_MODO_ACCESO") or "").strip()
+    if modo in ("1", "2", "3"):
+        ok(f"modo de acceso elegido antes: {modo}")
+        return modo
+
+    print()
+    print("  ¿Cómo vas a usar AXIOMA?")
+    print()
+    print("  1) Sólo en esta computadora  (recomendado)")
+    print("     Nadie más puede entrar. No hay que configurar nada.")
+    print()
+    print("  2) Desde otros equipos de mi casa/oficina")
+    print("     AXIOMA pedirá un código de acceso que se genera solo.")
+    print()
+    print("  3) Desde internet")
+    print("     No recomendado sin ayuda técnica: además del código,")
+    print("     conviene un candado extra (HTTPS).")
+    print()
+    print("  [1]  [2]  [3]        opción por defecto: 1")
+
+    if ensayo or sys.stdin is None or not sys.stdin.isatty():
+        print("  (sin una persona para elegir: sigo con la opción 1, la recomendada)")
+        return "1"
+    while True:
+        try:
+            respuesta = input("\n  Elegí una opción [1]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return "1"
+        if not respuesta:
+            return "1"
+        if respuesta in ("1", "2", "3"):
+            return respuesta
+        print("  Escribí 1, 2 o 3 (o Enter para la 1).")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Instalador de AXIOMA de un solo archivo: comprueba Docker, descarga AXIOMA y lo instala.")
@@ -278,6 +321,7 @@ def main() -> int:
 
     # ── 4. La instalación de verdad (la hace el instalador del proyecto) ────
     paso("Paso 4 de 4: instalando (carpetas, .env, imagen, accesos directos y arranque)")
+    modo_acceso = elegir_modo_de_acceso(args.dry_run)
     if args.dry_run:
         instalador = "instalar\\instalar_axioma.ps1" if ES_WINDOWS else "instalar/instalar_axioma.sh"
         print(f"   (ensayo) ejecutaria:  {destino / instalador}")
@@ -298,6 +342,9 @@ def main() -> int:
     # ghcr.io/<repositorio en minusculas>; sin estos datos el instalador solo construye.
     entorno = dict(os.environ)
     entorno["AXIOMA_VERSION"] = args.version
+    # La elección de la opción 1/2/3 viaja al instalador del proyecto: él escribe
+    # AXIOMA_WEB_HOST en el .env y no vuelve a preguntar.
+    entorno["AXIOMA_MODO_ACCESO"] = modo_acceso
     if "/" in REPO:
         entorno.setdefault("AXIOMA_REPO", REPO)
         entorno.setdefault("AXIOMA_IMAGEN", "ghcr.io/" + REPO.lower())

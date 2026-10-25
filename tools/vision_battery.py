@@ -202,7 +202,7 @@ def main() -> int:
         "# 🔍 Batería de visión — qwen3-vl (v0.6.9p)",
         "",
         f"- Fecha: {datetime.now():%Y-%m-%d %H:%M}",
-        f"- Modelo: settings.llm_vision_model (qwen3-vl:4b)",
+        "- Modelo: settings.llm_vision_model (qwen3-vl:4b)",
         f"- Casos: {len(results)} · exitosos: "
         f"{sum(1 for r in results if r['ok'])}/{len(results)}",
         "",

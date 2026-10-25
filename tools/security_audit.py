@@ -23,14 +23,13 @@
 # ✅ v1.1.0: Correcciones basadas en decisiones de diseño del proyecto
 # ✅ v1.0.0: Versión inicial — escáner completo de seguridad
 # ═══════════════════════════════════════════════════════════════
-import os
 import re
 import sys
 import json
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Tuple, Optional, Set
+from typing import List, Dict, Tuple, Set
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
@@ -793,14 +792,14 @@ class SecurityAuditor:
         print(f"\n{C.BOLD}{'═' * 70}{C.RESET}")
         if r.is_clean:
             print(f"{C.GREEN}{C.BOLD}✅ RESULTADO: AUDITORÍA APROBADA{C.RESET}")
-            print(f"   No se detectaron amenazas reales sin control.")
+            print("   No se detectaron amenazas reales sin control.")
             if controlled:
                 print(f"   🛡️  {len(controlled)} hallazgos en PELIGRO CONTROLADO (protegidos).")
         else:
             total_real = r.critical_count + r.high_count
             print(f"{C.RED}{C.BOLD}❌ RESULTADO: AUDITORÍA FALLIDA{C.RESET}")
             print(f"   Se encontraron {total_real} amenazas reales sin control.")
-            print(f"   Acción requerida: remediar antes del próximo push.")
+            print("   Acción requerida: remediar antes del próximo push.")
             if controlled:
                 print(f"   🛡️  {len(controlled)} hallazgos adicionales en PELIGRO CONTROLADO (OK).")
         print(f"{C.BOLD}{'═' * 70}{C.RESET}\n")

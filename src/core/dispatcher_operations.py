@@ -21,6 +21,7 @@ import time
 from typing import Optional, Dict, Any
 
 from config.settings import settings
+from src.utils.db_pool import close_all_pools
 from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)
@@ -424,4 +425,15 @@ class DispatcherOperationsMixin:
                     _ts.close()
             except Exception as _d2e:
                 log_degraded(logging.getLogger(__name__), _d2e, "src/core/dispatcher_operations.py:cleanup")
+        # ✅ 2026-10-25: cierre ordenado de TODOS los pools SQLite vivos
+        # (CacheL2/RouterCache, KnowledgeGraph, SessionEventLog, TraceStore —
+        # este último ya se cerró arriba, y `close_all()` es idempotente).
+        # Va al final, cuando ya no hay requests ni writes en vuelo; el
+        # `atexit` de src/utils/db_pool.py queda como red de seguridad para
+        # procesos que no pasan por el dispatcher (tests, scripts, CLI).
+        try:
+            _pools = close_all_pools()
+            logger.info("SQLite pools cerrados: %d", _pools)
+        except Exception as _d2e:
+            log_degraded(logging.getLogger(__name__), _d2e, "src/core/dispatcher_operations.py:cleanup_pools")
         logger.info("Dispatcher cleaned up")

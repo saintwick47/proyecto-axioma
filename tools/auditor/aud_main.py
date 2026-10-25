@@ -9,7 +9,6 @@ compatibilidad (CLI y exports idénticos).
 """
 from __future__ import annotations
 
-import ast
 import argparse
 import json
 import logging
@@ -18,10 +17,8 @@ import subprocess
 import sys
 import textwrap
 import time
-from dataclasses import asdict, dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)

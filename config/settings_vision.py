@@ -16,7 +16,6 @@
 #   `Settings(BaseSettings, SettingsVision, SettingsComputations)` hereda este mixin, así la API
 #   pública NO cambia: mismos nombres, anotaciones y defaults.
 # ═══════════════════════════════════════════════════════════════
-from typing import Literal
 
 from pydantic import BaseModel, Field
 

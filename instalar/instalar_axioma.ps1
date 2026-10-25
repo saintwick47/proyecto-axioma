@@ -265,6 +265,90 @@ if (-not $Ensayo) {
     }
 }
 
+# ── 3b. ¿Cómo vas a usar AXIOMA? (la elección queda en el .env) ──────────────
+# El token de la web ya no se genera a mano: con la opción 2 o 3 AXIOMA lo genera
+# solo al arrancar y lo guarda en data/.web_token. Acá sólo se elige la dirección.
+# Se respeta AXIOMA_MODO_ACCESO=1|2|3 si lo pasó otro instalador (el .exe), para
+# no preguntar dos veces.
+function Fijar-VariableEnv {
+    param([string]$Clave, [string]$Valor)
+    $ruta = Join-Path $Raiz ".env"
+    if (-not (Test-Path -LiteralPath $ruta)) { return }
+    $lineas = @(Get-Content -LiteralPath $ruta -Encoding UTF8 -ErrorAction Stop)
+    $encontrada = $false
+    for ($i = 0; $i -lt $lineas.Count; $i++) {
+        if ($lineas[$i] -match ("^\s*" + [regex]::Escape($Clave) + "=")) {
+            $lineas[$i] = "$Clave=$Valor"
+            $encontrada = $true
+        }
+    }
+    if (-not $encontrada) {
+        $lineas += ""
+        $lineas += "# Elegido en el instalador: como se usa AXIOMA (127.0.0.1 = solo este equipo)."
+        $lineas += "$Clave=$Valor"
+    }
+    [IO.File]::WriteAllLines($ruta, $lineas, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Elegir-ModoDeAcceso {
+    $opcion = $env:AXIOMA_MODO_ACCESO
+    if ($opcion -in @("1", "2", "3")) {
+        # Ya lo eligió el instalador de un solo archivo (el .exe): no repetir el cartel.
+        Write-Host ""
+        Write-Host "  Usando el modo de acceso elegido antes: $opcion"
+    } else {
+        Write-Host ""
+        Write-Host "  ¿Cómo vas a usar AXIOMA?"
+        Write-Host ""
+        Write-Host "  1) Sólo en esta computadora  (recomendado)"
+        Write-Host "     Nadie más puede entrar. No hay que configurar nada."
+        Write-Host ""
+        Write-Host "  2) Desde otros equipos de mi casa/oficina"
+        Write-Host "     AXIOMA pedirá un código de acceso que se genera solo."
+        Write-Host ""
+        Write-Host "  3) Desde internet"
+        Write-Host "     No recomendado sin ayuda técnica: además del código,"
+        Write-Host "     conviene un candado extra (HTTPS)."
+        Write-Host ""
+        Write-Host "  [1]  [2]  [3]        opción por defecto: 1"
+
+        # Con entrada/salida redirigida (tests, CI) no hay persona: no bloquearse.
+        if ($Ensayo -or [Console]::IsInputRedirected -or [Console]::IsOutputRedirected) {
+            $opcion = "1"
+            Write-Host "  (sin una persona para elegir: sigo con la opción 1, la recomendada)"
+        } else {
+            while ($true) {
+                $respuesta = Read-Host "  Elegí una opción [1]"
+                if ([string]::IsNullOrWhiteSpace($respuesta)) { $respuesta = "1" }
+                if ($respuesta -in @("1", "2", "3")) { $opcion = $respuesta; break }
+                Write-Host "  Escribí 1, 2 o 3 (o Enter para la 1)."
+            }
+        }
+    }
+
+    $hostWeb = "127.0.0.1"
+    $mensaje = "Listo: AXIOMA queda sólo en esta computadora (lo recomendado)."
+    switch ($opcion) {
+        "2" { $hostWeb = "0.0.0.0"
+              $mensaje = "AXIOMA va a pedir un código de acceso que se genera solo (te lo muestro al arrancar)." }
+        "3" { $hostWeb = "0.0.0.0"
+              $mensaje = "AXIOMA va a pedir un código; para internet, además pedí ayuda para poner HTTPS." }
+    }
+
+    if ($Ensayo) {
+        Write-Host "  (ensayo) dejaría AXIOMA_WEB_HOST=$hostWeb en el .env"
+    } else {
+        try {
+            Fijar-VariableEnv "AXIOMA_WEB_HOST" $hostWeb
+            ok $mensaje
+        } catch {
+            aviso "No pude guardar AXIOMA_WEB_HOST en el .env ($($_.Exception.Message))."
+        }
+    }
+}
+
+Elegir-ModoDeAcceso
+
 # ── 4. Imagen ───────────────────────────────────────────────────────────────
 paso "Paso 4 de 6: armando AXIOMA (la primera vez tarda unos minutos)"
 # 2026-10-23: primero se intenta BAJAR la imagen publicada (tarda mucho menos que construirla).

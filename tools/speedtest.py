@@ -439,7 +439,7 @@ class InternetSpeedTest:
                 print(f"  Subida:   {ul_speed:.2f} Mbps | Pérdida: {ul_loss:.1f}%")
 
                 if (dl_loss > 20.0 or ul_loss > 20.0) and pass_attempt < self.max_pass_retries:
-                    print(f"  ⚠ Anomalía detectada (Pérdida > 20%). Reintentando...")
+                    print("  ⚠ Anomalía detectada (Pérdida > 20%). Reintentando...")
                     pass_attempt += 1
                     await asyncio.sleep(3)
                     continue

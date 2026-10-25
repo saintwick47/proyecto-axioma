@@ -306,7 +306,7 @@ class TestLanceDBRace:
         from src.memory.semantic import SemanticMemory
         d = str(tmp_path / "lance_race")
         try:
-            m1 = SemanticMemory(collection_name="test_race", persist_directory=d)
+            _ = SemanticMemory(collection_name="test_race", persist_directory=d)
             m2 = SemanticMemory(collection_name="test_race", persist_directory=d)
             check("SemanticMemory reinit misma colección", m2 is not None,
                   f"tabla={m2.collection_name}", SECTION)

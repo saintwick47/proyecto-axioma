@@ -372,7 +372,7 @@ async def print_status() -> None:
         # ═══════════════════════════════════════════════════════════════
         not_loaded = [m for m in ALL_CONFIGURED_MODELS if m not in loaded]
         if not_loaded:
-            print(f"\nModelos configurados no cargados (on-demand vía ModelSwap):")
+            print("\nModelos configurados no cargados (on-demand vía ModelSwap):")
             for m in not_loaded:
                 print(f"  ⏳ {m} (se carga automáticamente al necesitarlo)")
 
@@ -383,14 +383,14 @@ async def print_status() -> None:
             from src.core.model_swap import ModelSwap
             ms = ModelSwap.instance()
             status = ms.get_status()
-            print(f"\nModelSwap status:")
+            print("\nModelSwap status:")
             print(f"  Current: {status['current_model']}")
             print(f"  Default: {status['default_model']}")
             if status.get('last_swap_ago_s') is not None:
                 print(f"  Last swap: {status['last_swap_ago_s']}s ago")
             print(f"  Swap in progress: {status['swap_in_progress']}")
         except ImportError:
-            print(f"\n⚠️  ModelSwap no disponible (v1.0.6 no integrado)")
+            print("\n⚠️  ModelSwap no disponible (v1.0.6 no integrado)")
 
         print(f"{'='*50}\n")
 
