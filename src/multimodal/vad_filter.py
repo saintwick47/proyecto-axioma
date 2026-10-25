@@ -27,9 +27,12 @@ logger = logging.getLogger(__name__)
 try:
     import webrtcvad
     _VAD_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # ✅ FIX AUD-IEO-006 (2026-10-25): webrtcvad es nativo; OSError si falta la
+    # extensión del sistema. El VAD se desactiva, el módulo sigue importándose.
     _VAD_AVAILABLE = False
     webrtcvad = None  # type: ignore[assignment]
+    logger.debug(f"[VAD] webrtcvad no disponible: {_exc}")
 
 try:
     import sounddevice as sd

@@ -37,9 +37,12 @@ logger = logging.getLogger(__name__)
 try:
     from faster_whisper import WhisperModel
     _WHISPER_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # ✅ FIX AUD-IEO-005 (2026-10-25): faster_whisper depende de libctranslate2;
+    # si falta la .so el import lanza OSError y tumbaba el módulo entero.
     WhisperModel = None  # type: ignore[assignment,misc]
     _WHISPER_AVAILABLE = False
+    logger.debug(f"[STT] faster-whisper no disponible: {_exc}")
 
 
 # ============================================================================

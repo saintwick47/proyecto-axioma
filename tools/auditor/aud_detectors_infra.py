@@ -795,64 +795,234 @@ class StaticPriorityDetector(BaseDetector):
 
 
 # ============================================================================
-# DETECTOR: Conexión nueva por método
+# DETECTOR: Conexiones SQLite sin cierre asegurado (A3)
 # ============================================================================
 
 class ConnectionPerMethodDetector(BaseDetector):
-    """Clases SQLite con conexión nueva en >50% de métodos sin pool."""
+    """Conexiones SQLite sin cierre ASEGURADO (A3).
+
+    ✅ v0.7.5 (A3): reescrito desde cero. El detector anterior tenía un FP y un
+    FN graves:
+
+      · **FP**: exigía `with` en >50% de los métodos de la clase, así que una
+        clase con el patrón CORRECTO (`try/finally: conn.close()`) se marcaba
+        como "conexión sin with".
+      · **FN**: contaba `with sqlite3.connect(...)` como cierre seguro. NO lo
+        es: `sqlite3.Connection.__exit__` hace commit/rollback, **no** `close()`
+        (el bug real que dejó 5 conexiones abiertas hasta el GC).
+
+    Ahora se evalúa CADA `sqlite3.connect(...)` del árbol y se acepta sólo un
+    cierre asegurado: `contextlib.closing(...)`, `try/finally: conn.close()`,
+    un atributo `self._conn` cerrado por la clase, una factory que devuelve la
+    conexión (transfiere propiedad) o un pool (`close_all()`/finalizer).
+    """
+
     name = "connection_per_method"
-    description = "Conexiones SQLite nuevas en muchos métodos"
+    description = "Conexiones SQLite sin cierre asegurado (with NO cierra)"
+
+    _POOL = re.compile(r"pool", re.I)
+    _CLOSE_METHODS = ("close", "close_all", "__del__", "shutdown", "dispose")
+
+    @staticmethod
+    def _name(node) -> Optional[str]:
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        if isinstance(node, ast.Name):
+            return node.id
+        return None
+
+    @classmethod
+    def _is_connect(cls, node) -> bool:
+        return (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "connect"
+                and cls._name(node.func.value) in ("sqlite3", "_sqlite3"))
+
+    @staticmethod
+    def _parents(tree: ast.Module) -> dict:
+        parents: dict = {}
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                parents[child] = parent
+        return parents
+
+    @classmethod
+    def _enclosing(cls, node, parents):
+        func = None
+        klass = None
+        cur = node
+        while cur in parents:
+            cur = parents[cur]
+            if func is None and isinstance(
+                    cur, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                func = cur
+            if klass is None and isinstance(cur, ast.ClassDef):
+                klass = cur
+            if isinstance(cur, ast.Module):
+                break
+        return func, klass
+
+    @classmethod
+    def _inside_call(cls, node, parents, name: str) -> bool:
+        """¿`node` es argumento (directo/indirecto) de una llamada `name(...)`?"""
+        cur = node
+        while cur in parents:
+            par = parents[cur]
+            if isinstance(par, ast.Call) and cls._name(par.func) == name:
+                return True
+            if isinstance(par, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
+                break
+            cur = par
+        return False
+
+    @staticmethod
+    def _target(node, parents):
+        par = parents.get(node)
+        if isinstance(par, ast.Assign) and par.value is node \
+                and len(par.targets) == 1:
+            return par.targets[0]
+        if isinstance(par, ast.AnnAssign) and par.value is node:
+            return par.target
+        return None
+
+    @classmethod
+    def _closed_in_finally(cls, func, target) -> bool:
+        objetivo = ast.unparse(target)
+        for node in ast.walk(func):
+            if not isinstance(node, ast.Try):
+                continue
+            for stmt in node.finalbody:
+                for sub in ast.walk(stmt):
+                    if isinstance(sub, ast.Call) \
+                            and cls._name(sub.func) == "close" \
+                            and isinstance(sub.func, ast.Attribute) \
+                            and ast.unparse(sub.func.value) == objetivo:
+                        return True
+        return False
+
+    @classmethod
+    def _returned(cls, func, target) -> bool:
+        nombre = getattr(target, "id", None)
+        if not nombre:
+            return False
+        for node in ast.walk(func):
+            if isinstance(node, (ast.Return, ast.Yield)) \
+                    and node.value is not None:
+                if any(isinstance(n, ast.Name) and n.id == nombre
+                       for n in ast.walk(node.value)):
+                    return True
+        return False
+
+    @staticmethod
+    def _returned_direct(node, parents) -> bool:
+        par = parents.get(node)
+        if isinstance(par, (ast.Return, ast.Yield)):
+            return True
+        if isinstance(par, ast.Assign) and len(par.targets) == 1:
+            abuelo = parents.get(par)
+            return isinstance(abuelo, (ast.Return, ast.Yield))
+        return False
+
+    @classmethod
+    def _class_closes(cls, klass, attr: str) -> bool:
+        for method in klass.body:
+            if not isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if method.name not in cls._CLOSE_METHODS:
+                continue
+            for sub in ast.walk(method):
+                if isinstance(sub, ast.Call) \
+                        and cls._name(sub.func) == "close" \
+                        and isinstance(sub.func, ast.Attribute) \
+                        and isinstance(sub.func.value, ast.Attribute) \
+                        and sub.func.value.attr == attr:
+                    return True
+        return False
+
+    @classmethod
+    def _class_has_close(cls, klass) -> bool:
+        return any(isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))
+                   and m.name in cls._CLOSE_METHODS for m in klass.body)
+
+    def _safe(self, node, func, klass, parents) -> bool:
+        if self._inside_call(node, parents, "closing"):
+            return True
+        target = self._target(node, parents)
+        if target is not None:
+            if self._closed_in_finally(func, target):
+                return True
+            if isinstance(target, ast.Name) and self._returned(func, target):
+                return True
+            if isinstance(target, ast.Attribute):
+                if klass is not None and self._class_closes(klass, target.attr):
+                    return True
+                if "pool" in target.attr.lower() and klass is not None \
+                        and self._class_has_close(klass):
+                    return True
+        if self._returned_direct(node, parents):
+            return True
+        if klass is not None and self._POOL.search(klass.name or ""):
+            return True
+        return False
+
+    @classmethod
+    def _explanation(cls, node, parents) -> str:
+        en_with = False
+        cur = node
+        while cur in parents:
+            par = parents[cur]
+            if isinstance(par, ast.With):
+                en_with = True
+                break
+            if isinstance(par, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
+                break
+            cur = par
+        if en_with:
+            return (
+                "La conexión está dentro de `with sqlite3.connect(...)`. "
+                "`sqlite3.Connection.__exit__` hace commit/rollback, NO close(): "
+                "la conexión (y su file descriptor) queda abierta hasta que el "
+                "GC la recolecte. Es el bug real que se arregló en 5 sitios."
+            )
+        return (
+            "La conexión se abre sin cierre ASEGURADO: no hay "
+            "`contextlib.closing`, ni `try/finally: conn.close()`, ni un "
+            "atributo `self._conn` que la clase cierre en close()/__del__."
+        )
 
     def _detect(self) -> None:
         for rel, tree in self.index.asts.items():
             src = self.index.files[rel]
-            if 'sqlite3' not in src:
+            if "sqlite3" not in src:
                 continue
+            parents = self._parents(tree)
             for node in ast.walk(tree):
-                if not isinstance(node, ast.ClassDef):
+                if not self._is_connect(node):
                     continue
-                methods_with_conn = 0
-                methods_total = 0
-                first_line = 0
-                for child in node.body:
-                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        methods_total += 1
-                        msrc = self._method_src(rel, node, child.name)
-                        if 'sqlite3.connect' in msrc and 'with sqlite3.connect' not in msrc:
-                            methods_with_conn += 1
-                            if first_line == 0:
-                                first_line = child.lineno
-                has_pool = ('SQLiteConnectionPool' in src
-                            or 'ConnectionPool' in src or '_pool' in src)
-                if methods_total > 1 and (methods_with_conn / methods_total) > 0.5 and not has_pool:
-                    self._add(
-                        finding_id=f"AUD-CP-{len(self.findings)+1:03d}",
-                        title=f"Conexión nueva por método en {node.name}",
-                        severity=AudSeverity.MEDIUM,
-                        verdict=AudVerdict.NEW,
-                        file=str(rel),
-                        line_start=first_line,
-                        code_snippet=(f"{methods_with_conn}/{methods_total} métodos "
-                                      f"crean sqlite3.connect() sin 'with'"),
-                        explanation=(
-                            f"La clase {node.name} crea conexión SQLite en {methods_with_conn} de "
-                            f"{methods_total} métodos sin usar 'with' (lo que cierra automáticamente). "
-                            "Esto puede dejar conexiones abiertas o causar overhead."
-                        ),
-                        recommendation=(
-                            "Adoptar SQLiteConnectionPool, o usar 'with sqlite3.connect(...) as conn'."
-                        ),
-                        confidence=0.8,
-                        tags={'sqlite', 'connection-pool', 'performance'},
-                    )
-
-    def _method_src(self, rel: Path, cls: ast.ClassDef, method: str) -> str:
-        for child in cls.body:
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == method:
-                lines = self.index.files[rel].splitlines()
-                end = child.end_lineno or child.lineno
-                return '\n'.join(lines[child.lineno - 1: end])
-        return ""
+                func, klass = self._enclosing(node, parents)
+                if func is None:
+                    continue  # conexión a nivel módulo: sin función que la cierre
+                if self._safe(node, func, klass, parents):
+                    continue
+                self._add(
+                    finding_id=f"AUD-SQL-{len(self.findings) + 1:03d}",
+                    title=(f"Conexión SQLite sin cierre asegurado en "
+                           f"{rel}::{func.name}()"),
+                    severity=AudSeverity.MEDIUM,
+                    verdict=AudVerdict.NEW,
+                    file=str(rel),
+                    line_start=node.lineno,
+                    code_snippet=ast.unparse(node)[:200],
+                    explanation=self._explanation(node, parents),
+                    recommendation=(
+                        "Usar `with closing(sqlite3.connect(...)) as conn, conn:` "
+                        "(contextlib.closing) o `conn = ...; try: ... finally: "
+                        "conn.close()`. Ojo: `with sqlite3.connect(...)` hace "
+                        "commit, NO cierra."
+                    ),
+                    confidence=0.9,
+                    tags={"sqlite", "resource-leak", "connection-pool"},
+                )
 
 
 # ============================================================================

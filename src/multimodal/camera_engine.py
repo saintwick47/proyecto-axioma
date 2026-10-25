@@ -25,10 +25,12 @@ logger = logging.getLogger(__name__)
 try:
     import cv2
     _CV2_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # ✅ FIX AUD-IEO-004 (2026-10-25): cv2 puede lanzar OSError si falta libGL
+    # u otra librería del sistema; la captura se desactiva, el módulo no revienta.
     cv2 = None  # type: ignore[assignment]
     _CV2_AVAILABLE = False
-    logger.warning("opencv-python no disponible — CameraCaptureEngine deshabilitado")
+    logger.warning(f"opencv-python no disponible — CameraCaptureEngine deshabilitado ({_exc})")
 
 
 class CameraCaptureEngine:

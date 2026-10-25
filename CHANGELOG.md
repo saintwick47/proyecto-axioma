@@ -7,7 +7,279 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Auditor (`tools/auditor/`)
+- **A1 — SCORE honesto: índice de deuda + baseline + ratchet.** El SCORE /100 sigue
+  siendo la métrica del gate (sólo resta CRITICAL/HIGH) pero **ya no se presenta como
+  nota de calidad**. El JSON (campos nuevos, esquema intacto) agrega en `summary`:
+  `score_meaning` y `quality_notice` («SCORE 100 ≠ calidad»), `debt` (índice
+  ponderado MEDIUM×5 + LOW×1, conteo por detector con INFO), `scope` (ver A6) y
+  `regression` (ratchet). Nuevo `audit_baseline.json` versionado en la raíz
+  (`--write-baseline` lo congela; `--baseline` lo apunta a otra ruta) y modo
+  `--ratchet`: sale 2 si hay **más MEDIUM/LOW por detector que el baseline** (o más
+  CRITICAL/HIGH). `tools/quality_gate.py` agrega el check bloqueante *sin regresión
+  de deuda* (lee `summary.regression`; sin ese bloque queda SKIP no bloqueante, para
+  no romper JSON viejos) y un check informativo con el índice de deuda. Sonda
+  (fixture /tmp, detectores `integration,silent_exceptions`): baseline limpio →
+  exit 0, score 100, deuda 1; al agregar un `except Exception: pass` → **score sigue
+  100**, deuda 7 y ratchet exit **2** con 2 regresiones (`silent_exceptions/MEDIUM`
+  0→1, `integration/LOW` 1→2); el gate con ese JSON → **BLOQUEA**. El informe
+  Markdown explica qué mide el SCORE y lista la deuda por detector.
+- **A2 — detectores de las clases de bug reales (seguridad).** Cuatro detectores
+  nuevos (34 en total), registrados en `DETECTORS`, con `AUD-*` propio:
+  `path_containment` (AUD-PTH, MEDIUM) marca `Path(base)/param` y
+  `os.path.join(base, param)` cuando el operando viene de un parámetro y no hay
+  validación (`resolve().is_relative_to`, `realpath`+`startswith`, allowlist por
+  regex, `fullmatch`, `.name`/`hashlib` como sanitizadores); sólo reporta si el path
+  llega a un sink de lectura/escritura en la misma función (evita FPs de utilidades
+  que sólo devuelven la ruta). `unsafe_path_delete` (AUD-DEL, HIGH) escala a HIGH
+  `rmtree`/`remove`/`unlink`/`rmdir` sobre un path derivado sin contención.
+  `native_import_oserror` (AUD-IEO, MEDIUM) marca `try: import sounddevice/cv2/…`
+  que sólo captura `ImportError` (un fallo de libportaudio/libGL/CUDA lanza
+  `OSError`). `unsafe_exec` (AUD-EXEC) marca `shell=True`, `os.system`/`popen`,
+  `eval`/`exec` y `pickle.load(s)` con entrada dinámica (HIGH para
+  `os.system`/`eval`/`exec`, MEDIUM para `shell=True`/`pickle`), ignorando literales.
+  Sonda con el snapshot `c4cd41f^` (extraído a `/tmp` con `git archive`, nunca en el
+  repo): **antes** 180 hallazgos / MEDIUM 0 / SCORE **100**; **después** (sólo los 4
+  detectores nuevos) 23 hallazgos — **1 HIGH** en
+  `workspace_manager.py::cleanup()` (rmtree sobre `self._base / session_id`), 10
+  MEDIUM de contención (`get_workspace`/`scan_workspace`/`get_attempt_history`) y 12
+  MEDIUM de imports nativos → **SCORE 90**. En el árbol actual: 15 MEDIUM nuevos
+  (8 de paths que quedan como deuda visible — p. ej. `save_code_to_file(filename)`,
+  `routes.upload_file_endpoint(file_id)` — y 7 de imports nativos) y **0 HIGH**, con
+  `unsafe_exec` en 0 (los `shell=False` del código no se marcan). `audit_baseline.json`
+  se regeneró porque cambió el conjunto de detectores; desde acá el ratchet congela
+  esos 15 MEDIUM conocidos. Tests nuevos en `tests/test_axioma_34_auditor_honesto.py`
+  (16 tests: A1 deuda/baseline/ratchet/gate + A2 positivo y negativo por detector;
+  tope de archivos de suite 25→26, autorizado por R13 porque test_18 está en 946/950).
+- **A3 — `connection_per_method` reescrito (adiós FP y FN).** El detector viejo
+  exigía `with` en >50 % de los métodos (FP: una clase con el patrón correcto
+  `try/finally: conn.close()` se marcaba como "sin with") y contaba
+  `with sqlite3.connect(...)` como cierre (FN: `Connection.__exit__` hace
+  commit/rollback, **no** `close()`; el bug real de 5 sitios). Ahora evalúa **cada**
+  `sqlite3.connect(...)` del árbol (`AUD-SQL-*`, MEDIUM) y acepta cierre asegurado:
+  `contextlib.closing`, `try/finally: conn.close()`, `self._conn` cerrado por
+  `close()`/`__del__` de la clase, factory que devuelve la conexión o pool con
+  `close_all()`/finalizer. Sonda: fixture `/tmp` con `with sqlite3.connect` → **1
+  hallazgo** con explicación de `__exit__`; con `closing` / `finally close` / atributo
+  cerrado por la clase → **0**; árbol actual → **0**; snapshot `c4cd41f^` → **5**
+  (los 4 de `feedback_loop_components.py` y el de `feedback_loop.py`, todos con
+  `with sqlite3.connect`). 4 tests nuevos en test_34 (20 en total).
+- **A4 — `config_refs` ahora es AST-aware (cero FPs en strings/comentarios).**
+  Recorría las líneas crudas con regex, así que marcaba `settings.X` dentro de
+  strings, anotaciones `def f(x: "settings.campo")` y comentarios al final de línea.
+  Ahora camina `ast.Attribute` cuyo `value` es el `Name` del módulo: sólo ve accesos
+  reales `settings.X`/`Paths.X`/`TaskType.X` (docstrings, strings, comentarios y
+  anotaciones string no son AST Attribute). Además, si el import de un grupo de
+  símbolos falla, **no** marca todas sus referencias como inexistentes. Sonda con el
+  fixture del informe (string + anotación + comentario + un `settings.esto_no_existe_xyz`
+  real): **antes 4 hallazgos** (los 4, incluidos los 3 falsos), **después 1** (sólo el
+  real); `settings.data_dir` (válido) → 0. 2 tests nuevos (22 en total).
+- **A5 — menos ruido en `silent_exceptions`.** Se excluyen ahora: handlers que
+  **re-lanzan** (`raise`), los que reportan con `warnings.warn`/`traceback.print_exc`/
+  `print_exception`, y las **sondas que devuelven un default** (`return None/False/0/
+  ""/[]/{}` o `continue`). Los handlers silenciosos que quedan ya no suman deuda como
+  LOW: se agregan como **INFO por archivo** para revisión puntual (política A5). Sonda
+  sobre el árbol real con `--detectors silent_exceptions`: **antes 64 hallazgos (61
+  LOW + 3 INFO)**; **después 48 INFO, 0 LOW/MEDIUM** (45 "a revisar" + cobertura de
+  tipos no vigilados), y el total del auditor baja de 181 a 180 hallazgos con
+  **LOW 177→116** e índice de deuda **252→191**. Fixture de regresión: sondas
+  `return None`/`return []`, `raise`, `warnings.warn` y `traceback.print_exc` → 0
+  hallazgos; un handler que muta estado en silencio → 1 INFO. Baseline regenerado
+  (la deuda bajó: el ratchet ahora exige no volver a subir). 1 test nuevo (23) y
+  se actualizaron los 2 tests de `test_axioma_26_rac_estatico.py` que exigían LOW
+  para `except (ValueError, TypeError): return None` y `except PermissionError:
+  return None` (fixtures de sonda): ahora usan un cuerpo que muta estado y verifican
+  que el caso queda visible como INFO "a revisar" (la política A5 cambió la
+  severidad, no la cobertura).
+- **A6 — métricas efectivas y alcance visible.** `integration` medía el span FÍSICO
+  (`end_lineno - lineno`), así que un método con 79 líneas de comentarios se marcaba
+  como ">80". Ahora cuenta **líneas efectivas** (sin blancos, líneas que empiezan con
+  `#` ni rangos de docstring — módulo/clase/función) y muestra ambas en el título
+  (`N efectivas / M físicas`). El JSON ya traía `summary.scope` (A1): ahora se
+  documenta y testea — `files_indexed`, `files_excluded` con `excluded_by_dir`
+  (venv incluido, para no fingir que se audita), `parse_errors`, `methods_indexed`,
+  `include_tools_tests`; `--include-tools-tests` es el opt-in que saca `tools/` y
+  `tests/` del set excluido (CodeIndex.build). Sonda en el árbol real: métodos
+  "largos" **115 → 67** (48 eran comentarios/docstrings), total de hallazgos
+  **181 → 132**, LOW **177 → 68**, índice de deuda **252 → 143**. Fixture: método con
+  100 líneas de comentario → 0 hallazgos; método con 90 líneas de lógica → 1 (título
+  con efectivas/físicas). Test de scope: 1 indexado + 2 fuera por defecto, 3 con el
+  flag. 3 tests nuevos (26). Baseline regenerado (deuda más baja).
+- **A7 — historial de tendencia (`logs/audit_history.jsonl`).** Cada corrida del CLI
+  agrega **una línea JSON** (timestamp, commit, versión, score, debt_index, counts,
+  by_detector, report) vía `append_history()`. La poda de reportes
+  (`AUDIT_REPORTS_KEEP=1`) sigue recortando SÓLO `axioma_audit_report_*.md`: el
+  historial es append-only y no lo toca (test que corre la poda con 4 `.md` +
+  historial). `--no-history` lo desactiva. Sonda: corrida real → 1 línea con
+  timestamp/score/deuda; poda con 4 `.md` → queda 1 `.md` y el `.jsonl` intacto.
+- **A8 — `--fail-on HIGH|MEDIUM` (exit code, sin tocar el JSON).** Acepta
+  mayúsculas/minúsculas y sale con 2 si hay hallazgos de esa severidad o superior;
+  el JSON es idéntico con y sin el flag (mismo score y `regression`). Sonda: fixture
+  con `rmtree` inseguro (HIGH) → `--fail-on HIGH` rc **2**, sin flag rc 0; fixture
+  sólo MEDIUM → `--fail-on HIGH` rc 0 y `--fail-on MEDIUM` rc 2. `--ratchet` también
+  sale 2 al empeorar (baseline limpio → agregar `except Exception: pass` → rc 2 con
+  `regressions` en el JSON).
+- **A9 — metadatos y versión unificados.** El CLI calcula el conteo con
+  `len(DETECTORS)` (**34**; antes decía 26) y toma la versión de `src/__init__.py`
+  (**0.7.5**; antes CLI v8.3, paquete v0.6.8uu, proyecto 0.7.5). La versión se
+  **lee** de `src/__init__.py` (no se importa `src`): importarlo dejaba
+  `sys.modules["src"]` apuntando al repo y, al auditar OTRO árbol con `--root`,
+  `syntax_import` mezclaba el `src` del repo con el `config` del árbol auditado
+  (medido: 3 CRITICAL falsos en el snapshot; corregido: 0). README y
+  `COMANDOS_AXIOMA.txt` dicen 34 detectores / v0.7.5 / 15 condiciones del gate y
+  documentan `--write-baseline`, `--ratchet`, `--fail-on`, `--include-tools-tests` y
+  `audit_history.jsonl`. Test de consistencia: `AUDITOR_VERSION == src.__version__`,
+  el `--help` anuncia 34 y los docs no conservan "26 detectores". 8 tests nuevos
+  (32 en `test_axioma_34_auditor_honesto.py`).
+
+### Cierre de la pasada del auditor
+- Estado final medido en HEAD: **suite 26/26 · 1190 tests · auditor 132 hallazgos
+  (0 CRITICAL, 0 HIGH, 15 MEDIUM, 68 LOW, 49 INFO) · SCORE 100 · índice de deuda 143
+  · gate PASA (15 checks)**. Punto de partida: 181 hallazgos (177 LOW), MEDIUM 0,
+  SCORE 100 (que no medía los bugs del snapshot). El snapshot `c4cd41f^` pasó de
+  **SCORE 100** con "todo bien" a **SCORE 90 con 1 HIGH** (rmtree fuera del base) +
+  MEDIUM (path traversal + imports nativos) y, al correr los 34 detectores, 5
+  conexiones SQLite con `with` mal cerradas. `audit_baseline.json` versionado congela
+  la deuda conocida; el gate bloquea regresiones por detector.
+
+
+### Documentador (`tools/documentador/`)
+- **D1 — §5 (flujos críticos) verifica por MÉTODO, no por clase.** El badge se calculaba
+  con `get_integration_badge_for_symbol(nombre_de_clase)`, así que todo paso cuya **clase**
+  existiera salía `[✅ CONECTADO]` aunque el método no existiera: `SmartRouter.select_model()`,
+  `MemoryGateway.search_context()/store()/store_knowledge()`, `SearcherAgent.synthesize()`,
+  `CoderAgent.generate()` y `Dispatcher.dispatch()` no existen en HEAD. Ahora
+  `build_critical_flows()` construye un índice `clase → métodos + bases` desde
+  `enriched_classes`/`class_definitions` y resuelve `Clase.método` **siguiendo herencia y
+  mixins** (es así como aparecen `Dispatcher.process` vía `DispatcherProcessMixin` y
+  `MemoryGateway.get_context` vía `MemoryGatewayRetrievalMixin`). Cada paso guarda
+  `method_found`, `method_definition` (`archivo:línea`) y `method_owner`; §5 muestra
+  `❌ NO ENCONTRADO` cuando el método no existe y agrega la columna **Definición**.
+  Nombres corregidos en `CRITICAL_FLOWS_DEFINITION` (Dispatcher.process, SmartRouter.route,
+  ModelRouter.route, MemoryGateway.get_context/add_message, CoderAgent.execute,
+  CodeValidator.validate, SearcherAgent.execute) y eliminados los `ast_targets` muertos.
+  Sonda: el resolver devuelve NO ENCONTRADO para los 6 métodos viejos y ENCONTRADO para los
+  reales; los 4 flujos quedan 19/19 pasos verificados. Sin tests nuevos (ver D9).
+- **D2 — `--trace-flows` activo por defecto.** Antes, sin el flag, §5 quedaba en
+  `[❓ PENDIENTE]` y §6/§18 vacías, justo el comando que documenta el README
+  (`python tools/documentador/axioma_doc_main.py`). Ahora el FlowMapper corre por defecto
+  (`--trace-flows` se mantiene como alias explícito) y se agregó `--no-trace-flows` para
+  desactivarlo. Si se desactiva (o el FlowMapper falla), el **encabezado del documento**
+  avisa: `⚠️ §5/§6/§18 INCOMPLETAS: FlowMapper desactivado`. Sonda: corrida sin flags →
+  §6 y §18 presentes y §5 con badges de integración; con `--no-trace-flows` → cabecera con
+  la advertencia y badges `[❓ SIN RASTREO]`. Costo medido del trace completo: ~6,5 s.
+- **D3 — `--validate` mide cobertura REAL (validate_docs.py), ya no aprueba de palabra.**
+  El flag imprimía «VALIDACIÓN APROBADA: Documentación refleja código real» sin llamar al
+  validador. Ahora importa `extract_real_symbols`/`parse_documented_symbols`/`validate_coverage`
+  de `validate_docs.py`, muestra la cobertura medida, el desglose de faltantes por tipo y
+  **sale con código 1** si no llega al umbral. Además se alineó el **alcance** del validador
+  con el del documentador (`EXCLUSIONES` de `axioma_doc_base`): antes contaba `tests/`, `docs/`,
+  `data/`, `logs/` y el checkout externo `deepseek-harness/` (8545 símbolos → 34,4 %); con el
+  alcance real son 4950 símbolos → **58,2 %**. Umbral nuevo: **55 %** (medido 58,2 %, margen
+  para cambios legítimos y muy por encima del 34,4 % anterior), documentado en el módulo:
+  el 95 % es inalcanzable porque el validador cuenta funciones de módulo que la §3 lista sin
+  firmas y métodos que la §8 trunca a 6-8 por clase. Sondas: `--validate` → 58,2 % / exit 0;
+  `validate_docs.py --min-coverage 95` → exit 1 (el camino de fallo sigue vivo).
+- **D4 — `--strict-secrets` deja de fallar abierto.** Dependía de `secret_scanner.py`,
+  ignorado por git (`.gitignore: *secret*.py`) y ausente en un clon limpio: la corrida
+  imprimía «⚠️ No se pudo verificar: No module named 'secret_scanner'» y **seguía**.
+  El escáner (`scan_file`/`scan_directory`, `EXIT_VIOLATION=7`) se integró en
+  `sensitive_filter.py` (versionado) y `secret_scanner.py` se eliminó; `axioma_safe_doc.py`
+  (que lo importaba) apunta ahora al módulo versionado. En `axioma_doc_main.py`:
+  (1) si `--strict-secrets` y el filtro no está disponible → **exit 7 antes de generar**;
+  (2) si la verificación lanza cualquier excepción y se pidió strict → **exit 7**;
+  (3) la verificación escanea el archivo realmente generado (`--output`), no siempre `docs/`;
+  (4) se corrigió el `None.strict_mode` cuando el filtro no está disponible. Sondas:
+  `--strict-secrets` normal → verificación OK por `sensitive_filter.py` (exit 0);
+  con el import de `sensitive_filter` forzado a fallar → exit **7**; `scan_file` sobre un
+  `ghp_…` sintético → patrón detectado en la línea 2.
+- **D5 — IA opt-in, limpia y visible.** (1) **Opt-in:** el default ya NO usa Ollama; hay que
+  pasar `--ollama` (se mantiene `--no-ollama` como no-op explícito). (2) **Modelo validado:**
+  `OllamaAnalyzer._check_model_available()` exige que el modelo exista en `ollama list` (con o
+  sin tag); si no, deshabilita la IA y lista los disponibles (antes `--model inventado` fallaba
+  en silencio en cada llamada). (3) **Caché por modelo+versión:** la clave incluye
+  `PROMPT_VERSION` y `self.model` (antes solo `tipo:snippet`, así que cambiaba el modelo y se
+  reutilizaban resúmenes ajenos). (4) **ANSI:** `strip_ansi()` en `axioma_doc_base_utils.py`
+  limpia la respuesta de Ollama al cachear y hay un barrido final sobre el `.md` completo
+  (las 25 líneas con `\x1b[2D\x1b[K` desaparecen; sonda: 0 ESC en el documento nuevo).
+  (5) **No reemplaza docstrings:** §8 y §4 muestran el docstring curado primero y la IA solo
+  completa si falta; además no se gasta una llamada de clase si ya hay docstring.
+  (6) **Resúmenes de método renderizados:** los 31 resúmenes que se pagaban y nunca se veían
+  ahora aparecen en §8 como «Resúmenes IA de métodos (sin docstring)». (7) `--max-ai-classes`
+  ahora se usa de verdad (antes hardcodeado en 20): limita clases recorridas; `0` = ninguna.
+  Sondas: corrida por defecto 6,6 s sin IA y sin ESC; `--ollama --model inexistente` →
+  «no instalado», IA deshabilitada y exit 0; hash de caché distinto por modelo; docstring
+  curado gana sobre `ai_summary`; resumen de método presente en §8.
+- **D6 — navegación del documento.** El `.md` de 414 KB no decía de qué commit salía ni
+  cómo leerlo, y §8 (272 KB) era un volcado de clases sin índice. Ahora: (1) encabezado con
+  **commit** (`git rev-parse --short HEAD`), fecha, **alcance** (305 archivos / 125.615
+  líneas) y qué queda fuera (`tests/`, `docs/`, `data/`, `logs/`, `deepseek-harness/`,
+  `inforchat/`, `tools/documentador/`, archivos sensibles); (2) sección **«Cómo leer este
+  documento»** con el mapa de §1–§18; (3) §4 enlaza a §8; (4) §8 abre con **índice de
+  módulos y clases** agrupado por paquete (462 clases, 21 paquetes, anclas HTML estables
+  `clase-*`/`mod-*`/`pkg-*` y enlace «volver al índice»); (5) §8 está **separada por
+  paquete dentro del mismo `.md`** (sin archivos nuevos): `### Paquete src/agents`, etc.,
+  con archivos en `####` y clases en `#####`. Sonda: encabezado con `Commit documentado:
+  45cbecf` y alcance; 21 secciones `### Paquete`, 462 anclas de clase; documento final
+  ~592 KB (el índice y las anclas suman ~168 KB).
+- **D7 — poda de código muerto y flags honestos.** Borrados (verificado con `grep` que
+  nadie los importaba): `axioma_doc_generator_sections.py` + `_ext.py` (1.484 líneas del
+  generador TOON histórico) y `axioma_safe_doc.py` (323 líneas; además roto en clon limpio
+  porque importaba `secret_scanner`). En `axioma_doc_ai.py`: eliminados `analyze_module()`,
+  `analyze_critical_flows_with_ai()` y `validate_documentation_consistency()` (definidos y
+  nunca llamados). Flags: **eliminados `--force` y `--strict-include`** (eran no-ops:
+  no hay caché de documento y `manifest_core.txt` no existía); **`--clear-cache` ahora
+  existe de verdad** y borra `data/.ai_analysis_cache.json` (estaba documentado en
+  `COMANDOS_AXIOMA.txt` y no existía). `--max-ai-classes` quedó funcional (D5) y se quitó
+  el parámetro `strict_include` del analyzer y el loader muerto del manifest. Actualizados
+  `COMANDOS_AXIOMA.txt`, `README.md` y la ayuda/uso del CLI. Sonda: `--help` ya no muestra
+  `--force`/`--strict-include`; `--clear-cache` borra la caché (exit 0) y el archivo se
+  restauró desde backup para no perder el material de prueba de D5.
+- **D8 — §10/§13 avisan cuando falta `data/`.** En un clon limpio (sin `data/`) esas
+  secciones quedaban vacías o con valores por defecto **sin decirlo**. `_aviso_data()`
+  agrega al inicio de §10 y §13: «⚠️ no disponible en este entorno — falta `data/`…».
+  Sonda: con el árbol real (data/ presente) el aviso aparece **0** veces; con un analyzer
+  apuntando a un directorio sin `data/`, `_memoria()` y `_configuracion()` lo muestran.
+- **D10 — §7 muestra TODOS los `async def`.** El corte era `async_methods[:40]` (40 de
+  cientos). Ahora se listan todos con su archivo, retorno y resumen de docstring; sonda:
+  **336** métodos async detectados y **336** filas de datos en §7.
+- **D9 — tests del documentador (nuevo `tests/test_axioma_33_documentador.py`, 265 líneas).**
+  Autorizado por el tope R13: los 24 archivos existentes están en 826–950 líneas y no había
+  lugar. El test genera el documento **real** en `tmp_path` (análisis AST + FlowMapper, sin
+  IA) y verifica: encabezado con commit/fecha/alcance y «cómo leer»; §5 con 19 pasos y los
+  métodos reales (`Dispatcher.process`, `CoderAgent.execute`, `CodeValidator.validate`, …);
+  que el resolver devuelve `None` para los 7 nombres inexistentes y resuelve mixins; que un
+  flujo sintético con método inexistente se renderiza `❌ NO ENCONTRADO` (nunca ✅); §18 con
+  módulos; §7 con **todas** las firmas async (cuenta contra el analyzer); flags del CLI
+  (existen los honestos, no se anuncian `--force`/`--strict-include`); `--validate` real
+  (exit 0 con umbral 1 y exit 1 con 99); `--clear-cache` borra solo la caché IA (tmp);
+  ausencia de ANSI en todo el `.md`; y aviso de `data/` ausente en §10/§13.
+  Resultado: **11 passed en ~10 s**. Total suite: 25 archivos / 1158 tests.
+  `test_axioma_01` actualizó su tope de archivos de 24 → 25 (con la autorización
+  registrada acá); sigue en 946 líneas (≤ R13) y `test_axioma_27` valida permisos
+  legibles del archivo nuevo (chmod 644).
+
 ### Seguridad
+- **15 MEDIUM del auditor corregidos: contención de paths (AUD-PTH) e imports nativos (AUD-IEO).**
+  `path_containment` marcaba 7 rutas derivadas de parámetros sin validar: `save_code_to_file(filename)`
+  (nombre que viene del coder), `upload_file_endpoint(file.filename)` (nombre del cliente),
+  `review_system(scope)`, `save_transcript(session_id)`, `_stage(proposal.proposal_id)`,
+  `export_research(session_id)` y `_load_template(agent_type)`. Ahora se valida **antes** de tocar
+  disco con allowlist + contención real (`resolve().is_relative_to(base)`, mismo criterio que
+  `WorkspaceManager._workspace_path`), rechazando con `ValueError`/respuesta de error o saneando a
+  basename donde el código ya lo hacía (upload y `suggested_filename`); los nombres legítimos siguen
+  funcionando. `native_import_oserror` marcaba 8 imports (`lancedb` ×3, `cv2`, `faster_whisper`,
+  `webrtcvad`, `pvporcupine`, `openwakeword`) que sólo atrapaban `ImportError`; pasaron a
+  `except (ImportError, OSError)` dejando la variable en `None`, igual que
+  `src/multimodal/tts_engine.py`/`vad_filter.py`. Sondas (fixture `/tmp`): **antes** 6 vectores
+  escapaban (p. ej. `save_code_to_file("../evil")` escribía en `data/outputs/../`; `_load_template("../evil")`
+  leía `src/prompts/evil.yaml`; upload con `../../../etc/x.pdf` resolvía fuera de `uploads/`),
+  **después** 40/40 PASS y ningún archivo fuera del base; con módulos falsos en `PYTHONPATH` que
+  lanzan `OSError` al importar, los 8 casos importan y degradan la feature (8/8 PASS). Auditor:
+  **0 MEDIUM** (antes 15), índice de deuda **68** (antes 143) y `audit_baseline.json` regenerado.
+  Test de regresión nuevo en `tests/test_axioma_34_auditor_honesto.py` (0 MEDIUM de esos dos
+  detectores en el árbol real). Sin `# noqa`: los 15 se corrigieron de verdad, no hubo falsos
+  positivos que justificar.
 - **Token obligatorio en las rutas que ESCRIBEN configuración (`/preflight/claves` y `/preflight/modelos`).**
   MEDIDO el 2026-10-25 con `TestClient` sobre `build_api_app()`: `POST /api/v1/preflight/claves`
   respondía **200 y escribía el `.env` sin credenciales**. Lo único que lo frenaba era el check de

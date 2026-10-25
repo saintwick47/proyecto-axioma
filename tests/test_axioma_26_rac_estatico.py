@@ -499,6 +499,7 @@ def f(x):
     try:
         return int(x)
     except (ValueError, TypeError):
+        self.ultimo_error = "valor inválido"
         return None
 '''
     LOG_DEGRADED = '''
@@ -520,7 +521,7 @@ def escribir(p):
     try:
         return open(p, "w")
     except PermissionError:
-        return None
+        self.sin_permiso = True
 '''
 
     def _detector(self, root):
@@ -540,12 +541,12 @@ def escribir(p):
         return self._detector(root).run().findings
 
     def test_tuple_con_tipos_vigilados_ya_no_es_ciego(self, tmp_path):
-        """Debe dar **LOW** (no basta con el INFO agregado de cobertura)."""
+        """A5: sigue VISIBLE como INFO (un `return None` de sonda ya no da LOW)."""
         f = self._correr(tmp_path, self.SILENCIOSO_TUPLE)
-        low = [x for x in f if x.detector == "silent_exceptions"
-               and x.severity.value == "LOW"]
-        assert low, ("un `except (ValueError, TypeError): return None` debe dar LOW, "
-                     f"no solo cobertura: {[x.title for x in f]}")
+        info = [x for x in f if x.detector == "silent_exceptions"
+                and x.severity.value == "INFO" and "a revisar" in x.title]
+        assert info, ("un `except (ValueError, TypeError)` que muta estado debe "
+                      f"quedar visible como INFO: {[x.title for x in f]}")
 
     def test_log_degraded_cuenta_como_registro(self, tmp_path):
         f = self._correr(tmp_path, self.LOG_DEGRADED, "d.py")
@@ -553,11 +554,11 @@ def escribir(p):
         assert not sil, f"log_degraded(...) ya registra: {[x.title for x in sil]}"
 
     def test_permission_error_es_vigilado(self, tmp_path):
-        """Un `PermissionError` tragado puede ser pérdida de datos ⇒ LOW."""
+        """A5: un `PermissionError` que muta estado queda como INFO a revisar."""
         f = self._correr(tmp_path, self.PERMISSION, "p.py")
-        low = [x for x in f if x.detector == "silent_exceptions"
-               and x.severity.value == "LOW"]
-        assert low, f"PermissionError debe dar LOW: {[x.title for x in f]}"
+        info = [x for x in f if x.detector == "silent_exceptions"
+                and x.severity.value == "INFO" and "a revisar" in x.title]
+        assert info, f"PermissionError debe quedar visible: {[x.title for x in f]}"
 
     def test_importerror_silencioso_cuenta_en_la_cobertura(self, tmp_path):
         """No da LOW (feature detection), pero debe quedar CONTADO (INFO)."""

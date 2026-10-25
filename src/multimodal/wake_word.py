@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 try:
     import pvporcupine  # noqa: F401 — sólo se comprueba que exista
     _PORCUPINE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # ✅ FIX AUD-IEO-007 (2026-10-25): pvporcupine es nativo; OSError si falta
+    # la librería del sistema. El fallback por energía sigue funcionando.
     _PORCUPINE_AVAILABLE = False
+    logger.debug(f"[WakeWord] pvporcupine no disponible: {_exc}")
 
 # openWakeWord: modelo "hey_jarvis" incluido en el paquete.
 try:
@@ -34,8 +37,11 @@ try:
         "resources", "models", "hey_jarvis_v0.1.onnx",
     )
     _OWW_AVAILABLE = os.path.exists(_OWW_MODEL_PATH)
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # ✅ FIX AUD-IEO-008 (2026-10-25): openwakeword/onnxruntime pueden lanzar
+    # OSError; simplemente queda desactivado (no se usa por default).
     _OWW_AVAILABLE = False
+    logger.debug(f"[WakeWord] openwakeword no disponible: {_exc}")
 
 # ✅ plan_rafael (2026-08-31): el wake word REAL es "rafael" — se verifica por
 # STT sobre la frase capturada (voice_pipeline._strip_wake_prefix). La puerta

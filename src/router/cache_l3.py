@@ -35,11 +35,14 @@ try:
     import lancedb
     from lancedb.pydantic import LanceModel, Vector
     _LANCE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # ✅ FIX AUD-IEO-003 (2026-10-25): lancedb puede lanzar OSError si falta la
+    # librería nativa; sin esto el caché L3 tumbaba el módulo al importarse.
     _LANCE_AVAILABLE = False
     lancedb = None  # type: ignore[assignment]
     LanceModel = object  # type: ignore[misc,assignment]
     Vector = None  # type: ignore[assignment]
+    logger.debug(f"[CacheL3] lancedb no disponible: {_exc}")
 
 if _LANCE_AVAILABLE:
     class CacheRecord(LanceModel):

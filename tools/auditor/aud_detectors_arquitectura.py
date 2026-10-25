@@ -357,8 +357,8 @@ class ConfigRefsDetector(BaseDetector):
     name = "config_refs"
     description = "TaskType.X / Paths.X / settings.X inexistentes (fusionado de tools/verify_all.py)"
 
-    def _detect(self) -> None:
-        # Cargar símbolos reales (degradación silenciosa si un módulo falla)
+    def _load_symbols(self):
+        """Símbolos reales de TaskType/Paths/settings (degradación silenciosa)."""
         task_types: set = set()
         paths_attrs: set = set()
         settings_attrs: set = set()
@@ -378,67 +378,74 @@ class ConfigRefsDetector(BaseDetector):
             settings_attrs = {a for a in dir(settings) if not a.startswith("_")}
         except Exception:
             pass
+        return task_types, paths_attrs, settings_attrs
 
+    def _detect(self) -> None:
+        """Detecta `settings.X`/`Paths.X`/`TaskType.X` inexistentes con AST.
+
+        ✅ v0.7.5 (A4): antes recorría las líneas crudas con regex, así que
+        marcaba strings, anotaciones `def f(x: "settings.campo")` y comentarios
+        al final de línea (5 MEDIUM falsos en un fixture). El AST sólo ve
+        accesos REALES: `ast.Attribute` cuyo `value` es el `Name` del módulo.
+        Docstrings, strings, comentarios y anotaciones string no son
+        `ast.Attribute` → no se marcan. Un `settings.atributo_inexistente`
+        usado de verdad sí.
+        """
+        task_types, paths_attrs, settings_attrs = self._load_symbols()
         if not (task_types or paths_attrs or settings_attrs):
             return  # sin símbolos de referencia → nada que verificar
 
         # Archivos donde se DEFINEN los símbolos (no marcar su propia def)
-        skip_files = {"src/domain/types.py", "config/paths.py", "config/settings.py",
-                      "config/settings_computations.py", "axioma_auditor.py"}
-
-        import re as _re
-        checks = [
-            (r"TaskType\.(\w+)", task_types, "TaskType", "no existe en src/domain/types.py"),
-            (r"Paths\.(\w+)", paths_attrs, "Paths", "no existe en config/paths.py"),
-            (r"settings\.(\w+)", settings_attrs, "settings", "no existe en config/settings.py"),
-        ]
+        skip_files = {"src/domain/types.py", "config/paths.py",
+                      "config/settings.py", "config/settings_computations.py",
+                      "axioma_auditor.py"}
+        checks = {
+            "TaskType": (task_types, "no existe en src/domain/types.py",
+                         "src/domain/types.py"),
+            "Paths": (paths_attrs, "no existe en config/paths.py",
+                      "config/paths.py"),
+            "settings": (settings_attrs, "no existe en config/settings.py",
+                         "config/settings.py"),
+        }
 
         for rel, tree in self.index.asts.items():
             if str(rel).replace("\\", "/") in skip_files:
                 continue
-            src = self.index.files.get(rel, "")
-            if not src:
-                continue
-            lines = src.splitlines()
-            # Rangos de líneas que son docstrings (módulo/clase/función) —
-            # evitar falsos positivos por texto documental (ej. settings.dashboard_{key})
-            doc_lines: set = set()
-            for n in ast.walk(tree):
-                if not isinstance(n, (ast.Module, ast.ClassDef,
-                                      ast.FunctionDef, ast.AsyncFunctionDef)):
+            lines = self.index.files.get(rel, "").splitlines()
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Attribute)
+                        and isinstance(node.value, ast.Name)):
                     continue
-                if n.body and isinstance(n.body[0], ast.Expr) \
-                        and isinstance(n.body[0].value, ast.Constant) \
-                        and isinstance(n.body[0].value.value, str):
-                    start = n.body[0].lineno
-                    end = getattr(n.body[0], "end_lineno", start) or start
-                    doc_lines.update(range(start, end + 1))
-            for line_num, line in enumerate(lines, 1):
-                if line.strip().startswith("#") or line_num in doc_lines:
+                entry = checks.get(node.value.id)
+                if entry is None:
                     continue
-                for pattern, valid, prefix, reason in checks:
-                    for m in _re.finditer(pattern, line):
-                        name = m.group(1)
-                        # Falsos positivos: import del módulo (settings.py), etc.
-                        if name in ("py", "settings", "env"):
-                            continue
-                        if not valid or name not in valid:
-                            self._add(
-                                finding_id=f"AUD-CFG-{len(self.findings)+1:03d}",
-                                title=f"{prefix}.{name} inexistente en {rel}",
-                                severity=AudSeverity.MEDIUM,
-                                verdict=AudVerdict.NEW,
-                                file=str(rel),
-                                line_start=line_num,
-                                code_snippet=line.strip()[:200],
-                                explanation=f"Referencia a {prefix}.{name} que {reason}.",
-                                recommendation=(
-                                    f"Corregir la referencia o verificar el nombre real en "
-                                    f"{'src/domain/types.py' if prefix=='TaskType' else 'config/paths.py' if prefix=='Paths' else 'config/settings.py'}."
-                                ),
-                                confidence=0.7,
-                                tags={'config', 'refs', 'typo'},
-                            )
+                valid, reason, target_file = entry
+                name = node.attr
+                # Grupo sin símbolos (import falló): no marcar TODO como typo.
+                if not valid or name in valid:
+                    continue
+                # Falsos positivos históricos de nombres de módulo/atributos.
+                if name in ("py", "settings", "env"):
+                    continue
+                line = (lines[node.lineno - 1].strip()
+                        if 0 < node.lineno <= len(lines) else "")
+                self._add(
+                    finding_id=f"AUD-CFG-{len(self.findings)+1:03d}",
+                    title=f"{node.value.id}.{name} inexistente en {rel}",
+                    severity=AudSeverity.MEDIUM,
+                    verdict=AudVerdict.NEW,
+                    file=str(rel),
+                    line_start=node.lineno,
+                    code_snippet=line[:200],
+                    explanation=(f"Referencia real (AST) a "
+                                 f"{node.value.id}.{name} que {reason}."),
+                    recommendation=(
+                        f"Corregir la referencia o verificar el nombre real en "
+                        f"{target_file}."
+                    ),
+                    confidence=0.8,
+                    tags={"config", "refs", "typo"},
+                )
 
 
 # ============================================================================
@@ -864,6 +871,38 @@ def _collect_referenced_from_tools(root: Path) -> set:
     return stems
 
 
+
+def _docstring_lines(tree: ast.Module) -> set:
+    """Líneas ocupadas por docstrings (módulo/clase/función y strings sueltos)."""
+    doc: set = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) \
+                and isinstance(node.value.value, str):
+            start = node.lineno
+            end = getattr(node, "end_lineno", start) or start
+            doc.update(range(start, end + 1))
+    return doc
+
+
+def _effective_lines(lines: List[str], node: ast.AST, doc_lines: set) -> int:
+    """Líneas EFECTIVAS de un método: sin blancos, comentarios ni docstring.
+
+    ✅ v0.7.5 (A6): el detector medía `end_lineno - lineno` (span FÍSICO), así
+    que un método con 79 líneas de comentarios/docstring se marcaba como
+    ">80 líneas". Un método de 100 líneas de lógica sí debe marcarse.
+    """
+    start = int(getattr(node, "lineno", 0) or 0)
+    end = int(getattr(node, "end_lineno", start) or start)
+    total = 0
+    for i in range(start, end + 1):
+        raw = lines[i - 1] if 0 < i <= len(lines) else ""
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#") or i in doc_lines:
+            continue
+        total += 1
+    return total
+
+
 class IntegrationDetector(BaseDetector):
     """Módulos aislados/residuales de refactor y archivos/métodos pesados."""
     name = "integration"
@@ -953,6 +992,7 @@ class IntegrationDetector(BaseDetector):
         for rel, src in self.index.files.items():
             r = str(rel).replace("\\", "/")
             lines_count = src.count("\n") + 1
+            _lines = src.splitlines()
             if lines_count > 1000:
                 self._add(
                     finding_id=f"AUD-PERF-{len(self.findings)+1:03d}",
@@ -968,19 +1008,26 @@ class IntegrationDetector(BaseDetector):
                 tree = self.index.asts[rel]
             except KeyError:
                 continue
+            _doc = _docstring_lines(tree)
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    length = (node.end_lineno or node.lineno) - node.lineno
-                    if length > 80:
+                    fisicas = (node.end_lineno or node.lineno) - node.lineno + 1
+                    efectivas = _effective_lines(_lines, node, _doc)
+                    if efectivas > 80:
                         self._add(
                             finding_id=f"AUD-PERF-{len(self.findings)+1:03d}",
-                            title=f"Método largo: {r}::{node.name}() ({length} líneas)",
+                            title=(f"Método largo: {r}::{node.name}() "
+                                   f"({efectivas} efectivas / {fisicas} físicas)"),
                             severity=AudSeverity.LOW, verdict=AudVerdict.NEW,
                             file=r, line_start=node.lineno,
-                            code_snippet=f"{node.name}() {length} líneas",
-                            explanation="Métodos >80 líneas concentran demasiada lógica.",
+                            code_snippet=(f"{node.name}() {efectivas} líneas "
+                                          f"efectivas (span {fisicas})"),
+                            explanation=("Métodos >80 líneas EFECTIVAS (sin "
+                                         "blancos, comentarios ni docstring) "
+                                         "concentran demasiada lógica."),
                             recommendation="Dividir en helpers con responsabilidad única.",
                             confidence=0.6, tags={'performance', 'maintainability'},
+                            line_end=node.end_lineno or node.lineno,
                         )
 
 

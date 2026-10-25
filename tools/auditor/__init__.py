@@ -1,5 +1,5 @@
 """
-tools.auditor — paquete del Auditor AXIOMA (v0.6.8uu).
+tools.auditor — paquete del Auditor AXIOMA (v0.7.5).
 
 5 módulos con prefijo `aud_` y tipos `Aud*` para NO colisionar con nombres
 existentes de AXIOMA (promotion_gate.Verdict, security_audit.Severity/Finding).
@@ -9,7 +9,9 @@ from tools.auditor.aud_core import (
     AudFinding, AudSeverity, AudVerdict,
     BaseDetector, CodeIndex, DetectorResult,
 )
-from tools.auditor.aud_main import AxiomaAuditor, DETECTORS, main
+from tools.auditor.aud_main import (
+    AUDITOR_VERSION, AxiomaAuditor, DETECTORS, main,
+)
 
 # Alias históricos por compatibilidad (no colisionan si se importan desde
 # este paquete, pero se exportan igual que antes desde axioma_auditor raíz)
@@ -21,6 +23,7 @@ __all__ = [
     "AudFinding", "AudSeverity", "AudVerdict",
     "Finding", "Severity", "Verdict",
     "BaseDetector", "CodeIndex", "DetectorResult",
-    "AxiomaAuditor", "DETECTORS", "main",
+    "AxiomaAuditor", "DETECTORS", "main", "AUDITOR_VERSION",
 ]
-__version__ = "v0.6.8uu (refactor tools/auditor, 5 módulos aud_*)"
+# ✅ A9: una sola versión, alineada con src/__init__.py (0.7.5).
+__version__ = AUDITOR_VERSION

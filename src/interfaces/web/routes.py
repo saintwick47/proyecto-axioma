@@ -379,13 +379,35 @@ async def upload_file_endpoint(
                 message="",
                 error=f"Extensión no soportada: {file_ext}. Permitidas: {', '.join(allowed_extensions)}",
             )
+        # ✅ FIX AUD-PTH-007 (2026-10-25): el nombre lo manda el cliente. Se usa
+        # SÓLO el basename (un navegador puede mandar "C:\fakepath\x.pdf" o
+        # "../../etc/x.pdf") y se comprueba contención antes de escribir.
+        raw_name = (file.filename or "") if file else ""
+        safe_name = Path(raw_name.replace("\\", "/")).name.strip()
+        if not safe_name or safe_name in {".", ".."}:
+            _log_web_event("API", "POST /api/v1/upload_file - INVALID_NAME",
+                           extra={"filename": raw_name})
+            return FileUploadResponse(
+                success=False,
+                file_id="",
+                file_name=raw_name or "unknown",
+                file_type=file_ext,
+                file_size=0,
+                file_path="",
+                message="",
+                error=f"Nombre de archivo inválido: {raw_name!r}",
+            )
         # Crear directorio de uploads si no existe
         upload_dir = Paths.DATA / "uploads"
         upload_dir.mkdir(parents=True, exist_ok=True)
         # Generar file_id único
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_id = f"{timestamp}_{file.filename.replace(' ', '_')}" if file else ""
+        file_id = f"{timestamp}_{safe_name.replace(' ', '_')}" if file else ""
         file_path = upload_dir / file_id
+        if not file_path.resolve().is_relative_to(upload_dir.resolve()):
+            raise ValueError(
+                f"file_id inválido: {file_id!r} — debe quedar dentro de {upload_dir}"
+            )
         # Guardar archivo
         content = await file.read()
         with open(file_path, "wb") as f:

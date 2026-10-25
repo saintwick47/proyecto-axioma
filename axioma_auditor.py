@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-axioma_auditor.py — shim de compatibilidad (v0.6.8uu).
+axioma_auditor.py — shim de compatibilidad (v0.7.5).
 
 La lógica del auditor se refactorizó en el paquete `tools/auditor/`
 (5 módulos ≤900 líneas: core, detectors_infra, detectors_salud,
@@ -10,11 +10,12 @@ exports históricos intactos:
     python axioma_auditor.py --full [--run-tests] [--detectors X]
     from axioma_auditor import CodeIndex, AxiomaAuditor, ...
 
-Versión refactorizada: v8.3 → v0.6.8uu (paquete tools/auditor).
+Versión del auditor: v0.7.5 (paquete tools/auditor; alineada con src/__init__.py).
 """
 import sys
 
 from tools.auditor import (  # noqa: F401 — exports públicos históricos
+    AUDITOR_VERSION,
     AxiomaAuditor,
     BaseDetector,
     CodeIndex,
@@ -29,8 +30,9 @@ from tools.auditor import (  # noqa: F401 — exports públicos históricos
 __all__ = [
     "AxiomaAuditor", "BaseDetector", "CodeIndex", "DETECTORS",
     "DetectorResult", "Finding", "Severity", "Verdict", "main",
+    "AUDITOR_VERSION",
 ]
-__version__ = "v0.6.8uu (refactor tools/auditor, 5 módulos)"
+__version__ = AUDITOR_VERSION
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ Layers:
     5. reflection_triggers.py → Auto-corrección y reflexión
 """
 import logging
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import yaml
@@ -49,6 +50,10 @@ logger = logging.getLogger(__name__)
 # Ruta base de templates YAML
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
+# ✅ FIX AUD-PTH-005 (2026-10-25): `agent_type` se usa como NOMBRE de archivo
+# (`{agent_type}.yaml`). Allowlist acotada a los agentes reales.
+_AGENT_TYPE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
 # Caché de templates cargados (evita I/O repetido)
 _TEMPLATE_CACHE: Dict[str, Dict[str, Any]] = {}
 
@@ -63,10 +68,17 @@ def _load_template(agent_type: str) -> Dict[str, Any]:
     Returns:
         Dict con el template cargado, o dict vacío si no existe
     """
+    if not isinstance(agent_type, str) or not _AGENT_TYPE_RE.fullmatch(agent_type):
+        logger.warning(f"Template no cargado: agent_type inválido {agent_type!r}")
+        return {}
     if agent_type in _TEMPLATE_CACHE:
         return _TEMPLATE_CACHE[agent_type]
 
     template_path = TEMPLATES_DIR / f"{agent_type}.yaml"
+    # ✅ FIX AUD-PTH-005: contención real (por symlinks dentro de templates/).
+    if not template_path.resolve().is_relative_to(TEMPLATES_DIR.resolve()):
+        logger.warning(f"Template fuera de {TEMPLATES_DIR}: {template_path}")
+        return {}
     if not template_path.exists():
         logger.debug(f"Template no encontrado: {template_path} — usando defaults")
         return {}

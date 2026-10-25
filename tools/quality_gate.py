@@ -14,6 +14,9 @@
 #                                     nondeterministic_hw_tests,
 #                                     config_task_keys  (los 4 que la sesión
 #                                     agregó: el gate los protege)
+#   · sin regresión de deuda        ← summary.regression del auditor: bloquea si
+#                                     hay más MEDIUM/LOW que audit_baseline.json
+#                                     (A1: un MEDIUM ya no entra gratis)
 #   · suite completa PASS           ← reporte consolidado de run_all_tests.py
 #                                     (usa `pytest_exitstatus` REAL, no la
 #                                     palabra "PASS" del markdown)
@@ -270,6 +273,33 @@ def evaluate(audit: Dict[str, Any], tests: Dict[str, Any],
             else:
                 res.checks.append(Check(f"detector {det} == 0", n == 0,
                                         f"{det}={n}"))
+
+        # 4) Ratchet de deuda (A1): un MEDIUM/LOW nuevo respecto del baseline
+        #    versionado bloquea aunque el SCORE siga en 100. Sin bloque
+        #    `regression` el check se saltea (no se inventa la regresión).
+        regression = summary.get("regression") or {}
+        if regression:
+            regs = regression.get("regressions") or []
+            detalle = ", ".join(
+                f"{r.get('detector')}/{r.get('severity')} "
+                f"{r.get('baseline')}→{r.get('current')}"
+                for r in regs[:6]) or "sin regresión"
+            res.checks.append(Check(
+                "sin regresión de deuda (ratchet)", not regs, detalle))
+        else:
+            res.checks.append(Check(
+                "sin regresión de deuda (ratchet)", True,
+                "auditor sin bloque regression (regenerar audit_summary.json)",
+                skipped=True, blocking=False))
+
+        # 5) Deuda visible (A1) — informativa: SCORE 100 ≠ calidad.
+        debt = summary.get("debt") or {}
+        if debt:
+            res.checks.append(Check(
+                "deuda MEDIUM/LOW (informativo)", True,
+                f"índice={debt.get('index')} "
+                f"(MEDIUM={debt.get('medium', 0)}, LOW={debt.get('low', 0)})",
+                blocking=False))
 
     # 4) Suite de tests: veredicto + exitstatus REAL
     if not tests.get("path"):

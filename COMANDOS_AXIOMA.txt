@@ -182,7 +182,7 @@ python main.py --rac stop | pause | resume
 #   Settings nuevos (config/settings.py): vision_num_predict ·
 #     vision_preprocess_enabled · vision_ocr_enabled · vision_ocr_min_conf.
 ════════════════════════════════════════════════════════════════════════════════
-2. 🧪 SUITE INTEGRAL DE TESTS (tests/test_axioma_01..26 · pytest · reporte logs/)
+2. 🧪 SUITE INTEGRAL DE TESTS (tests/test_axioma_*.py · 26 archivos · pytest · reporte logs/)
 ════════════════════════════════════════════════════════════════════════════════
 ── 2.1 EJECUTAR TODA LA SUITE ──────────────────────────────────────────────────
 python -m pytest tests/
@@ -301,11 +301,11 @@ python tests/test_rafael_bridge.py        # Diagnóstico puente Widget ↔ Daemo
 ════════════════════════════════════════════════════════════════════════════════
 5. 🛡️ AUDITORÍA COMPLETA DEL PROYECTO — axioma_auditor.py (UNIFICADO)
 ════════════════════════════════════════════════════════════════════════════════
-Auditor unificado (v0.6.8uu — 26 detectores; axioma_auditor.py es SHIM, la
+Auditor unificado (v0.7.5 — 34 detectores; axioma_auditor.py es SHIM, la
 lógica vive en tools/auditor/: aud_core · aud_detectors_infra ·
 aud_detectors_salud · aud_detectors_arquitectura · aud_main):
 
-python axioma_auditor.py                          # Auditoría completa (26 detectores)
+python axioma_auditor.py                          # Auditoría completa (34 detectores)
 python axioma_auditor.py --detectors syntax_import,env_models   # Solo algunos detectores
 python axioma_auditor.py --format json -o audit.json            # Salida JSON
 python axioma_auditor.py -o -                    # Informe a stdout en vez de logs/
@@ -328,7 +328,7 @@ python axioma_auditor.py --full --run-tests  # + pytest (test_axioma_*.py) + SCO
 #   python tools/vision_battery.py --quick         # subconjunto rápido
 #   Tests E2E reales (requiere Ollama + qwen3-vl):
 #   AXIOMA_VISION_E2E=1 python -m pytest tests/test_axioma_11_vision_imagenes.py -q
-# ✅ v0.6.8uu: axioma_auditor.py es ahora un SHIM — la lógica vive en
+# ✅ v0.7.5: axioma_auditor.py es ahora un SHIM — la lógica vive en
 # tools/auditor/ (5 módulos aud_*: aud_core · aud_detectors_infra ·
 # aud_detectors_salud · aud_detectors_arquitectura · aud_main).
 # Tipos Aud* (AudVerdict/AudSeverity/AudFinding) para no colisionar con
@@ -344,7 +344,7 @@ Modos:
 Genera el informe automáticamente en:
 logs/axioma_audit_report_<fecha_hora>.md
 
-Qué audita (26 detectores):
+Qué audita (34 detectores):
 · syntax_import      → errores de sintaxis + módulos que no importan (salud base)
 · silent_exceptions  → except: desnudos, except ...: pass, handlers que tragan errores
 · env_models         → .env vs .env.example + referencias a modelos obsoletos
@@ -355,7 +355,22 @@ Qué audita (26 detectores):
 · integration        → módulos aislados/residuales de refactor + archivos/métodos pesados
 · 18 detectores de anti-patrones (LRU, caches sin límite, dead code, timeouts fijos,
   sync-blocking en async, colisión de nombres, starvation, etc.)
+· A2 seguridad: path_containment (path traversal), unsafe_path_delete (rmtree/remove
+  sobre path derivado), native_import_oserror (except ImportError que no atrapa
+  OSError en sounddevice/cv2/torch/lancedb…), unsafe_exec (shell=True, os.system,
+  eval/exec, pickle.load(s))
+· A3 connection_per_method → AUD-SQL: cada sqlite3.connect sin cierre asegurado
+  (`with sqlite3.connect` NO cierra; acepta closing/finally close/clase/pool)
 · SCORE AXIOMA /100 al final (fusionado de axioma_inspector.py, eliminado)
+
+⚠️ SCORE 100 ≠ calidad: el SCORE /100 sólo resta CRITICAL/HIGH. La deuda
+MEDIUM/LOW va en `summary.debt` (índice por detector). Baseline y ratchet:
+python axioma_auditor.py --write-baseline   # congela audit_baseline.json
+python axioma_auditor.py --ratchet          # exit 2 si hay más MEDIUM/LOW que el baseline
+python axioma_auditor.py --fail-on HIGH     # exit 2 con HIGH/CRITICAL (sin cambiar el JSON)
+python axioma_auditor.py --include-tools-tests  # incluye tools/ y tests/ (opt-in)
+# Historial de tendencia: logs/audit_history.jsonl (append-only; la poda de
+# reportes .md no lo toca)
 Complementario — estructura/score del proyecto:
 # ✅ FUSIONADO en axioma_auditor.py (v8.3, 2026-09-01): los detectores de
 # axioma_inspector.py (singletons, asyncio module-level, imports circulares,
@@ -449,7 +464,7 @@ python Rafael.py --mode jarvis
 venv/bin/python tools/run_all_tests.py --timeout 150    # suite (24 archivos) + reporte con run_id
 venv/bin/python axioma_auditor.py                       # SCORE AXIOMA /100
 venv/bin/python axioma_auditor.py --format json -o logs/audit_summary.json
-venv/bin/python tools/quality_gate.py                   # 13 condiciones (SCORE, HIGH, detectores, run_id, health)
+venv/bin/python tools/quality_gate.py                   # 15 condiciones (SCORE, HIGH, detectores, ratchet de deuda, run_id, health)
 venv/bin/python tools/quality_gate.py --no-require-health   # modo CI (sin logs de runtime)
 venv/bin/python tools/log_health_report.py              # health report desde logs
 venv/bin/python tools/audit_silent_excepts.py           # inventario de except silenciosos

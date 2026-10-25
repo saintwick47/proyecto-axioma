@@ -36,11 +36,14 @@ try:
     import lancedb
     from lancedb.pydantic import LanceModel, Vector
     _LANCE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # ✅ FIX AUD-IEO-002 (2026-10-25): lancedb puede lanzar OSError si falta la
+    # librería nativa; degradar sin tumbar el módulo (features no-Lance siguen).
     _LANCE_AVAILABLE = False
     lancedb = None
     LanceModel = None
     Vector = None
+    logging.getLogger(__name__).debug(f"[MemoryBase] lancedb no disponible: {_exc}")
 
 try:
     from src.memory.embedding_model_singleton import EMBED_DIMENSION

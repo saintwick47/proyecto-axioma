@@ -398,7 +398,9 @@ class SilentExceptionsDetector(BaseDetector):
 
     _LOG_ATTRS = ('log_event', 'log_error', 'logger', 'warning', 'error',
                   'exception', 'info', 'debug', 'critical',
-                  '_log', '_log_error', '_log_event', '_log_agent')
+                  '_log', '_log_error', '_log_event', '_log_agent',
+                  # ✅ A5: reportar la excepción TAMBIÉN es no silenciarla.
+                  'warn', 'print_exc', 'print_exception')
     # ✅ ISSUE-106: llamadas "planas" que SÍ registran (el estándar del proyecto).
     _LOG_CALLS = ('log_degraded', 'log_agent', 'log_task')
     # ✅ ISSUE-106: tipos donde el silencio es sospechoso (da LOW).
@@ -471,6 +473,48 @@ class SilentExceptionsDetector(BaseDetector):
                 return True
         return False
 
+    @classmethod
+    def _relanza(cls, body: List[ast.stmt]) -> bool:
+        """True si el handler RE-LANZA (propaga el error: no lo silencia)."""
+        return any(isinstance(n, ast.Raise) for n in cls._iter_body(body))
+
+    @staticmethod
+    def _es_default(expr: ast.AST) -> bool:
+        """Valor "default" de una sonda: None/False/0/""/[]/{}/set()."""
+        if isinstance(expr, ast.Constant):
+            return True
+        if isinstance(expr, (ast.List, ast.Tuple, ast.Set)):
+            return not expr.elts
+        if isinstance(expr, ast.Dict):
+            return not expr.keys
+        if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) \
+                and expr.func.id in ("dict", "list", "set", "tuple", "frozenset") \
+                and not expr.args:
+            return True
+        return False
+
+    @classmethod
+    def _solo_default(cls, body: List[ast.stmt]) -> bool:
+        """Handler de SONDA: su cuerpo sólo devuelve un default (o continuúa).
+
+        ✅ A5: `except OSError: return None` es degradación intencional de una
+        sonda (medido: decenas de handlers así inflaban los LOW). Si el cuerpo
+        hace CUALQUIER otra cosa (asignar, llamar, mutar estado), no aplica.
+        """
+        for stmt in body:
+            if isinstance(stmt, (ast.Pass, ast.Continue, ast.Break)):
+                continue
+            if isinstance(stmt, ast.Return):
+                if stmt.value is None or cls._es_default(stmt.value):
+                    continue
+                return False
+            if isinstance(stmt, ast.Expr) \
+                    and isinstance(stmt.value, ast.Constant) \
+                    and isinstance(stmt.value.value, str):
+                continue  # docstring del handler
+            return False
+        return True
+
     @staticmethod
     def _is_logging_helper(name: Optional[str]) -> bool:
         """Función contenedora que es una guarda de logging best-effort."""
@@ -483,7 +527,7 @@ class SilentExceptionsDetector(BaseDetector):
         # Agregación por archivo para no inundar el reporte
         pass_by_file: Dict[Path, List[int]] = defaultdict(list)
         import_pass_by_file: Dict[Path, List[int]] = defaultdict(list)
-        silent_by_file: Dict[Path, List[int]] = defaultdict(list)
+        revisar_by_file: Dict[Path, List[int]] = defaultdict(list)
         no_vigilados: Dict[str, List[str]] = defaultdict(list)  # ✅ ISSUE-106 (por tipo)
         bare: List[Tuple[Path, int]] = []
 
@@ -498,6 +542,10 @@ class SilentExceptionsDetector(BaseDetector):
                     bare.append((rel, node.lineno))
                     continue
 
+                # ✅ A5: re-lanzar NO es silenciar.
+                if self._relanza(body):
+                    continue
+
                 # pass puro
                 if not body or all(isinstance(s, ast.Pass) for s in body):
                     fn = self._enclosing_function(tree, node.lineno)
@@ -510,13 +558,19 @@ class SilentExceptionsDetector(BaseDetector):
                         pass_by_file[rel].append(node.lineno)
                     continue
 
+                # ✅ A5: sondas que devuelven un default (degradación intencional).
+                if self._solo_default(body):
+                    continue
+
                 # handler que no usa la excepción y no registra nada
                 names = {n.id for n in self._iter_body(body) if isinstance(n, ast.Name)}
                 uses_exc = (node.name or "e") in names
                 if uses_exc or self._registra(body):
                     continue
                 if self._vigilado(node.type):
-                    silent_by_file[rel].append(node.lineno)
+                    # ✅ A5: el resto ya no infla la deuda como LOW; se agrega
+                    # como INFO por archivo para revisión puntual.
+                    revisar_by_file[rel].append(node.lineno)
                 else:
                     # ✅ ISSUE-106: tipo NO vigilado (ImportError silencioso,
                     # FileNotFoundError, CancelledError, timeouts…) ⇒ se CUENTA en UN
@@ -557,17 +611,19 @@ class SilentExceptionsDetector(BaseDetector):
                                 "cuando el import falla.",
                 confidence=0.4, tags={'silent', 'feature-detection'},
             )
-        for rel, lines in silent_by_file.items():
+        for rel, lines in revisar_by_file.items():
             self._add(
                 finding_id=f"AUD-SIL-{len(self.findings)+1:03d}",
-                title=f"{len(lines)} handler(s) silencioso(s) en {rel}",
-                severity=AudSeverity.LOW, verdict=AudVerdict.NEW,
+                title=f"{len(lines)} handler(s) silencioso(s) a revisar en {rel}",
+                severity=AudSeverity.INFO, verdict=AudVerdict.NEW,
                 file=str(rel), line_start=lines[0],
                 line_end=lines[-1],
                 code_snippet=f"líneas: {', '.join(str(l) for l in lines[:6])}"
                              + ("…" if len(lines) > 6 else ""),
-                explanation="Handlers que no usan la excepción ni loguean — "
-                            "posibles errores ocultos o degradación no documentada.",
+                explanation="Handlers que no usan la excepción ni loguean y que "
+                            "NO son sondas de default ni re-lanzan. Se agrega como "
+                            "INFO (A5) para no inflar la deuda: revisar sólo si "
+                            "el path implica pérdida de datos.",
                 recommendation="Loguear o documentar la degradación.",
                 confidence=0.5, tags={'silent', 'exception', 'review'},
             )

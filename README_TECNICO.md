@@ -21,7 +21,8 @@ La documentación de detalle se **genera localmente** y no se publica en el repo
 fuera de la copia pública). Los comandos para generarla son:
 
   verificadas).
-  completo; las secciones enriquecidas por IA dependen del modelo usado).
+  completo; FlowMapper activo por defecto e **IA opt-in** con `--ollama`; `--validate` mide la
+  cobertura real contra el AST y falla con exit 1 si baja del umbral).
 - `docs/AGENT_GUIDE.md` es una guía de trabajo interna que **no se distribuye**; las reglas que cita
   este README (por ejemplo R13: ≤950 líneas por archivo de tests) están explicadas acá mismo.
 
@@ -132,17 +133,23 @@ pytest tests/ -v
 python tools/log_health_report.py           # health report desde logs (E2; v2 detector: clasificación de errores, anomalías/verdicto, reintentos, reparaciones, delta vs previo)
 
 # Seguridad / auditoría
-python axioma_auditor.py                        # auditoría completa (26 detectores → logs/)
+python axioma_auditor.py                        # auditoría completa (34 detectores → logs/)
 python axioma_auditor.py --full --run-tests     # + pytest + SCORE AXIOMA /100
 python axioma_auditor.py --format json -o logs/audit_summary.json   # resumen máquina (lo lee el gate)
 venv/bin/python tools/run_all_tests.py --timeout 150   # suite por archivo + reporte con run_id
-venv/bin/python tools/quality_gate.py           # 13 condiciones de calidad (CI/local)
+venv/bin/python tools/quality_gate.py           # 15 condiciones de calidad (CI/local, incluye ratchet de deuda)
 python axioma_auditor.py --detectors security_harness   # solo protecciones FASE 1-3
 python axioma_auditor.py --detectors plan_v2_protections # solo protecciones PLAN v2.0
+python axioma_auditor.py --write-baseline        # congela la deuda en audit_baseline.json
+python axioma_auditor.py --ratchet               # exit 2 si empeora vs el baseline
+python axioma_auditor.py --fail-on HIGH          # exit 2 con HIGH/CRITICAL (CI/shell)
+python axioma_auditor.py --include-tools-tests   # audita también tools/ y tests/ (opt-in)
 # axioma_inspector.py fue FUSIONADO en el auditor (v8.3): singletons, asyncio
 # module-level, imports circulares, duplicados, integración, tests y SCORE.
-# v0.6.8uu: axioma_auditor.py es SHIM — la lógica vive en tools/auditor/
+# v0.7.5: axioma_auditor.py es SHIM — la lógica vive en tools/auditor/
 # (5 módulos aud_*; tipos AudVerdict/AudSeverity/AudFinding sin colisión).
+# ⚠️ SCORE 100 ≠ calidad: sólo resta CRITICAL/HIGH. MEDIUM/LOW se reportan en
+# summary.debt (índice por detector) y el gate bloquea si empeoran vs el baseline.
 
 # Evals (requiere Ollama con qwen2.5-coder:7b)
 python tools/run_evals.py                       # ejecuta tests/dataset_evals.yaml con LLMJudge

@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "generated_at": "2026-10-25T17:57:47-0300",
+  "git_commit": "301497c",
+  "auditor_version": "0.7.5",
+  "root": "/ruta/a/axioma",
+  "score": 100,
+  "counts": {
+    "total": 117,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 68,
+    "info": 49
+  },
+  "debt_index": 68,
+  "by_detector": {
+    "integration": {
+      "medium": 0,
+      "low": 67,
+      "info": 0,
+      "total": 67
+    },
+    "silent_exceptions": {
+      "medium": 0,
+      "low": 0,
+      "info": 48,
+      "total": 48
+    },
+    "env_models": {
+      "medium": 0,
+      "low": 1,
+      "info": 1,
+      "total": 2
+    }
+  },
+  "detectors_run": [
+    "lru_without_move_to_end",
+    "cosmetic_circuit_break",
+    "unbounded_cache",
+    "fire_and_forget_threads",
+    "risky_dead_code",
+    "cascade_without_provider_cb",
+    "fixed_timeout",
+    "dead_invalidation",
+    "static_priority",
+    "connection_per_method",
+    "missing_global_timeout",
+    "name_collision",
+    "sync_blocking_in_async",
+    "missing_compound_index",
+    "fifo_cache",
+    "syntax_import",
+    "silent_exceptions",
+    "env_models",
+    "security_harness",
+    "plan_v2_protections",
+    "config_refs",
+    "singleton_violation",
+    "async_module_level",
+    "circular_import",
+    "duplicate_code",
+    "integration",
+    "silent_contract_swallow",
+    "fragile_source_grep_tests",
+    "nondeterministic_hw_tests",
+    "config_task_keys",
+    "path_containment",
+    "unsafe_path_delete",
+    "native_import_oserror",
+    "unsafe_exec"
+  ]
+}

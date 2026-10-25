@@ -278,6 +278,10 @@ def export_research(entries: List[ResearchEntry], session_id: str,
     target_dir.mkdir(parents=True, exist_ok=True)
 
     path = target_dir / suggested_filename(session_id, fmt)
+    # ✅ FIX AUD-PTH-004 (2026-10-25): `suggested_filename()` ya sanea el sid y
+    # valida `fmt`, pero se comprueba la contención REAL antes de escribir.
+    if not path.resolve().is_relative_to(target_dir.resolve()):
+        raise ValueError(f"ruta de exportación fuera de {target_dir}: {path}")
     path.write_text(content, encoding="utf-8")
     logger.info(f"[research_export] {fmt} escrito en {path} "
                 f"({len(content)} chars)")

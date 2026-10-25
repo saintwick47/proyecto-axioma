@@ -659,11 +659,11 @@ class TestTamanoDeArchivosDeTest:
         )
 
     def test_la_suite_no_multiplica_archivos(self):
-        """Tope de archivos: si se supera, corresponde fusionar (no agregar)."""
+        """Tope: 26 autorizado (test_34; test_18 ya está en 946/950 líneas)."""
         archivos = sorted((PROJECT_ROOT / "tests").glob("test_axioma_*.py"))
-        check("cantidad de archivos de suite razonable (≤ 24)", len(archivos) <= 24,
+        check("cantidad de archivos de suite razonable (≤ 26)", len(archivos) <= 26,
               f"{len(archivos)} archivos", SECTION)
-        assert len(archivos) <= 24
+        assert len(archivos) <= 26
 
 
 class TestLosTestsNoEscribenEnLosDatosDelUsuario:

@@ -26,12 +26,18 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.memory.embedding_model_singleton import get_embedding_model
 from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)
+
+# ✅ FIX AUD-PTH-002 (2026-10-25): `session_id` se usa como NOMBRE de archivo
+# del transcript (`{sid}_{ts}.jsonl`). Mismo criterio que WorkspaceManager:
+# allowlist acotada (las sesiones reales son UUID / `nicegui_*` / `s_ws`).
+_TRANSCRIPT_SID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 # ============================================================================
@@ -754,13 +760,29 @@ class ContextCompactor:
         Formato: data/transcripts/{session_id}_{timestamp}.jsonl
         Retorna la ruta del archivo o None si falló.
         """
-        sid = session_id or "unknown"
+        sid = str(session_id or "unknown")
+        # ✅ FIX AUD-PTH-002: rechazar (y no escribir) un sid con separadores,
+        # '..' o nombre absoluto; los ids legítimos no cambian.
+        if not _TRANSCRIPT_SID_RE.fullmatch(sid):
+            logger.warning(
+                f"[ContextWindow] session_id inválido para transcript: {sid!r} "
+                "— no se guarda"
+            )
+            return None
         ts = int(time.time())
         base_dir = transcript_dir or "data/transcripts"
 
         try:
             os.makedirs(base_dir, exist_ok=True)
+            base = Path(base_dir).resolve()
             path = os.path.join(base_dir, f"{sid}_{ts}.jsonl")
+            # ✅ FIX AUD-PTH-002: contención real contra el directorio base.
+            if not Path(path).resolve().is_relative_to(base):
+                logger.warning(
+                    f"[ContextWindow] transcript fuera de {base}: {path!r} "
+                    "— no se guarda"
+                )
+                return None
             with open(path, "w", encoding="utf-8") as f:
                 for msg in messages:
                     # Serializar solo campos básicos — evitar objetos no-JSON

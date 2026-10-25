@@ -16,6 +16,7 @@
 import logging
 import time
 import os
+import re
 from datetime import datetime
 from typing import Dict, Any, List
 from pathlib import Path
@@ -63,6 +64,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# ✅ FIX AUD-PTH-001 (2026-10-25): `scope` termina en el NOMBRE de los .md del
+# RAC (`RAC_{scope}_*.md` dentro de docs/). Allowlist ANTES de tocar disco: sin
+# esto, `review_system(scope="../..")` escribía fuera de docs/ (CWE-22).
+_RAC_SCOPE_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
 
 class AnalystReviewMixin:
     """Revisión Axioma Completa (RAC): extraída de AnalystAgent (refactorización 50/50)."""
@@ -103,6 +109,18 @@ class AnalystReviewMixin:
         Returns:
             Dict con success, files_analyzed, report_path, message
         """
+        # ✅ FIX AUD-PTH-001: validar `scope` antes de construir cualquier ruta.
+        if not isinstance(scope, str) or not _RAC_SCOPE_RE.fullmatch(scope):
+            mensaje = (f"scope inválido: {scope!r} — sólo letras, números, '_' "
+                       "y '-' (1 a 32 caracteres)")
+            logger.error(f"RAC: {mensaje}")
+            return {
+                "success": False,
+                "files_analyzed": 0,
+                "report_path": "",
+                "error": mensaje,
+                "message": mensaje,
+            }
         project_root = analyst.find_project_root(Path(__file__))
         docs_dir = project_root / "docs"
         docs_dir.mkdir(exist_ok=True)
@@ -681,6 +699,10 @@ class AnalystReviewMixin:
             md_content += "> **Orden:** por riesgo estático (mayor primero)\n"
 
             acumulado = docs_dir / (f"RAC_{scope}_acumulado_ciclo{sc.get('ciclo')}.md")
+            # ✅ FIX AUD-PTH-001: contención REAL (además de la allowlist), por
+            # si un symlink dentro de docs/ apunta afuera.
+            if not acumulado.resolve().is_relative_to(docs_dir.resolve()):
+                raise ValueError(f"scope={scope!r} escapa de {docs_dir}")
             try:
                 _nuevo_ciclo = not acumulado.exists()
                 with open(acumulado, "a", encoding="utf-8") as f:
@@ -695,6 +717,8 @@ class AnalystReviewMixin:
                 log_degraded(logger, e, "AnalystAgent.review_system (informe acumulado)")
 
             report_path = docs_dir / f"RAC_{scope}_{int(time.time())}.md"
+            if not report_path.resolve().is_relative_to(docs_dir.resolve()):
+                raise ValueError(f"scope={scope!r} escapa de {docs_dir}")
             try:
                 with open(report_path, 'w', encoding='utf-8') as f:
                     f.write(md_header + md_content)

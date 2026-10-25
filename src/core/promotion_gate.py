@@ -317,7 +317,20 @@ class PromotionGate:
     # ── Internals: stage (copia sombra o workspace, archivo real intacto) ────
 
     def _stage(self, proposal: Proposal) -> None:
+        # ✅ FIX AUD-PTH-003 (2026-10-25): `proposal_id` se usa como nombre de
+        # directorio bajo PROMO_ROOT. Se genera internamente (`prop_<hex>`),
+        # pero se valida igual: contención real antes de crear/escribir.
         report_dir = PROMO_ROOT / proposal.proposal_id
+        try:
+            contenido = report_dir.resolve().is_relative_to(PROMO_ROOT.resolve())
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(
+                f"proposal_id inválido: {proposal.proposal_id!r}"
+            ) from exc
+        if not contenido:
+            raise ValueError(
+                f"proposal_id inválido: {proposal.proposal_id!r} — sale de {PROMO_ROOT}"
+            )
         report_dir.mkdir(parents=True, exist_ok=True)
         proposal.report_dir = report_dir
 

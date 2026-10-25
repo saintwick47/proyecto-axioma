@@ -188,6 +188,14 @@ def _resolve_top_level_imports_for(rel: Path, tree: ast.Module) -> Set[str]:
 # ÍNDICE DE CÓDIGO
 # ============================================================================
 
+DEFAULT_EXCLUDE_DIRS = frozenset({
+    '.git', 'data', 'logs', '__pycache__', '.venv', 'venv',
+    '.optimizer_backups', 'node_modules', 'tests', 'benchmarks',
+    'tools', 'docs', 'reports', 'cache', 'inforchat',
+    'deepseek-harness', '.pytest_cache', '.coverage'
+})
+
+
 class CodeIndex:
     """Índice del proyecto para lookup rápido cross-file."""
 
@@ -198,26 +206,65 @@ class CodeIndex:
         self.classes: Dict[str, List[Tuple[Path, ast.ClassDef]]] = defaultdict(list)
         self.functions: Dict[str, List[Tuple[Path, ast.FunctionDef]]] = defaultdict(list)
         self.imports_per_file: Dict[Path, Set[str]] = {}
+        # ✅ v0.7.5 (A6): alcance medible. Antes el auditor sólo exponía
+        # `len(index.files)`; no se sabía cuántos .py quedaban fuera ni por qué
+        # (tools/ y tests/ estaban excluidos por defecto y en silencio).
+        self.excluded_count: int = 0
+        self.excluded_by_dir: Dict[str, int] = defaultdict(int)
+        self.parse_errors: int = 0
+        self.include_tools_tests: bool = False
 
-    def build(self, exclude_dirs: Optional[Set[str]] = None) -> None:
-        exclude = exclude_dirs or {
-            '.git', 'data', 'logs', '__pycache__', '.venv', 'venv',
-            '.optimizer_backups', 'node_modules', 'tests', 'benchmarks',
-            'tools', 'docs', 'reports', 'cache', 'inforchat',
-            'deepseek-harness', '.pytest_cache', '.coverage'
-        }
+    def build(self, exclude_dirs: Optional[Set[str]] = None,
+              include_tools_tests: bool = False) -> None:
+        exclude = set(exclude_dirs if exclude_dirs is not None
+                      else DEFAULT_EXCLUDE_DIRS)
+        # ✅ v0.7.5 (A6): opt-in para auditar también tools/ y tests/ (el
+        # scope histórico no los veía: 74 métodos >80 líneas y 11 archivos
+        # >1000 quedaban invisibles).
+        if include_tools_tests:
+            exclude -= {'tools', 'tests'}
+        self.include_tools_tests = include_tools_tests
+        # Rebuild limpio de las métricas de alcance (A6).
+        self.excluded_count = 0
+        self.excluded_by_dir = defaultdict(int)
+        self.parse_errors = 0
         for path in self.root.rglob('*.py'):
             if any(part in exclude for part in path.parts):
+                self.excluded_count += 1
+                try:
+                    top = path.relative_to(self.root).parts[0]
+                except (ValueError, IndexError):
+                    top = "?"
+                self.excluded_by_dir[top] += 1
                 continue
             try:
                 src = path.read_text(encoding='utf-8', errors='ignore')
                 tree = ast.parse(src, filename=str(path))
             except (SyntaxError, UnicodeDecodeError):
+                self.parse_errors += 1
                 continue
             rel = path.relative_to(self.root)
             self.files[rel] = src
             self.asts[rel] = tree
             self._index_tree(rel, tree)
+
+    def scope_summary(self) -> Dict[str, Any]:
+        """Alcance real del índice (A6): indexados vs fuera, y por qué.
+
+        `excluded_by_dir` incluye `venv/` y `deepseek-harness/` para ser
+        honestos: son miles de `.py` que el auditor NO mira.
+        """
+        by_dir = dict(sorted(self.excluded_by_dir.items(),
+                             key=lambda kv: (-kv[1], kv[0])))
+        return {
+            "files_indexed": len(self.files),
+            "files_excluded": self.excluded_count,
+            "parse_errors": self.parse_errors,
+            "include_tools_tests": self.include_tools_tests,
+            "excluded_by_dir": by_dir,
+            "methods_indexed": sum(len(v) for v in self.functions.values()),
+            "classes_indexed": sum(len(v) for v in self.classes.values()),
+        }
 
     def _index_tree(self, rel: Path, tree: ast.Module) -> None:
         imports: Set[str] = set()

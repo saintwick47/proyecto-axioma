@@ -27,8 +27,14 @@ try:
     import lancedb
     from lancedb.pydantic import LanceModel, Vector
     LANCEDB_AVAILABLE = True
-except ImportError as e:
+except (ImportError, OSError) as e:
+    # ✅ FIX AUD-IEO-001 (2026-10-25): lancedb tiene parte nativa; si el paquete
+    # está pero falta la .so del sistema, el import lanza OSError y antes
+    # tumbaba el módulo entero (memoria semántica desactivada con crash).
     LANCEDB_AVAILABLE = False
+    lancedb = None
+    LanceModel = None
+    Vector = None
     logging.warning(f"LanceDB import failed: {e}. Semantic memory disabled.")
 
 logger = logging.getLogger(__name__)

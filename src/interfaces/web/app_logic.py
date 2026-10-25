@@ -429,10 +429,19 @@ def save_code_to_file(code: str, filename: str) -> str:
         str: Path absoluto del archivo guardado
     Raises:
         OSError: Si falla la escritura del archivo
+        ValueError: Si `filename` sale del directorio data/outputs/
     """
     outputs_dir = Paths.DATA / "outputs"
     outputs_dir.mkdir(parents=True, exist_ok=True)
     filepath = outputs_dir / filename
+    # ✅ FIX AUD-PTH-006 (2026-10-25): `filename` viene del coder (LLM) y no
+    # puede escapar de data/outputs/. Se RECHAZA (no se sanea en silencio):
+    # un nombre legítimo como "src/main.py" sigue funcionando porque queda
+    # dentro del base; `../evil` o `/etc/passwd` levantan ValueError.
+    if not filepath.resolve().is_relative_to(outputs_dir.resolve()):
+        raise ValueError(
+            f"filename inválido: {filename!r} — debe quedar dentro de {outputs_dir}"
+        )
     filepath.write_text(code, encoding="utf-8")
     _log_web_event("CODE", f"Code saved: {filename}", extra={
         "filepath": str(filepath),
