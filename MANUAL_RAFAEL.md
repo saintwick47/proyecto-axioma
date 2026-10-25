@@ -86,9 +86,11 @@ Todo está en `config/multimodal.yaml` y `.env`:
 | Micro saturado (ruido/clipping) | La ganancia se fija a 56% al iniciar sesión (`mic-gain.service`); ajustala con `amixer -c 2 sset Capture 35` |
 | Tarda mucho en responder | Es CPU puro (sin GPU): el resumen de archivos puede tomar ~1 min; la búsqueda y la cita son instantáneas |
 | Se cerró y no sabés por qué | Mirá `logs/rafael.log` (turnos + errores) |
+| Sin audio / sin PortAudio | Los módulos de voz **se importan igual** (quedan sin dispositivo) y los tests de voz se saltean; Rafael no escucha hasta instalar la librería del sistema (`sudo apt install libportaudio2`). El chat escrito sigue funcionando |
 
 ---
-*Rafael — AXIOMA v0.6.8 · CHANGELOG v0.6.8j–q*
+
+*Rafael — AXIOMA v0.7.5*
 
 
 ---

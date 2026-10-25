@@ -24,8 +24,9 @@ No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CL
   · Decide solo el Ollama: si el equipo ya tiene uno andando, usa ese; si no, levanta el que
     viene con AXIOMA (perfil `ollama-local`, modelos en un volumen).
   · La interfaz escucha SÓLO en este equipo (127.0.0.1), no en la red local. Para exponerla A
-    PROPÓSITO (sabe lo que implica: no hay autenticación):
-        AXIOMA_WEB_HOST=0.0.0.0 docker compose up -d
+    PROPÓSITO: AXIOMA_WEB_HOST=0.0.0.0 docker compose up -d
+    (el resto de la API no tiene autenticación; las rutas que ESCRIBEN el `.env` sí:
+    definí AXIOMA_WEB_TOKEN y mandá el header X-AXIOMA-Token — ver §1).
   · La clave con la que se firman las sesiones es propia de cada equipo: se genera sola la primera
     vez en `data/.storage_secret` (permisos 600). Si querés gestionarla vos:
         AXIOMA_STORAGE_SECRET=<64 caracteres> docker compose up -d
@@ -94,12 +95,23 @@ Verificaciones del proyecto (para quien quiera comprobar que todo está bien)
 python main.py --check
 python main.py --chat "consulta"
 python main.py --chat                    # interactivo
-python main.py --web
-python main.py --backup
+python main.py --web                     # escucha en 127.0.0.1 por defecto
+python main.py --backup                  # backup ESTRUCTURAL: sólo el JSON en data/backups/
+python -m src.interfaces.cli.main --backup --full
+                                         # + .tar.gz con data/memory (LanceDB) + data/knowledge
+#   --full: retención MÁXIMO 3 backups (rota el par {json, tar} junto), aviso si AXIOMA
+#   parece estar corriendo y escritura atómica del tar. `main.py --backup` NO acepta
+#   --full: el backup completo se pide por el módulo CLI.
 python main.py --info                    # info del sistema (unificado 2026-09-29)
 python main.py --voice                   # modo voz: VAD→STT→Dispatcher→TTS
 python main.py --rac status              # estado del RAC (avance, ritmo, ETA)
 python main.py --rac stop | pause | resume
+
+# Token de escritura (rutas que ESCRIBEN configuración):
+#   definí AXIOMA_WEB_TOKEN y mandá el header X-AXIOMA-Token en
+#   POST /api/v1/preflight/claves y POST /api/v1/preflight/modelos.
+#   Sin token definido sólo se permite desde loopback (si está expuesto: 403).
+#   Con token definido se exige SIEMPRE (ausente o inválido: 401).
 
 # ✅ 2026-09-29 (unificación de CLIs): `main.py` es el ENTRY POINT y DELEGA la
 # implementación de check/chat/backup/info/voice en `src/interfaces/cli/main.py`
@@ -430,7 +442,7 @@ python Rafael.py --mode jarvis
 #   1-5 + comentario + etiquetas, que ahora SÍ llega al FeedbackLoop.
 #
 # Verificación (lo que se corre antes de dar algo por terminado):
-venv/bin/python tools/run_all_tests.py --timeout 150    # suite (17 archivos) + reporte con run_id
+venv/bin/python tools/run_all_tests.py --timeout 150    # suite (24 archivos) + reporte con run_id
 venv/bin/python axioma_auditor.py                       # SCORE AXIOMA /100
 venv/bin/python axioma_auditor.py --format json -o logs/audit_summary.json
 venv/bin/python tools/quality_gate.py                   # 13 condiciones (SCORE, HIGH, detectores, run_id, health)

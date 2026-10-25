@@ -10,8 +10,18 @@ búsqueda web, archivos y memoria persistente por usuario.
 
 0. **La interfaz queda en tu equipo**: AXIOMA escucha en `127.0.0.1:8080` por defecto (no en la red
    local) y la clave de las sesiones es propia de tu equipo (`data/.storage_secret`, permisos 600).
-   Para exponerlo a la red local hay que pedirlo a propósito: `AXIOMA_WEB_HOST=0.0.0.0` (hoy no hay
-   autenticación: cualquiera en esa red podría usarlo).
+   Para exponerlo a la red local hay que pedirlo a propósito: `AXIOMA_WEB_HOST=0.0.0.0`. En ese caso
+   definí **`AXIOMA_WEB_TOKEN`**: protege las rutas que escriben el `.env`
+   (`POST /api/v1/preflight/claves` y `POST /api/v1/preflight/modelos`). Sin token, si está expuesto,
+   esas rutas responden **403**; con token, se exige siempre en el header **`X-AXIOMA-Token`**
+   (ausente o inválido → **401**). El resto de la API no tiene autenticación.
+
+   ```bash
+   export AXIOMA_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+   curl -X POST http://127.0.0.1:8080/api/v1/preflight/claves \
+     -H "X-AXIOMA-Token: $AXIOMA_WEB_TOKEN" -H "Content-Type: application/json" \
+     -d '{"TAVILY_API_KEY": "tvly-tu-clave"}'
+   ```
 1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop));
    en **Windows** además **WSL 2**.
 2. Descargar el proyecto y ejecutar **una sola vez** `instalar/instalar_axioma.sh` (doble clic en Linux).
@@ -46,6 +56,9 @@ suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en par
 - **Tesseract** (opcional, mejora el OCR de texto en imágenes):
   `sudo apt install tesseract-ocr tesseract-ocr-spa` — si falta, el OCR
   simplemente lo hace el modelo de visión (más lento).
+- **PortAudio** (opcional, sólo para voz): si falta la librería del sistema, los módulos de
+  `src/multimodal/` **se importan igual** (quedan sin dispositivo de audio) y los tests de voz se
+  saltean. La voz no arranca hasta instalarla (`sudo apt install libportaudio2`); el chat sigue igual.
 - Verificación rápida: `python main.py --check`.
 
 ## 2. Comandos principales (CLI)
@@ -54,7 +67,12 @@ suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en par
 python main.py --check              # Diagnóstico del sistema
 python main.py --chat               # Chat interactivo en terminal
 python main.py --web                # Interfaz web (NiceGUI) → http://127.0.0.1:8000
-python main.py --web --host 0.0.0.0 --port 8080   # Servidor accesible en red
+python main.py --web --host 0.0.0.0 --port 8080   # Servidor accesible en red (bind explícito)
+python main.py --backup             # Respaldo ESTRUCTURAL: sólo el JSON en data/backups/
+python -m src.interfaces.cli.main --backup --full
+                                    # + .tar.gz con data/memory (LanceDB) + data/knowledge
+# --full: retención máximo 3 backups (rota el par {json, tar} junto), aviso si AXIOMA
+# está corriendo y escritura atómica del tar. `main.py --backup` sólo crea el JSON.
 ```
 
 ## 3. Interfaz web (`python main.py --web`)
@@ -92,6 +110,9 @@ Botón **📁** en la barra superior — diálogo con dos formas de encontrar ar
   **📄 Leer** (contenido) · **📝 Resumen** (LLM, ~1 min en CPU) · **💬 Cita** (bloque,
   instantáneo) · **📎 Adjuntar al chat** (lo deja listo como si lo hubieras subido
   con 📎; escribí tu instrucción y enviá).
+- **Workspaces**: el código que AXIOMA ejecuta por sesión vive en una carpeta por `session_id`. Ese
+  id sólo admite letras, números, `_` y `-` (1 a 64 caracteres); una ruta absoluta, `..` o un
+  separador se rechaza, y el `cleanup` no puede salir del directorio base.
 
 ### 3.4 Adjuntar archivos e imágenes (📎 en el chat)
 - **Texto / PDF / DOCX**: se adjuntan y su contenido se lee al enviar (PDF y
@@ -164,7 +185,7 @@ comentario y etiquetas — esa calificación **entrena al sistema**
 ## 7. Tests y verificación
 
 ```bash
-venv/bin/python tools/run_all_tests.py --timeout 150   # suite completa (17 archivos, 768 tests) + reporte
+venv/bin/python tools/run_all_tests.py --timeout 150   # suite completa (24 archivos, 1138 tests) + reporte
 venv/bin/python tools/quality_gate.py                  # gate de calidad (13 condiciones)
 python -m pytest tests/            # pytest directo (suite del proyecto)
 AXIOMA_VISION_E2E=1 python -m pytest tests/test_axioma_11_vision_imagenes.py -q   # visión real (requiere Ollama, ~7 min)
@@ -178,4 +199,4 @@ python -m tools.benchmark_calibration   # Calibración de hardware/modelos
 
 ---
 
-*AXIOMA v0.6.9v · CHANGELOG v0.6.8a–v0.6.9v*
+*AXIOMA v0.7.5*

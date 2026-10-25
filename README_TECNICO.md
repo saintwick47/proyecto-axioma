@@ -1,17 +1,17 @@
 # 🧠 AXIOMA — Sistema Multi-Agente de IA Local-First
 
 > **Autor:** `saintwick` · **Repositorio:** [github.com/saintwick47/axioma](https://github.com/saintwick47/axioma)
-> **Documentación verificada:** 2026-10-06 (código fuente + suite completa + compuerta de calidad)
+> **Documentación actualizada:** 2026-10-25 (código fuente + suite completa + compuerta de calidad)
 >
 > **Para quien instala** (sin saber programar): [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) · **decisiones y
 
 **AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
 
-> ⚠️ **Sobre la versión:** el repo **no tiene una versión canónica única**. `src/__init__.py` declara `0.5.0`, `main.py` declara `1.0.8`, `config/models.yaml` declara `v0.6.7` y el README anterior afirmaba `v0.3.6`. Cualquier cita de versión debe indicar la fuente.
+> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.5"` (último tag `v0.7.5`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | 451 commits · `main` · tags `v0.0.8`, `v0.1.1` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 451 |
+| 🟢 En desarrollo activo | 584 commits · `main` · último tag `v0.7.5` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 584 |
 
 ---
 
@@ -44,7 +44,7 @@ Dispatcher ───────────────────────
 - **Agentes** (`src/agents/`): `CoderAgent` genera código con contrato verificable (`CodeContract` + `CodeValidator` en 3 capas) y ciclo de reparación ante fallos; `SearcherAgent` (Tavily→Serper→DDG) y `ResearcherAgent` (clima/hora/noticias/finanzas); `AnalystAgent` (documentos/datos); `ValidatorAgent` (CoT forzado + auditoría CWE Top-25); `VisionAgent` (VLM); `SystemAgent` (control del SO); subpaquete `loop/` con el ciclo observe-think-act-reflect.
 - **Enrutamiento** (`src/router/`): `IntentClassifier` + `SmartRouter` + caché L1 (RAM LRU) / L2 (SQLite) / L3 (semántica LanceDB).
 - **Memoria** (`src/memory/`): `MemoryGateway` unifica ShortTerm (RAM), LongTerm (SQLite `data/axioma.db`), Semantic (LanceDB, embeddings `BAAI/bge-m3`) y KnowledgeGraph (SQLite).
-- **Multimodal** (`src/multimodal/`): voz full-duplex (wake word → VAD → STT `faster-whisper` → TTS `edge-tts`/`piper`) y visión (captura de pantalla multi-backend + cámara).
+- **Multimodal** (`src/multimodal/`): voz full-duplex (wake word → VAD → STT `faster-whisper` → TTS `edge-tts`/`piper`) y visión (captura de pantalla multi-backend + cámara). **PortAudio es opcional**: sin la librería del sistema los módulos **se importan igual** (quedan sin dispositivo de audio) y los tests de voz se saltean; antes reventaban con `OSError: PortAudio library not found`.
 - **Ejecución segura** (`src/tools_mcp/`): `Sandbox` (límites Unix, blacklist, redacción de secretos), `PermissionGateway`, `PromotionGate` (veredictos para operaciones destructivas) y protocolo **MCP** (JSON-RPC 2.0).
 - **Seguridad por modos**: `RuntimeMode` (standard/minimal/safe_mode/code_mode) filtra el toolset por sesión en `ToolExecutor` y `ToolRegistry.list_for_mode()`; sandbox **fail-closed** (`SandboxUnavailableError` si STRICT no puede confinar); `PermissionMode.DENY` con reglas "NUNCA tocar" para `.git/**`, `.env*`, `config/**` y `data/**`; `src/**` siempre pide confirmación.
 - **Trazabilidad**: `SessionEventLog` (bitácora de sesión con replay/`derive_messages`/`fork`) y `FileAuditTrail` (operaciones de archivo con checksum SHA256), integrados en `MemoryGateway.add_message()` y `PromotionGate`.
@@ -114,8 +114,13 @@ Settings: `vision_num_predict` (512) · `vision_preprocess_enabled` · `vision_o
 # Entry point
 python main.py --check                # verificación de dependencias/hardware
 python main.py --chat "consulta"      # chat por CLI (--chat sin args = interactivo)
-python main.py --web                  # servidor web NiceGUI + API en http://127.0.0.1:8000
-python main.py --backup               # backup de datos
+python main.py --web                  # servidor web NiceGUI + API en http://127.0.0.1:8000 (sólo loopback)
+python main.py --backup               # backup ESTRUCTURAL: sólo el JSON en data/backups/
+python -m src.interfaces.cli.main --backup --full
+                                      # + .tar.gz con data/memory (LanceDB) y data/knowledge
+# --full: retención MÁXIMO 3 backups (rota el par {json, tar} junto), aviso si AXIOMA
+# parece estar corriendo (el tar podría ser inconsistente) y escritura atómica del tar
+# (temporal + rename: si falla no queda un .tar.gz a medias). `main.py --backup` sólo hace el JSON.
 
 # Tests
 pytest tests/ -v
@@ -169,6 +174,23 @@ python tools/run_evals.py                       # ejecuta tests/dataset_evals.ya
 | `data/**` deny + `fs_read,fs_list` | Datos: solo lectura desde chat |
 | `src/**` default | Código fuente: SIEMPRE pide confirmación |
 
+### Token de escritura, bind y workspaces
+
+- **Bind por defecto**: `start_server()` escucha en **`127.0.0.1`** (antes `0.0.0.0`). Para exponerlo a la red hay que pedirlo explícitamente con `host='0.0.0.0'` (o `AXIOMA_WEB_HOST=0.0.0.0` en el contenedor).
+- **Token de escritura**: `AXIOMA_WEB_TOKEN` + header **`X-AXIOMA-Token`** protege las rutas que escriben el `.env`: `POST /api/v1/preflight/claves` y `POST /api/v1/preflight/modelos` (comparación con `hmac.compare_digest`; el valor nunca se registra).
+  - **Sin token definido**: sólo se permite en loopback. Si AXIOMA está expuesto, esas rutas responden **403** y no escriben nada.
+  - **Con token definido**: es obligatorio siempre (también en loopback); ausente o inválido → **401**.
+- **`session_id` validado**: en los workspaces sólo se acepta `[A-Za-z0-9_-]{1,64}`. Se rechaza con `ValueError` (400 en HTTP) cualquier ruta absoluta, `..` o separador, y el `cleanup` no puede salir del directorio base.
+
+```bash
+# El token va en el .env (o exportado) y se manda en cada POST que escribe configuración
+export AXIOMA_WEB_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+curl -X POST http://127.0.0.1:8080/api/v1/preflight/claves \
+  -H "X-AXIOMA-Token: $AXIOMA_WEB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"TAVILY_API_KEY": "tvly-tu-clave"}'
+```
+
 ### Trazabilidad, eventos y coordinación multi-modelo
 
 - **Auditoría**: `SessionEventLog` (bitácora de sesión con fork/replay) + `FileAuditTrail` (checksum SHA256), integrados en `MemoryGateway.add_message()` y `PromotionGate`.
@@ -208,16 +230,20 @@ GET /api/v1/hwfit/{hardware,rank,check,compatible}
 
 ---
 
-## 🛠️ Stack tecnológico (dependencias reales de `requirements.txt`)
+## 🛠️ Stack tecnológico (fuente: `requirements.txt`; la imagen instala `requirements-ci.txt`)
+
+> `requirements.txt` es el del **venv de desarrollo** (compartido con otro proyecto) y todavía declara
+> paquetes que la imagen **no** instala: `opentelemetry-*`, `grpcio`, `googleapis-common-protos`,
+> `playwright`, `customtkinter`, etc. La imagen usa `requirements-ci.txt`, que documenta cada exclusión.
 
 - **Web/UI:** FastAPI, Uvicorn, NiceGUI, Starlette
 - **IA/LLM:** Ollama (HTTP), transformers, sentence-transformers, vLLM (cliente alternativo)
 - **Voz:** faster-whisper, silero-vad, webrtcvad, edge-tts, piper-tts, sounddevice
 - **Memoria vectorial:** lancedb, pyarrow, numpy, pandas
 - **ML:** scikit-learn, scipy, networkx, sympy
-- **Observabilidad:** opentelemetry-*, rich
+- **Observabilidad:** logging propio (`tools/detailed_logger.py` → `logs/`, `tools/log_health_report.py`), rich
 - **Configuración:** pydantic, pydantic-settings
-- **Automatización web:** playwright
+- **Automatización web:** playwright (desarrollo; no va en la imagen)
 - **Otros:** httpx, pytest, coverage, PyYAML, tenacity
 
 ---
@@ -233,15 +259,15 @@ otros proyectos que puedan estar adentro del árbol de trabajo y no tengan nada 
 | LOC Python | **≈ 117.400** |
 | Clases (incl. anidadas) | **≈ 678** |
 | Funciones (incl. métodos) | **≈ 4.471** |
-| Archivos de test | **18** `test_*.py` en `tests/` (la suite del proyecto) |
+| Archivos de test | **24** `test_axioma_*.py` en `tests/` (la suite del proyecto) |
 
-> **2026-09-11:** suite en verde con **17 archivos** `test_axioma_*.py` (**768 tests**,
-SCORE AXIOMA **100/100**, HIGH=0) y **gate de calidad** en CI. Los archivos de
+> **2026-10-25:** suite en verde con **24 archivos** `test_axioma_*.py` (**1138 tests**,
+SCORE AXIOMA **100/100**, MEDIUM 0) y **gate de calidad** en CI. Los archivos de
 test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líneas
 (regla R13 — ver `docs/AGENT_GUIDE.md`). Se sumaron el canal de imágenes (visión +
 OCR híbrido, `tests/test_axioma_11_vision_imagenes.py`), calculadora y
-fuentes/citas (hoy dentro de `test_axioma_10_plan_v2.py`) y el health report v2 —
-actualizadas.
+fuentes/citas (hoy dentro de `test_axioma_10_plan_v2.py`), el health report v2 y
+las pruebas de seguridad web y audio opcional — regenerar estructura con
 
 ---
 
@@ -269,7 +295,7 @@ axioma/
 │   └── utils/               # Utilidades
 ├── config/                  # settings.py, models.yaml, paths.py, ...
 ├── data/                    # BD SQLite, memoria vectorial, backups, salidas
-├── tests/                   # Suite pytest (18 test_*.py: axioma integral + diagnósticos)
+├── tests/                   # Suite pytest (24 test_axioma_*.py: axioma integral + diagnósticos)
 ├── logs/                    # Logs del sistema
 ```
 
