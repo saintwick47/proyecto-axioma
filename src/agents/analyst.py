@@ -15,7 +15,6 @@ import logging
 import time
 import hashlib
 import json
-import os
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -23,7 +22,7 @@ from config.settings import settings
 from config.paths import Paths
 from src.domain.types import TaskType
 from src.domain.entities import Message
-from src.domain.exceptions import AgentError, LLMError
+from src.domain.exceptions import LLMError
 from src.utils.degradation import log_degraded
 from .base import BaseAgent, AgentResult
 from .analyst_file_handlers import AnalystFileHandlersMixin
@@ -33,13 +32,6 @@ from .analyst_review import AnalystReviewMixin
 # ✅ FIX RAC (v0.6.9w): pre-análisis estático determinista + segmentación
 # sintácticamente íntegra + filtro anti-alucinación. Sin LLM, sin deps extra.
 # ═══════════════════════════════════════════════════════════════
-from .rac_static import (
-    DiagnosticoEstatico,
-    analizar_archivo,
-    construir_prompt_rac,
-    filtrar_alucinaciones,
-    leer_fuente,
-)
 
 # ═══════════════════════════════════════════════════════════════
 # ✅ FIX CRÍTICO: Importar OllamaClientBase y ScenarioType
@@ -47,13 +39,13 @@ from .rac_static import (
 # el agente (que hereda CB y fallback de BaseAgent).
 # ═══════════════════════════════════════════════════════════════
 try:
-    from src.llm.client_base import OllamaClientBase, ScenarioType
+    from src.llm.client_base import OllamaClientBase, ScenarioType  # noqa: F401 — disponibilidad
     _CLIENT_BASE_AVAILABLE = True
 except ImportError:
     _CLIENT_BASE_AVAILABLE = False
 
 try:
-    from src.llm.client import OllamaClient
+    from src.llm.client import OllamaClient  # noqa: F401 — disponibilidad
     _OLLAMA_CLIENT_AVAILABLE = True
 except ImportError:
     _OLLAMA_CLIENT_AVAILABLE = False

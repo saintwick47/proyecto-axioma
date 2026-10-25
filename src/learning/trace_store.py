@@ -33,7 +33,7 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from src.utils.degradation import log_degraded

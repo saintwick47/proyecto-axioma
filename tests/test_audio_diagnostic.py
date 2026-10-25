@@ -15,10 +15,9 @@ import json
 import asyncio
 import subprocess
 import tempfile
-import shutil
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any
 
 # Intentar importar módulos de AXIOMA
 try:
@@ -31,19 +30,19 @@ try:
     from src.multimodal.tts_engine import TTSEngine
     from src.core.dispatcher import Dispatcher
     from src.multimodal.voice_pipeline import VoicePipeline
-    from config.settings import get_settings
     AXIOMA_AVAILABLE = True
 except ImportError as e:
     AXIOMA_AVAILABLE = False
     AXIOMA_IMPORT_ERROR = str(e)
 
 # Intentar importar dependencias de audio
+# OSError: sounddevice instalado sin PortAudio (libportaudio2) revienta al importar.
 try:
     import sounddevice as sd
     import numpy as np
     import soundfile as sf
     AUDIO_DEPS = True
-except ImportError as e:
+except (ImportError, OSError) as e:
     AUDIO_DEPS = False
     AUDIO_DEPS_ERROR = str(e)
 

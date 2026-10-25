@@ -638,7 +638,6 @@ class ToolRegistry:
         modo (ver RuntimeMode.allowed_permission_level()). Import diferido
         para evitar dependencias circulares en tiempo de import.
         """
-        from src.domain.types import RuntimeMode  # import diferido (evita ciclos)
         max_perm = mode.allowed_permission_level()
         return self.list_by_permission(max_perm)
 

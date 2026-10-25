@@ -17,7 +17,6 @@
 #   · El texto exportado pasa por `_scrub_secrets`: si una respuesta contuviera
 #     una API key, NO sale al archivo.
 # ═══════════════════════════════════════════════════════════════
-import html as _html
 import logging
 import re
 from dataclasses import dataclass, field

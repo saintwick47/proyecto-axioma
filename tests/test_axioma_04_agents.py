@@ -1,17 +1,15 @@
 from __future__ import annotations
 import asyncio
-import importlib
 from unittest.mock import MagicMock, patch
 try:
     from .axioma_report import section, check
 except ImportError:  # pragma: no cover
     from axioma_report import section, check
 try:
-    from .suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from .suite_utils import import_safe as _import,\
+        api_check as _api_check
 except ImportError:  # pragma: no cover
-    from suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from suite_utils import import_safe as _import, api_check as _api_check
 
 
 # ════════════════════════════════════════════════════════════════# CONTENIDO FUSIONADO (ver ISSUE-057): este archivo absorbió otros por tema# ════════════════════════════════════════════════════════════════
@@ -510,7 +508,7 @@ class TestMcpProtocol:
 
 class TestPermissions:
     def test_gateway(self, tmp_path):
-        from src.tools_mcp.permissions import PermissionGateway, get_gateway
+        from src.tools_mcp.permissions import get_gateway
         cfg = tmp_path / "perm_test.json"
         cfg.write_text(json.dumps({"rules": []}))
         gw = get_gateway(config_path=cfg)

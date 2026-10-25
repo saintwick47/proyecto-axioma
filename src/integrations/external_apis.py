@@ -50,7 +50,6 @@
 #
 # ═══════════════════════════════════════════════════════════════
 import logging
-import asyncio
 import time
 import sys
 from typing import Optional, Dict, Any, List

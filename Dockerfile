@@ -47,11 +47,14 @@ COPY requirements.txt requirements-ci.txt ./
 # ORDEN IMPORTANTE (igual que en `.github/workflows/ci.yml`):
 #   1. torch/torchaudio del índice CPU   2. el resto de las dependencias
 #   3. sentence-transformers al final (su dependencia de torch ya está satisfecha)
+# ✅ 2026-10-25: PIN explícito. Antes se instalaba SIN versión y, como
+# `requirements-ci.txt` la excluye, Docker resolvía la última de PyPI mientras
+# `requirements.txt:88` y el CI fijan 5.4.1. Las tres fuentes dicen lo mismo.
 RUN pip install --upgrade pip \
     && pip install --index-url https://download.pytorch.org/whl/cpu \
            torch==2.11.0+cpu torchaudio==2.11.0+cpu \
     && pip install -r requirements-ci.txt \
-    && pip install sentence-transformers
+    && pip install sentence-transformers==5.4.1
 
 # ═══════════════════════════════════════════════════════════════
 # ETAPA 2 — imagen final (sin herramientas de compilación)

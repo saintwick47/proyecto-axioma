@@ -22,7 +22,6 @@ from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 from config.settings import settings
 from config.paths import Paths
-from src.domain.exceptions import RouterError
 from src.memory.embedding_model_singleton import (
     get_embedding_model,
     EMBED_MODEL_NAME,

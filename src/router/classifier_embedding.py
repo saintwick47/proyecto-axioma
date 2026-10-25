@@ -25,9 +25,8 @@ import hashlib
 import logging
 import math
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-from src.domain.types import TaskType
 from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)

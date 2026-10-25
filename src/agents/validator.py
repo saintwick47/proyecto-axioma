@@ -17,7 +17,7 @@ from typing import ClassVar, Optional, Dict, Any, List
 from config.settings import settings
 from src.domain.types import TaskType
 from src.domain.entities import Message, ValidationScore
-from src.domain.exceptions import AgentError, LLMError, ValidationError
+from src.domain.exceptions import LLMError
 from .base import BaseAgent, AgentResult
 from src.utils.degradation import log_degraded
 # ============================================================================

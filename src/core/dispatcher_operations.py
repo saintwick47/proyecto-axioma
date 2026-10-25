@@ -17,7 +17,6 @@
 # ──────────────────────────────────────────────────────────────────────────────
 import logging
 import asyncio
-import threading
 import time
 from typing import Optional, Dict, Any
 
@@ -50,7 +49,7 @@ except ImportError:
     ImplicitSignal = None  # type: ignore[assignment,misc]
 
 try:
-    from src.core.dispatcher_distributed import DispatcherDistributedMixin
+    from src.core.dispatcher_distributed import DispatcherDistributedMixin  # noqa: F401 — disponibilidad
     _DISTRIBUTED_AVAILABLE = True
 except ImportError:
     _DISTRIBUTED_AVAILABLE = False

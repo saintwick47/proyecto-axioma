@@ -11,7 +11,7 @@
 # Lo que se prueba acá es el COMPORTAMIENTO (no el texto): que el secreto sea propio del equipo, que se
 # conserve entre arranques, que se guarde sólo para el usuario y que el compose no vuelva a exponer la
 # interfaz sin querer.
-import json
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -465,3 +465,307 @@ def test_la_api_rechaza_un_host_ajeno_y_acepta_el_local(monkeypatch):
     monkeypatch.setenv("AXIOMA_WEB_HOST", "0.0.0.0")
     expuesto = build_api_app()
     assert TestClient(expuesto, base_url="http://sitio-ajeno.test").get("/v1/health").status_code != 400
+
+
+# ═══════════════════════════════════════════════════════════════
+# TOKEN EN LAS RUTAS QUE ESCRIBEN CONFIGURACIÓN
+# ═══════════════════════════════════════════════════════════════
+# MEDIDO el 2026-10-25 con TestClient: `POST /api/v1/preflight/claves`
+# respondía 200 y escribía el `.env` SIN credenciales. El check de `Host` sólo
+# protege en loopback, así que con AXIOMA_WEB_HOST=0.0.0.0 un Host ajeno
+# pasaba. Diseño (ver `routes_preflight.exigir_token_de_escritura`):
+#   · token en AXIOMA_WEB_TOKEN + header X-AXIOMA-Token, `hmac.compare_digest`;
+#   · configurado → se exige siempre (también en loopback);
+#   · sin configurar → loopback permite (uso local), red rechaza con 403.
+
+def _cliente_config(tmp_path, monkeypatch, *, bind="127.0.0.1", token=None, host="127.0.0.1"):
+    """Cliente de la API con un `.env` aislado y el bind/token que pida la prueba."""
+    from fastapi.testclient import TestClient
+    from config.settings import settings
+    from src.core import apikeys
+    from src.interfaces.web.server import build_api_app
+
+    env = tmp_path / ".env"
+    env.parent.mkdir(parents=True, exist_ok=True)
+    env.write_text("TAVILY_API_KEY=clave-vieja\n", encoding="utf-8")
+    monkeypatch.setattr(apikeys, "ENV_POR_DEFECTO", env, raising=False)
+    # Aislar también la copia que settings leyó del `.env` real (si tuviera token).
+    monkeypatch.setattr(settings, "axioma_web_token", token or "", raising=False)
+    monkeypatch.setenv("AXIOMA_WEB_HOST", bind)
+    if token is None:
+        monkeypatch.delenv("AXIOMA_WEB_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("AXIOMA_WEB_TOKEN", token)
+    app = build_api_app()
+    assert app is not None, "la app de la API no se construyó"
+    return TestClient(app, base_url=f"http://{host}"), env
+
+
+def test_escribir_config_desde_la_red_sin_token_se_rechaza_y_no_toca_el_env(tmp_path, monkeypatch):
+    """El exploit medido: bind 0.0.0.0, sin token y un Host de la LAN. Ni 200 ni escritura."""
+    cliente, env = _cliente_config(tmp_path, monkeypatch, bind="0.0.0.0",
+                                   host="192.168.1.50:8000")
+    antes = env.read_bytes()
+    sha_antes = hashlib.sha256(antes).hexdigest()
+
+    for ruta, cuerpo in (("/v1/preflight/claves", {"TAVILY_API_KEY": "clave-nueva"}),
+                         ("/v1/preflight/modelos", {"chat": "modelo:1b"})):
+        respuesta = cliente.post(ruta, json=cuerpo)
+        assert respuesta.status_code == 403, (ruta, respuesta.status_code, respuesta.text[:160])
+        assert "token" in respuesta.json()["detail"].lower(), respuesta.json()
+
+    # El `.env` no cambió ni un byte, y no se creó copia (no hubo escritura).
+    assert hashlib.sha256(env.read_bytes()).hexdigest() == sha_antes
+    assert env.read_text(encoding="utf-8") == "TAVILY_API_KEY=clave-vieja\n"
+    assert not (tmp_path / ".env.bak").exists(), "no puede haber copia de una escritura que no ocurrió"
+
+
+def test_el_token_valido_escribe_y_el_invalido_no(tmp_path, monkeypatch):
+    """Con token configurado: falta/incorrecto → 401 sin tocar el `.env`; correcto → 200 y escribe."""
+    token = "token-de-prueba-0123456789abcdef"
+    cliente, env = _cliente_config(tmp_path, monkeypatch, bind="0.0.0.0",
+                                   token=token, host="192.168.1.50:8000")
+    antes = env.read_bytes()
+    sha_antes = hashlib.sha256(antes).hexdigest()
+
+    for cabeceras in ({}, {"X-AXIOMA-Token": "otro-token"}):
+        respuesta = cliente.post("/v1/preflight/claves",
+                                 json={"TAVILY_API_KEY": "clave-nueva"}, headers=cabeceras)
+        assert respuesta.status_code == 401, (cabeceras, respuesta.status_code, respuesta.text[:160])
+    assert hashlib.sha256(env.read_bytes()).hexdigest() == sha_antes, "un 401 no puede escribir"
+    assert not (tmp_path / ".env.bak").exists()
+
+    # Camino bueno: 200, guarda sólo la clave conocida y deja copia con el valor anterior.
+    respuesta = cliente.post("/v1/preflight/claves", json={"TAVILY_API_KEY": "clave-nueva",
+                                                           "CLAVE_INVENTADA": "no"},
+                             headers={"X-AXIOMA-Token": token})
+    assert respuesta.status_code == 200, respuesta.text[:160]
+    assert respuesta.json()["guardadas"] == ["TAVILY_API_KEY"], respuesta.json()
+    assert "CLAVE_INVENTADA" not in env.read_text(encoding="utf-8")
+    assert "TAVILY_API_KEY=clave-nueva" in env.read_text(encoding="utf-8")
+    assert hashlib.sha256(env.read_bytes()).hexdigest() != sha_antes
+    assert "TAVILY_API_KEY=clave-vieja" in (tmp_path / ".env.bak").read_text(encoding="utf-8")
+
+
+def test_en_loopback_sin_token_se_permite_pero_con_token_configurado_se_exige(tmp_path, monkeypatch):
+    """El default documentado: loopback sin token = uso local de siempre; si hay token, manda el token."""
+    cliente, env = _cliente_config(tmp_path, monkeypatch, bind="127.0.0.1")
+    permitido = cliente.post("/v1/preflight/claves", json={"TAVILY_API_KEY": "clave-loopback"})
+    assert permitido.status_code == 200, permitido.text[:160]
+    assert "TAVILY_API_KEY=clave-loopback" in env.read_text(encoding="utf-8")
+
+    # Con token configurado NO se relaja por estar en loopback (una página local
+    # también puede llamar a 127.0.0.1 con el Host correcto).
+    cliente2, env2 = _cliente_config(tmp_path / "con-token", monkeypatch, bind="localhost",
+                                     token="token-local-0123456789")
+    sin_token = cliente2.post("/v1/preflight/claves", json={"TAVILY_API_KEY": "x"})
+    assert sin_token.status_code == 401, sin_token.text[:160]
+    con_token = cliente2.post("/v1/preflight/claves", json={"TAVILY_API_KEY": "x"},
+                              headers={"X-AXIOMA-Token": "token-local-0123456789"})
+    assert con_token.status_code == 200, con_token.text[:160]
+    assert env2.exists()
+
+
+# ═══════════════════════════════════════════════════════════════
+# WORKSPACES: el session_id no puede salirse del directorio base
+# ═══════════════════════════════════════════════════════════════
+# MEDIDO el 2026-10-25 con sondas reales sobre `build_api_app()`:
+#   · GET /v1/workspace/download?session_id=/etc&filename=passwd
+#     devolvía 200 con 2182 B de /etc/passwd. La comprobación de contención
+#     comparaba el archivo contra un «workspace» calculado con el MISMO
+#     session_id del atacante, así que nunca bloqueaba.
+#   · GET /v1/workspace/attempts?session_id=/etc también respondía 200.
+#   · cleanup('../evil') borraba un archivo externo al base (y '../../..'
+#     resolvía al home). Se alcanza con prompt injection vía la tool
+#     workspace_manage(action='cleanup').
+# El arreglo valida en UN punto (WorkspaceManager._workspace_path) y los
+# bordes traducen el rechazo a 400/fail. Estas pruebas usan tmp_path.
+
+def _wm_aislado(tmp_path, monkeypatch):
+    """Instala el singleton de workspaces sobre un base temporal (nunca el home)."""
+    from src.core import workspace_manager as modulo
+    base = tmp_path / "workspaces"
+    base.mkdir()
+    monkeypatch.setattr(modulo, "_wm", modulo.WorkspaceManager(base_path=str(base)))
+    return modulo, base
+
+
+def _cliente_api(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from src.interfaces.web.server import build_api_app
+
+    _, base = _wm_aislado(tmp_path, monkeypatch)
+    app = build_api_app()
+    assert app is not None, "la app de la API no se construyó"
+    return TestClient(app, base_url="http://127.0.0.1"), base
+
+
+def test_el_workspace_rechaza_session_id_que_intenta_salir_del_base(tmp_path):
+    """Un session_id es un NOMBRE de directorio: rutas, absolutos, '..' y symlinks se rechazan."""
+    from src.core.workspace_manager import WorkspaceManager
+
+    base = tmp_path / "workspaces"
+    base.mkdir()
+    fuera = tmp_path / "fuera"
+    fuera.mkdir()
+    (fuera / "secreto.txt").write_text("SECRETO-EXTERNO", encoding="utf-8")
+    # El caso exacto del exploit: base/../evil debe sobrevivir a cleanup('../evil').
+    evil = tmp_path / "evil"
+    evil.mkdir()
+    (evil / "archivo.txt").write_text("NO-SE-BORRA", encoding="utf-8")
+    wm = WorkspaceManager(base_path=str(base))
+
+    maliciosos = [
+        "/etc",
+        str(fuera),
+        "../evil",
+        "../../..",
+        "..",
+        ".",
+        "a/b",
+        "a\\b",
+        "con espacio",
+        "ñ",
+        "x" * 65,
+    ]
+    for sid in maliciosos:
+        with pytest.raises(ValueError, match="session_id inválido"):
+            wm.get_workspace(sid)
+        with pytest.raises(ValueError, match="session_id inválido"):
+            wm.cleanup(sid)
+        with pytest.raises(ValueError, match="session_id inválido"):
+            wm.workspace_exists(sid)
+        with pytest.raises(ValueError, match="session_id inválido"):
+            wm.scan_workspace(sid)
+        with pytest.raises(ValueError, match="session_id inválido"):
+            wm.get_attempt_history(sid)
+
+    # Nada se borró ni se creó fuera del base: el cleanup malicioso no tocó disco.
+    assert (evil / "archivo.txt").read_text(encoding="utf-8") == "NO-SE-BORRA"
+    assert (fuera / "secreto.txt").read_text(encoding="utf-8") == "SECRETO-EXTERNO"
+
+    # Un symlink DENTRO del base que apunta afuera también se rechaza.
+    enlace = base / "enlace"
+    enlace.symlink_to(fuera, target_is_directory=True)
+    with pytest.raises(ValueError, match="session_id inválido"):
+        wm.get_workspace("enlace")
+    with pytest.raises(ValueError, match="session_id inválido"):
+        wm.cleanup("enlace")
+    assert (fuera / "secreto.txt").exists()
+
+
+def test_los_session_id_legitimos_siguen_funcionando(tmp_path):
+    """Las formas que ya usa el repo entran en la regex y no se rompió ninguna."""
+    from src.core.workspace_manager import WorkspaceManager
+
+    base = tmp_path / "workspaces"
+    base.mkdir()
+    wm = WorkspaceManager(base_path=str(base))
+
+    legitimos = [
+        "default",
+        "s_ws",
+        "550e8400-e29b-41d4-a716-446655440000",      # UUID con '-'
+        "nicegui_20261025_123456_123456",             # id de la web
+        "saintwick_20261025",                         # usuario + día
+        "A" * 64,                                     # límite de longitud
+    ]
+    for sid in legitimos:
+        ws = Path(wm.get_workspace(sid))
+        assert ws.is_relative_to(base), (sid, ws)
+        assert ws.is_dir()
+        assert wm.workspace_exists(sid) is True
+
+    # Y el cleanup propio borra SÓLO ese workspace.
+    assert wm.cleanup("s_ws") is True
+    assert not (base / "s_ws").exists()
+    assert (base / "default").is_dir()
+
+
+def test_la_api_no_sirve_archivos_externos_por_session_id(tmp_path, monkeypatch):
+    """El exploit medido: session_id=/etc ya no devuelve 200 ni el contenido."""
+    cliente, base = _cliente_api(tmp_path, monkeypatch)
+
+    ajeno = tmp_path / "ajeno"
+    ajeno.mkdir()
+    (ajeno / "secreto.txt").write_text("SECRETO-EXTERNO", encoding="utf-8")
+
+    for sid in ("/etc", "../evil", "../../..", str(ajeno), "a/b"):
+        descarga = cliente.get("/v1/workspace/download",
+                               params={"session_id": sid, "filename": "passwd"})
+        assert descarga.status_code == 400, (sid, descarga.status_code, descarga.text[:120])
+        assert b"root:x:" not in descarga.content, "se sirvió /etc/passwd"
+        intentos = cliente.get("/v1/workspace/attempts", params={"session_id": sid})
+        assert intentos.status_code == 400, (sid, intentos.status_code, intentos.text[:120])
+
+    # El archivo externo no se puede leer por la puerta del session_id...
+    externo = cliente.get("/v1/workspace/download",
+                          params={"session_id": str(ajeno), "filename": "secreto.txt"})
+    assert externo.status_code == 400
+    assert b"SECRETO-EXTERNO" not in externo.content
+
+    # ...ni se creó nada fuera del base (antes el GET con un id absoluto creaba directorios).
+    assert not (tmp_path / "evil").exists()
+    assert not (base.parent / "evil").exists()
+    assert [p.name for p in base.iterdir()] == []
+
+    # Control: con un workspace legítimo, el filename malicioso SÍ se bloquea (403).
+    traversal = cliente.get("/v1/workspace/download",
+                            params={"session_id": "s_ws", "filename": "../secreto.txt"})
+    assert traversal.status_code == 403, traversal.status_code
+
+
+def test_la_descarga_y_los_attempts_del_workspace_propio_siguen_andando(tmp_path, monkeypatch):
+    """El camino bueno no se rompió: descargar un archivo propio y ver el historial."""
+    from src.core.workspace_manager import get_workspace_manager
+
+    cliente, _ = _cliente_api(tmp_path, monkeypatch)
+    ws = Path(get_workspace_manager().get_workspace("s_ws"))
+    (ws / "salida.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    (ws / "attempt_1.py").write_text("print('uno')\n", encoding="utf-8")
+    (ws / "script.py").write_text("print('final')\n", encoding="utf-8")
+
+    descarga = cliente.get("/v1/workspace/download",
+                           params={"session_id": "s_ws", "filename": "salida.csv"})
+    assert descarga.status_code == 200, descarga.text[:120]
+    assert descarga.content == b"a,b\n1,2\n"
+
+    intentos = cliente.get("/v1/workspace/attempts", params={"session_id": "s_ws"})
+    assert intentos.status_code == 200, intentos.text[:120]
+    cuerpo = intentos.json()
+    assert cuerpo["session_id"] == "s_ws" and cuerpo["total"] == 2, cuerpo
+    assert [a["attempt"] for a in cuerpo["attempts"]] == [1, "final"]
+
+    # El cleanup propio sigue borrando el workspace propio.
+    assert get_workspace_manager().cleanup("s_ws") is True
+    assert not ws.exists()
+
+
+def test_la_tool_workspace_rechaza_el_cleanup_malicioso(tmp_path, monkeypatch):
+    """Prompt injection por workspace_manage(action='cleanup', session_id='../evil'): no borra nada."""
+    from src.tools_mcp.tools.workspace_tool import WorkspaceManageTool
+
+    modulo, base = _wm_aislado(tmp_path, monkeypatch)
+    wm = modulo.get_workspace_manager()
+    externo = tmp_path / "externo.txt"
+    externo.write_text("NO-SE-BORRA", encoding="utf-8")
+    tool = WorkspaceManageTool()
+
+    for sid in ("../evil", "../../..", "/etc", str(tmp_path)):
+        resultado = tool._run(action="cleanup", session_id=sid)
+        assert resultado.success is False, (sid, resultado)
+        assert "session_id inválido" in (resultado.error or ""), (sid, resultado.error)
+        inspeccion = tool._run(action="inspect", session_id=sid)
+        assert inspeccion.success is False, (sid, inspeccion)
+        assert "session_id inválido" in (inspeccion.error or ""), (sid, inspeccion.error)
+
+    assert externo.read_text(encoding="utf-8") == "NO-SE-BORRA"
+    assert not (tmp_path / "evil").exists()
+
+    # El cleanup legítimo de la tool sigue funcionando.
+    ws = Path(wm.get_workspace("propio"))
+    (ws / "output.txt").write_text("ok", encoding="utf-8")
+    resultado = tool._run(action="cleanup", session_id="propio")
+    assert resultado.success is True, resultado
+    assert not ws.exists()
+    assert base.is_dir()

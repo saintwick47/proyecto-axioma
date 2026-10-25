@@ -7,6 +7,66 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Seguridad
+- **Token obligatorio en las rutas que ESCRIBEN configuración (`/preflight/claves` y `/preflight/modelos`).**
+  MEDIDO el 2026-10-25 con `TestClient` sobre `build_api_app()`: `POST /api/v1/preflight/claves`
+  respondía **200 y escribía el `.env` sin credenciales**. Lo único que lo frenaba era el check de
+  `Host` de `server.py`, que **sólo actúa en loopback**: con `AXIOMA_WEB_HOST=0.0.0.0` un `Host`
+  ajeno pasaba. Diseño: token en `AXIOMA_WEB_TOKEN` (campo nuevo `settings.axioma_web_token`, para
+  que también valga el valor del `.env`: pydantic-settings no lo copia a `os.environ`), header
+  `X-AXIOMA-Token`, comparación con `hmac.compare_digest` y sin registrar el valor recibido. Default
+  **seguro**: si hay token configurado se exige **siempre** (también en loopback, porque una página
+  local puede llamar a 127.0.0.1 con el Host correcto); si **no** hay token, se permite en loopback
+  (no se rompe el uso local ni la UI, que además llama a las funciones en proceso y nunca pasó por
+  HTTP) y se **rechaza con 403** cuando el bind no es local. Las rutas de sólo lectura quedan
+  abiertas. Sonda real (bind `0.0.0.0`, Host de LAN): antes → **200**, sha256 del `.env` cambiado y
+  `.bak` creado con `clave-nueva` dentro; después → **403**, sha256 **idéntico** y sin `.bak`; con
+  token válido → **200** y escribe; loopback sin token → **200** (default documentado). 3 tests
+  nuevos en `tests/test_axioma_29_seguridad_web.py` (27 passed, archivo de 770 líneas ≤ R13).
+- **`start_server()` de la UI escuchaba en `0.0.0.0` por defecto.** `src/interfaces/web/app.py:683`
+  usaba `host='0.0.0.0'` y el wrapper `src/interfaces/web/__init__.py:118` repetía el mismo default,
+  mientras que `main.py --web` y `WebServer` usan `127.0.0.1`. El middleware de Host seguía protegiendo
+  `/api/*`, pero **la UI NiceGUI y su websocket quedaban accesibles desde la LAN**. Ahora el default es
+  `'127.0.0.1'` en los dos y para exponerla hay que pedirlo explícitamente
+  (`start_server(host='0.0.0.0')`). Sonda: `start_server.__defaults__` pasó de
+  `('0.0.0.0', 8000, False)` a `('127.0.0.1', 8000, False)` (app y wrapper) y con `ui.run`
+  monkeypatcheado la llamada real recibió `host='127.0.0.1'`; antes recibía `'0.0.0.0'`.
+- **Lectura arbitraria de archivos y borrado fuera del base por `session_id` (workspaces).** `WorkspaceManager` usaba el `session_id` como nombre de directorio sin validarlo: en `Path(base) / sid`, un valor absoluto **descarta el base** (`/etc` → `/etc`) y `..` permite traversal (`../evil`). Medido con `TestClient` sobre `build_api_app()`: `GET /api/v1/workspace/download?session_id=/etc&filename=passwd` devolvía **200 con 2182 B** de `/etc/passwd` —el chequeo de contención se calculaba contra el «workspace» del propio atacante, así que nunca bloqueaba—, `GET /api/v1/workspace/attempts?session_id=/etc` respondía 200 y el GET creaba directorios. `cleanup('../evil')` borraba un archivo externo al base (`'../../..'` resolvía al home), alcanzable por prompt injection vía `workspace_manage(action='cleanup')` (permiso `EXECUTE` por defecto). Ahora el `session_id` se valida en un único punto (`WorkspaceManager._workspace_path`): sólo `^[A-Za-z0-9_-]{1,64}$` y contención real con `resolve().is_relative_to(base)`, **rechazando con `ValueError`** (sin sanear en silencio); `/workspace/download` y `/workspace/attempts` devuelven **400**, y la tool devuelve un fallo con el mensaje. Tests de regresión en `tests/test_axioma_29_seguridad_web.py` (base `tmp_path`, incluido un symlink y un archivo externo). Las formas legítimas relevadas en el repo y la suite (`default`, UUIDs con `-`, `nicegui_YYYYMMDD_HHMMSS_microseg`, `<usuario>_YYYYMMDD`, ids de tests) entran en la regex y siguen andando.
+
+### Cambiado
+- **Limpieza de imports sin usar (F401) y f-strings sin placeholders (F541).** Alcance medido:
+  `src/`, `main.py` y `tests/` (118 archivos con hallazgos). F541: **41** f-strings corregidas
+  (20 archivos) sin cambiar el texto. F401: **472** hallazgos, **456** imports eliminados; los **16**
+  restantes son las dos exclusiones obligatorias, que se revirtieron intactas a HEAD:
+  `src/memory/long_term.py` (`SQLiteConnectionPool` lo exige el check de API pública de
+  `src.memory.long_term`) y `src/interfaces/cli/command_parser.py` (`log_degraded` lo exige el test de
+  regresión que mira el texto del archivo). Se preservaron con `# noqa: F401` los re-exports
+  deliberados (`llm/client_base` desde `client_base_infra`, `interfaces/cli/main` desde `backup`,
+  `memory/gateway` desde `palace_storage`/`gateway_retrieval`, `core/task_queue` desde
+  `task_queue_priority`, `multimodal/voice_pipeline` desde `voice_pipeline_turns`,
+  `tools_mcp/sandbox` desde `sandbox_staging`) y los imports de disponibilidad dentro de
+  `try/except ImportError` (logger, numpy, pvporcupine, sounddevice, optimizador, etc.). También se
+  restauraron en `tests/test_code_contract_e2e.py` los nombres que el test dice verificar (`CodeFile`,
+  `CodeContract`, `CodeValidator`, `ValidationReport`, `LayerResult`): la limpieza automática los había
+  borrado y el test seguía pasando con un mensaje que ya no era cierto. Protocolo: suite **24/24
+  (1138 tests)**, auditor **181/177** (MEDIUM 0, SCORE 100), gate ✅. `ruff --select F401,F541` queda
+  limpio en el alcance salvo esas dos exclusiones. `tools/` no estaba en la medición de origen
+  (~500 imports / 48 F541) y queda fuera de esta tanda.
+- **Versión unificada en una sola fuente (`src/__init__.py` → `0.7.5`).** Estaba dispersa e
+  inconsistente: `src/__init__.py:6` decía `0.6.9`, `/v1/health` (`routes.py:232`) y
+  `FastAPI(version=...)` (`server.py:137`) `0.1.0`, `/v1/status` ya leía `src`, `main.py` mezclaba
+  cabecera `1.0.8` con banner/log `v1.0.6` y un `v0.1.0`, `requirements.txt:2` decía `v1.0.7` y
+  `config/models.yaml:2` `v0.6.7`. Ahora `src/__init__.py.__version__ = "0.7.5"` es la única fuente:
+  `/v1/health`, `/v1/status`, `FastAPI(version=…)`, el título del servidor y los tres textos visibles de
+  `main.py` la importan (`AXIOMA_VERSION`). `requirements.txt` y `config/models.yaml` alinean su
+  **encabezado documental** (no pueden importar Python; se documenta el criterio). Se dejan intactas las
+  cabeceras históricas de módulos internos (`routes.py`, `server.py`, `routes_extended.py`: `v0.1.0…`),
+  que describen su época y no se muestran al usuario. Sonda (`TestClient` sobre `build_api_app()`):
+  antes `src=0.6.9`, `/v1/health=0.1.0`, `/v1/status=0.6.9`, `FastAPI=0.1.0`; después **los cuatro
+  = `0.7.5`**. Dockerfile: `sentence-transformers` pasa de **sin pin** (y `requirements-ci.txt` la
+  excluye, así que resolvía la última de PyPI) a `==5.4.1`, igual que `requirements.txt:88` y el CI.
+- **La imagen deja de instalar `opentelemetry-*`** (8 nombres: los 6 de OTel + `grpcio` + `googleapis-common-protos`). 0 imports en el código, 0 variables `OTEL_`; `transformers` sólo lo pide como extra opcional no instalado. **−33.017.613 B (31,5 MiB) por imagen** (5.246.538.121 → 5.213.520.508). `requirements.txt` y el venv compartido no se tocan (mismo precedente que `customtkinter`/`playwright`). `protobuf` y `flatbuffers` quedan: los usa `onnxruntime`.
+
 ### Agregado
 - **`--backup --full`: el backup ahora protege los DATOS, no sólo las rutas.** Hasta hoy
   `crear_backup_json()` guardaba un JSON estructural (rutas + configuración) y **nada de memoria**: si se
@@ -63,6 +123,42 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   ningún flujo ni ningún contenido funcional cambia. Los cuatro siguen en **CRLF** y **sin BOM**.
 
 ### Corregido
+- **`asyncio.iscoroutinefunction` → `inspect.iscoroutinefunction`** (deprecado en Python 3.14, se elimina
+  en 3.16). Estaba en `src/agents/parallel_executor.py:160`, `src/core/task_queue.py:314` y
+  `src/core/dispatcher_handlers.py:341`; se agregó `import inspect` en los dos primeros (el tercero ya lo
+  tenía). El comportamiento es el mismo (`async def`, función sync y `functools.partial` dan el mismo
+  booleano). Sonda real: antes los 4 caminos (callbacks sync/async de `task_queue` y `parallel_executor`
+  y `_handle_data` con handler sync/async) emitían
+  `DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated…`; después: **0 warnings** y los
+  mismos resultados (`_emit` llama al callback sync y agenda el async; el dispatcher devuelve `'SYNC'` y
+  `'ASYNC'`). `grep asyncio.iscoroutinefunction` en `src/`, `tools/`, `main.py` y `tests/`: **0**.
+  Suite 24/24 (1135 tests), auditor 182/177 sin cambios, gate OK.
+- **Claves duplicadas en dicts de tests que debilitaban la verificación.** `tests/test_axioma_02_core.py`
+  declaraba `"src.core.self_healing"` dos veces: la primera con los 4 símbolos reales (`HealthStatus`,
+  `HealingAction`, `HandlerHealth`, `SelfHealingMonitor`) y la segunda con `[]`, que la pisaba en el dict
+  ⇒ el `api_check` de esos símbolos **nunca se ejecutaba**. `CORE_API` pasa de 28 entradas a **27 únicas**
+  y el check vuelve a verificar los 4 símbolos. `tests/__init__.py` repetía `"test_axioma_04_agents"`
+  (impacto cosmético): queda la descripción fusionada (MCP + multimodal) y `SUITES` pasa de 7 entradas a
+  **6 únicas**. Sonda: AST de los dos archivos sin claves repetidas y, monkeypatcheando `_api_check`,
+  antes `self_healing → []` y después `self_healing → [HealthStatus, HealingAction, HandlerHealth,
+  SelfHealingMonitor]` (`has_symbols` = `(True, '4 símbolos OK')`). Sin cambios de código de producción;
+  suite 24/24 (1135 tests), auditor 182/177 sin cambios, gate OK.
+- **Los 6 módulos de voz se importan sin PortAudio (`OSError` no atrapado).** `sounddevice` no trae la
+  librería del sistema: cuando falta, su `import` lanza **`OSError("PortAudio library not found")`**, no
+  `ImportError`. `vad_filter`, `wake_word` y `tts_engine` sólo atrapaban `ImportError` y `ptt_axioma`
+  importaba sin guarda, así que reventaban al importarse los **6 caminos**: los 4 módulos, el paquete
+  `src.multimodal` (vía `__init__.py` → `audio_pipeline` → `tts_engine`) y `src.core.rafael_daemon`.
+  Ahora los tres usan `except (ImportError, OSError)` (la variable queda en `None` y el código existente
+  ya contempla `_SD_AVAILABLE`/`_PLAYBACK_AVAILABLE`), `ptt_axioma` tiene guarda y `main()` avisa en
+  castellano en vez de fallar con `AttributeError`. Sonda con un `sounddevice` falso por `PYTHONPATH`:
+  antes los 6 importaban con `OSError` (rc=1), ahora importan (rc=0); con PortAudio real no cambia nada.
+  `pytest tests/test_audio_diagnostic.py --co` pasó de `ERROR ... 1 error during collection` (exit 2) a
+  colectar sin error (exit 5 «no tests collected», igual que con PortAudio real) y
+  `test_axioma_04_agents.py -k multimodal` de **9 checks fallidos** (exit 1) a pasar. Además se corrigió
+  el comentario **FALSO** del CI (`.github/workflows/ci.yml`): sin PortAudio la suite **no** «se salteaba
+  sola». Los 2 tests que importan `sounddevice` directo (`test_axioma_28`, `test_axioma_30`) ahora se
+  saltean con motivo; verificado simulando PortAudio ausente: **24/24 archivos, 2 saltados, exit 0**
+  (antes: 2 fallidos). Auditor 182/177 sin cambios; suite 24/24 (1135 tests), gate OK.
 - **El CLI ahora sale con código distinto de 0 cuando el comando falla.** `_ejecutar_comando()` despachaba
   el comando y guardaba el resultado, pero **no lo devolvía**: `main()` recibía `None` y `sys.exit(None)`
   lo normaliza a 0, así que un fallo (p. ej. `--voice-file` con un archivo inexistente, que ya devolvía 3)

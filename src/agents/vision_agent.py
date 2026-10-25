@@ -398,7 +398,7 @@ class VisionAgent:
             if dl:
                 dl.log_error(
                     error=e,
-                    context=f"VisionAgent.execute",
+                    context="VisionAgent.execute",
                     function_name="VisionAgent.execute",
                     extra_info={
                         "model": self.model,

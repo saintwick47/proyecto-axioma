@@ -9,7 +9,6 @@
 # Logging: tools/detailed_logger.py → logs/reg_error.txt
 # ═══════════════════════════════════════════════════════════════
 import logging
-import socket
 import json
 import urllib.request
 import urllib.error
@@ -359,7 +358,7 @@ class Geolocator:
             "query": query,
             "prompt_context": f"Ubicación: {location.full_location}\nFecha local: {local_dt['date']}\nHora local: {local_dt['time']} ({location.timezone or DEFAULT_TIMEZONE})\nConsulta: {query}",
         }
-        _log_event("GEOLOCATION", f"Context generated", extra={
+        _log_event("GEOLOCATION", "Context generated", extra={
             "location": location.full_location,
             "duration_ms": round(duration * 1000, 2),
         })

@@ -27,7 +27,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Dict, Optional
 import uuid
 
 try:
@@ -37,7 +37,6 @@ except ImportError:
     np = None  # type: ignore[assignment]
     _NUMPY_AVAILABLE = False
 
-from src.multimodal.tts_engine import TTSEngine
 from src.multimodal.pipeline_core import (
     process_utterance_core,
     UtteranceResult,
@@ -47,7 +46,7 @@ from src.multimodal.pipeline_core import (
 # Nombres movidos al hermano, re-importados con los MISMOS nombres: un solo
 # objeto ⇒ `from ...voice_pipeline import accion_turno_voz` sigue igual y el
 # pipeline conserva `_dlog` para sus propios logs.
-from .voice_pipeline_turns import (
+from .voice_pipeline_turns import (  # noqa: F401 — re-export: API pública intacta
     VoicePipelineTurnsMixin,
     _dlog,
     accion_turno_voz,

@@ -3,8 +3,6 @@
 # Autor: SaintWick — AXIOMA, suite integral (archivo 3/6): LLM, router y memoria
 from __future__ import annotations
 
-import importlib
-import time
 from unittest.mock import MagicMock, patch
 
 try:
@@ -15,11 +13,9 @@ except ImportError:  # pragma: no cover
 SECTION = "3. LLM, router y memoria"
 
 try:
-    from .suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from .suite_utils import api_check as _api_check
 except ImportError:  # pragma: no cover
-    from suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from suite_utils import api_check as _api_check
 
 LLM_API = {
     "src.llm.client_base": ["OllamaClientBase", "ScenarioType"],
@@ -902,7 +898,7 @@ class TestNumCtxEstable:
     def test_presupuesto_no_excede_el_timeout(self):
         from config.settings import settings
         from src.core.dispatcher_handlers import MAX_TOKENS_ANALYSIS, MAX_TOKENS_CHAT
-        from src.llm.client_base import (CHARS_PER_TOKEN, MARGEN_PRESUPUESTO, PP_TOK_S,
+        from src.llm.client_base import (CHARS_PER_TOKEN, PP_TOK_S,
                                          TG_TOK_S, num_predict_coherente)
         malos, intactos = [], []
         for pedido, to, largo in ((4096, 45, 200), (4096, 180, 120), (8192, 420, 12000),

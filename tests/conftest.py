@@ -27,8 +27,7 @@ collect_ignore = [
 
 import pytest
 import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 from config.settings import settings
 

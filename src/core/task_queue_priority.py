@@ -38,18 +38,13 @@
 # ═══════════════════════════════════════════════════════════════
 import asyncio
 import logging
-import threading
 import time
 import uuid
 import hashlib
 from enum import Enum, IntEnum
-from typing import Optional, Dict, Any, List, Callable, Awaitable, Tuple
+from typing import Optional, Dict, Any
 from datetime import datetime, timezone
-from collections import OrderedDict, deque
 from dataclasses import dataclass, field
-from pathlib import Path
-from config.settings import settings
-from config.paths import Paths
 
 # ═══════════════════════════════════════════════════════════════
 # ✅ CORREGIDO: TaskError definida localmente (no existe en exceptions.py)

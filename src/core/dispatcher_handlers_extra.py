@@ -21,20 +21,16 @@ import asyncio
 import logging
 import re
 import time
-import inspect
 import base64
 import json
 from types import SimpleNamespace
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
-from src.domain.entities import Message, Response, MessageRole
+from src.domain.entities import Message, Response
 from config.settings import settings
 
 from src.tools_mcp.tool_executor import get_executor, ExecutionContext, ToolPermission
 from src.tools_mcp.tool_registry import get_registry
-from src.agents.code_contract import CodeContract
-from src.agents.code_validator import CodeValidator, build_validation_critique
-from src.tools_mcp.sandbox import get_sandbox_executor
 from src.utils.degradation import log_degraded
 
 # ✅ v0.6.9v (REFACTOR 50/50): plan-pipeline (F3 /plan) extraído a
@@ -48,12 +44,9 @@ from .dispatcher_handlers import (
     _log_error,
     _log_agent_execution,
     _log_model_call,
-    _log_router_decision,
-    _get_caller_info,
     _detect_code_content,
     MAX_TOKENS_ANALYSIS,
     MAX_TOKENS_CHAT,
-    MAX_TOKENS_DEFAULT,
     expects_factual_grounding,
     CODE_REVIEW_SYSTEM_PROMPT,
     GENERAL_ANALYSIS_SYSTEM_PROMPT,
@@ -80,7 +73,7 @@ def _notify_progress(message: Any, phase: str) -> None:
             log_degraded(logger, e, "dispatcher._notify_progress (callback de UI)", contract_level=logging.DEBUG)
 
 try:
-    from tools.detailed_logger import get_logger
+    from tools.detailed_logger import get_logger  # noqa: F401 — disponibilidad
     LOGGER_AVAILABLE = True
 except ImportError:
     LOGGER_AVAILABLE = False

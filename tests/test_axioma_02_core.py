@@ -1,17 +1,14 @@
 from __future__ import annotations
-import importlib
 import inspect
-import tempfile
 try:
     from .axioma_report import section, check
 except ImportError:  # pragma: no cover
     from axioma_report import section, check
 try:
-    from .suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from .suite_utils import import_safe as _import,\
+        api_check as _api_check
 except ImportError:  # pragma: no cover
-    from suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from suite_utils import import_safe as _import, api_check as _api_check
 
 
 # ════════════════════════════════════════════════════════════════# CONTENIDO FUSIONADO (ver ISSUE-057): este archivo absorbió otros por tema# ════════════════════════════════════════════════════════════════
@@ -45,7 +42,6 @@ CORE_API = {
     "src.core.jarvis_engine": [],
     "src.core.proactive_engine": [],
     "src.core.rafael_daemon": [],
-    "src.core.self_healing": [],
 }
 
 

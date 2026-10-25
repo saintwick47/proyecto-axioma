@@ -1,6 +1,5 @@
 import asyncio
 import inspect
-import json
 import sys
 from types import SimpleNamespace
 from pathlib import Path
@@ -421,9 +420,9 @@ if __name__ == "__main__":
 import ast
 import yaml
 try:
-    from .axioma_report import section, check
+    from .axioma_report import check
 except ImportError:  # pragma: no cover
-    from axioma_report import section, check
+    from axioma_report import check
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))

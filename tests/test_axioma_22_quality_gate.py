@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 import pytest
 try:
-    from .axioma_report import section, check
+    from .axioma_report import check
 except ImportError:  # pragma: no cover
-    from axioma_report import section, check
+    from axioma_report import check
 
 
 # ════════════════════════════════════════════════════════════════# CONTENIDO FUSIONADO (ver ISSUE-057): este archivo absorbió otros por tema# ════════════════════════════════════════════════════════════════
@@ -341,7 +341,6 @@ class TestReportPruning:
 # ── Fusionado desde test_axioma_24_stats_frescura.py ──
 import asyncio
 import inspect
-import time
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))

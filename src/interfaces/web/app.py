@@ -17,9 +17,8 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable, Union
-from nicegui import ui, app as nicegui_app
-from src.utils.degradation import log_degraded
+from typing import Optional, Any, List
+from nicegui import ui
 
 # ============================================================================
 # CONFIGURACIÓN DE RUTAS E IMPORTS
@@ -43,11 +42,10 @@ from ..components.modals import (
 from ..components.export_dialog import create_export_dialog  # ✅ F3 (v0.6.9v)
 from ..components.health_badge import HealthBadge  # ✅ ISSUE-053: badge de salud
 from ..components.sessions_dialog import create_sessions_dialog  # ✅ ISSUE-054
-from .states import SessionState, get_current_session, get_session_manager
+from .states import SessionState, get_current_session
 
 # ── Importar lógica extraída desde app_logic.py ─────────────────────────────
 from .app_logic import (
-    LOGGER_AVAILABLE,
     _log_web_event,
     _log_error,
     _build_response_metadata,
@@ -328,7 +326,7 @@ async def send_message(
     if not content or state.is_processing:
         return
 
-    _log_web_event("CHAT", f"Message sent", extra={
+    _log_web_event("CHAT", "Message sent", extra={
         "session_id": state.session_id[:16] if state.session_id else "new",
         "length": len(content)
     })
@@ -680,12 +678,19 @@ def main_page() -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def start_server(
-    host: str = '0.0.0.0',
+    host: str = '127.0.0.1',
     port: int = 8000,
     reload: bool = False
 ) -> None:
     """
     Inicia servidor NiceGUI con configuración optimizada.
+
+    El default es 127.0.0.1 (sólo este equipo), igual que `main.py --web` y
+    `server.py`: el middleware de Host protege `/api/*`, pero la UI NiceGUI y
+    su websocket quedaban accesibles desde la LAN con el default anterior
+    (`0.0.0.0`). Para exponerlo a la red hay que pedirlo explícitamente:
+    `start_server(host='0.0.0.0')`.
+
     Args:
         host: Host del servidor
         port: Puerto del servidor

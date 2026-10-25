@@ -19,8 +19,7 @@ import unicodedata
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from config.settings import settings
-from src.domain.types import TaskType
-from src.router.classifier_core import _log_error, _log_router
+from src.router.classifier_core import _log_error
 
 logger = logging.getLogger(__name__)
 

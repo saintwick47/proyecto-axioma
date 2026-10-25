@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
-from src.domain.entities import Message, Response, MessageRole
+from src.domain.entities import Message, Response
 from src.router.classifier import IntentClassifier
 from src.handlers.data_handler import DataHandler
 from src.agents.coder import CoderAgent
@@ -249,7 +249,6 @@ class Dispatcher(DispatcherDistributedMixin, DispatcherHandlersMixin, Dispatcher
         self._user_profile: Optional[Any] = None
         if _PROFILE_AVAILABLE:
             try:
-                from src.memory.gateway import MemoryGateway
                 from src.memory.knowledge_graph import KnowledgeGraph
                 from config.paths import Paths
                 _kg = KnowledgeGraph(db_path=Paths.DATA / "knowledge_graph.db")

@@ -10,15 +10,101 @@
 # devuelve JSON estructurado con el error en vez de propagar la excepción (una pantalla que
 # no carga no debe romper la aplicación).
 import asyncio
+import hmac
+import os
 import time
 from typing import Any, Dict
 
+from fastapi import Depends, HTTPException, Request
+
+from config.settings import settings
 from src.interfaces.web.routes import (
     router,
     _log_web_event,
     _log_error,
-    logger,
 )
+
+
+# ═══════════════════════════════════════════════════════════════
+# AUTENTICACIÓN DE LAS RUTAS QUE ESCRIBEN CONFIGURACIÓN
+# ═══════════════════════════════════════════════════════════════
+# MEDIDO (2026-10-25): `POST /api/v1/preflight/claves` escribía el `.env` y
+# respondía 200 SIN credenciales. Lo único que lo frenaba era el middleware de
+# `Host` de `server.py`, que **sólo actúa en loopback**: con
+# `AXIOMA_WEB_HOST=0.0.0.0` un `Host` ajeno pasaba y la escritura también.
+#
+# Diseño (el más simple que cierra el agujero sin romper la UI local):
+#   · Token en `AXIOMA_WEB_TOKEN`, enviado en el header `X-AXIOMA-Token` y
+#     comparado con `hmac.compare_digest` (no se filtra por tiempo).
+#   · Si hay token configurado, se EXIGE siempre (también en loopback): una
+#     página local maliciosa puede llamar a 127.0.0.1 con el `Host` correcto.
+#   · Si NO hay token configurado: se permite en loopback (la UI y el uso local
+#     de siempre no se rompen) y se RECHAZA cuando el bind no es local. Ese es
+#     el default seguro: el caso expuesto a la red nunca queda abierto.
+# La verificación se aplica sólo a las rutas que ESCRIBEN archivos de
+# configuración (`/preflight/claves` y `/preflight/modelos`); las de lectura
+# siguen abiertas para no romper la pantalla.
+TOKEN_HEADER = "X-AXIOMA-Token"
+VARIABLE_TOKEN = "AXIOMA_WEB_TOKEN"
+_BIND_LOCAL = {"127.0.0.1", "localhost", "::1"}
+
+
+def _bind_es_local() -> bool:
+    """¿El servidor escucha sólo en loopback? (misma fuente que `server._host_ligado`)."""
+    host = (os.environ.get("AXIOMA_WEB_HOST") or "127.0.0.1").strip().lower()
+    if host.startswith("["):            # [::1]:8080 → ::1
+        host = host[1:host.index("]")] if "]" in host else host
+    else:
+        host = host.split(":")[0]       # 127.0.0.1:8080 → 127.0.0.1
+    return host in _BIND_LOCAL
+
+
+def _token_esperado() -> str:
+    """Token configurado, o cadena vacía si nadie lo configuró.
+
+    Se mira primero `os.environ` (exportado al arrancar) y después el valor que
+    `config.settings` leyó del `.env` (pydantic-settings NO copia el `.env` a
+    `os.environ`, así que sin este segundo paso ponerlo sólo en el archivo no
+    tendría efecto). Un `AXIOMA_WEB_TOKEN=""` exportado desactiva el token a
+    propósito, sin caer al valor del `.env`.
+    """
+    crudo = os.environ.get(VARIABLE_TOKEN)
+    if crudo is None:
+        # `settings` ya leyó el `.env` (pydantic-settings); no hay excepción que
+        # tragarse porque el import es obligatorio para el resto del módulo.
+        crudo = settings.axioma_web_token or ""
+    return (crudo or "").strip()
+
+
+async def exigir_token_de_escritura(request: Request) -> None:
+    """Dependencia de FastAPI: autoriza (o rechaza) una ruta que escribe configuración.
+
+    401 si hay token configurado y el header falta o no coincide; 403 si no hay
+    token configurado y AXIOMA no está ligado a loopback. El valor recibido no
+    se registra nunca.
+    """
+    esperado = _token_esperado()
+    if esperado:
+        recibido = request.headers.get(TOKEN_HEADER, "")
+        # compare_digest sobre bytes: misma comparación en tiempo constante para
+        # cualquier longitud (no se corta en el primer byte distinto).
+        if not hmac.compare_digest(recibido.encode("utf-8"), esperado.encode("utf-8")):
+            _log_web_event("API", "POST de configuración rechazado: token inválido o ausente")
+            raise HTTPException(
+                status_code=401,
+                detail=(f"Token inválido o ausente. Mandá el header {TOKEN_HEADER} con el valor "
+                        f"de {VARIABLE_TOKEN}."),
+            )
+        return
+
+    if not _bind_es_local():
+        _log_web_event("API", "POST de configuración rechazado: expuesto sin token configurado")
+        raise HTTPException(
+            status_code=403,
+            detail=("Esta AXIOMA está expuesta a la red y no tiene token de escritura configurado. "
+                    f"Definí {VARIABLE_TOKEN} y mandalo en el header {TOKEN_HEADER} para poder "
+                    "guardar configuración desde la API."),
+        )
 
 
 @router.get("/preflight")
@@ -164,12 +250,16 @@ async def preflight_detener(identificador: str) -> Dict[str, Any]:
     return trabajo.estado()
 
 
-@router.post("/preflight/claves")
+@router.post("/preflight/claves", dependencies=[Depends(exigir_token_de_escritura)])
 async def preflight_guardar_claves(datos: Dict[str, str]) -> Dict[str, Any]:
     """Guarda las claves que manda el usuario en el `.env` (sólo las que el proyecto usa).
 
     Devuelve **los nombres** guardados, nunca los valores. Las claves son del usuario: no viajan en
     la imagen y quedan en un archivo con permisos sólo para él (`0600`).
+
+    Requiere el token de escritura (`X-AXIOMA-Token` / `AXIOMA_WEB_TOKEN`) cuando está configurado;
+    sin token configurado sólo se permite si AXIOMA escucha en loopback (ver
+    `exigir_token_de_escritura`).
     """
     _log_web_event("API", "POST /api/v1/preflight/claves")
     try:
@@ -250,12 +340,14 @@ async def preflight_modelos() -> Dict[str, Any]:
                         "Se guarda en tu `.env` y AXIOMA lo usa para ese rol.")}
 
 
-@router.post("/preflight/modelos")
+@router.post("/preflight/modelos", dependencies=[Depends(exigir_token_de_escritura)])
 async def preflight_guardar_modelos(datos: Dict[str, str]) -> Dict[str, Any]:
     """Guarda el modelo elegido para cada rol, VALIDANDO que exista en Ollama.
 
     Si un modelo no está instalado, **no se escribe nada** y se explica: escribir un nombre que no existe
     dejaría a AXIOMA sin poder responder en ese rol, y el error aparecería mucho después.
+
+    Escribe el `.env`: requiere el token de escritura, igual que `/preflight/claves`.
     """
     _log_web_event("API", "POST /preflight/modelos")
     try:

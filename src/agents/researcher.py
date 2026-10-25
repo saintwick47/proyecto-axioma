@@ -22,7 +22,7 @@ from typing import Optional, Dict, Any, List, Union
 from config.settings import settings
 from src.domain.types import TaskType, Searchable
 from src.domain.entities import Message
-from src.domain.exceptions import AgentError, LLMError
+from src.domain.exceptions import LLMError
 from src.utils.geolocator import get_geolocator
 from .base import BaseAgent, AgentResult
 from .researcher_sources import ResearcherSources
@@ -808,7 +808,7 @@ Máximo 2 párrafos concisos:"""
         """
         prompt = f"Sintetiza información sobre: {topic}"
         if sources:
-            prompt += f"\nFuentes:\n" + "\n".join(sources[:self.max_sources])
+            prompt += "\nFuentes:\n" + "\n".join(sources[:self.max_sources])
         return self.execute(Message(content=prompt, role="user"))
 
     def get_search_stats(self) -> Dict[str, Any]:

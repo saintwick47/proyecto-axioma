@@ -15,7 +15,6 @@ import logging
 
 import asyncio
 import sys
-import time
 import threading
 from pathlib import Path
 
@@ -23,7 +22,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import numpy as np
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+except (ImportError, OSError) as _exc:
+    # OSError: sounddevice está instalado pero falta PortAudio (librería del
+    # sistema). El módulo tiene que poder importarse sin audio; main() avisa.
+    sd = None
+    logging.getLogger(__name__).debug(f"[PTT] sounddevice no disponible: {_exc}")
 
 # Importar componentes de AXIOMA
 from src.core.dispatcher import Dispatcher
@@ -132,6 +138,9 @@ def process_audio():
 
 def main():
     global dispatcher
+    if sd is None:
+        print("❌ Audio no disponible: falta PortAudio (libportaudio2).")
+        sys.exit(1)
     print("🚀 Iniciando AXIOMA Push-to-Talk...")
     print(f"🎤 Mantén presionada la tecla '{PTT_KEY.upper()}' para hablar.")
     print("   Suelta la tecla para procesar la consulta.")
@@ -168,11 +177,11 @@ if __name__ == "__main__":
         print("❌ Instala pynput: pip install pynput")
         sys.exit(1)
 
-    # Verificar que sounddevice está instalado
+    # Verificar que sounddevice está instalado (y que PortAudio existe)
     try:
-        import sounddevice
-    except ImportError:
-        print("❌ Instala sounddevice: pip install sounddevice")
+        import sounddevice  # noqa: F401 — sólo se comprueba que exista (PortAudio)
+    except (ImportError, OSError) as exc:
+        print(f"❌ sounddevice no disponible ({exc}): instala sounddevice y PortAudio (libportaudio2)")
         sys.exit(1)
 
     main()

@@ -14,7 +14,6 @@ import ast
 import inspect
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,9 +24,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
-    from .axioma_report import section, check
+    from .axioma_report import check
 except ImportError:  # pragma: no cover
-    from axioma_report import section, check
+    from axioma_report import check
 
 SECTION = "25. Transparencia + feedback (P0)"
 

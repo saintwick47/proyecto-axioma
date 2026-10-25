@@ -12,7 +12,7 @@
 import logging
 import time
 from typing import Optional, Dict, Any, List, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # ✅ FIX: Importar desde types.py (NO definir StopReason localmente)
 from .types import StopReason

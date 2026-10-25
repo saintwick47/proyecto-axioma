@@ -18,7 +18,6 @@ import threading
 import atexit
 import importlib.util
 from typing import Optional, List, Callable, TYPE_CHECKING
-from config.settings import settings
 from src.utils.degradation import log_degraded
 
 if TYPE_CHECKING:   # ✅ Fase 0: sólo para el tipo — en ejecución no importa nada

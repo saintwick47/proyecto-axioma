@@ -108,7 +108,7 @@ def report_path() -> Path:
                         f"- **Suite:** verificación integral de `config/`, `src/` y estructura del proyecto\n"
                         + (f"- **Tanda (run-id):** `{RUN_ID}` — los resultados de todos los\n"
                            f"  archivos de la tanda se acumulan en ESTE archivo.\n" if _IS_SHARED_RUN else "")
-                        + f"\n---\n\n"
+                        + "\n---\n\n"
                     )
                 except Exception:
                     pass

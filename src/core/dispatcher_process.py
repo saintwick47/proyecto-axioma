@@ -26,16 +26,14 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 
 from src.domain.entities import Message, Response
-from src.llm.client import OllamaClient
 from config.settings import settings
-from src.core.dispatcher_handlers import _log_event, _log_error, _log_router_decision
+from src.core.dispatcher_handlers import _log_event, _log_error
 
 # ✅ v0.6.9v (REFACTOR 50/50): guard + write-path de memoria extraídos a
 # src/core/dispatcher_process_guard.py. DispatcherProcessMixin hereda el mixin.
 from src.core.dispatcher_process_guard import DispatcherProcessGuardMixin
 from src.core.dispatcher_process_steps import DispatcherProcessStepsMixin
 from src.utils.degradation import log_degraded
-from src.core.dispatcher_process_guard import calibrate_response_confidence
 
 # ── FASE 3 (plan_harness): evento dispatch.started. Import diferido del
 # bus dentro de process() (src/core/__init__ importa el Dispatcher con

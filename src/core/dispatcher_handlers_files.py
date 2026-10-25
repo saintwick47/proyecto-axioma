@@ -617,7 +617,7 @@ class DispatcherHandlersFilesMixin:
                 f"CARPETA: {folder}\n"
                 f"ARCHIVOS LEÍDOS ({len(read_sources)}):\n"
                 + "\n".join(f"- {p3}" for p3 in read_sources)
-                + f"\n\nCONTENIDO:\n" + "\n".join(blob_parts) + note
+                + "\n\nCONTENIDO:\n" + "\n".join(blob_parts) + note
             )
 
             gen = await self._llm_generate_with_retry(

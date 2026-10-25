@@ -16,7 +16,7 @@
 import logging
 import time
 import json
-from typing import Optional, Dict, Any, Callable, List
+from typing import Optional, Dict, Any, Callable
 from nicegui import ui
 from datetime import datetime
 from pathlib import Path

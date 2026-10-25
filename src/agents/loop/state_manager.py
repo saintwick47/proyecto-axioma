@@ -402,7 +402,7 @@ class StateManager:
             return False
         self._state = LoopState.PAUSED
         self._take_snapshot()
-        logger.info(f"StateManager: paused")
+        logger.info("StateManager: paused")
         return True
 
     def resume(self) -> bool:
@@ -411,7 +411,7 @@ class StateManager:
             return False
         self._state = LoopState.RUNNING
         self._take_snapshot()
-        logger.info(f"StateManager: resumed")
+        logger.info("StateManager: resumed")
         return True
 
     def set_phase(self, phase: LoopPhase) -> bool:

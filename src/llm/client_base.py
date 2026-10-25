@@ -39,7 +39,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # ── Re-exports de la mitad movida (API pública intacta) ──────────────────────
-from src.llm.client_base_infra import (  # noqa: E402
+from src.llm.client_base_infra import (  # noqa: E402, F401 — re-export: API pública intacta
     RequestCache, HTTPSessionPool,
     LOGGER_AVAILABLE, get_logger,
     _log_model_call, _log_error, _log_event, _log_file,
@@ -142,13 +142,13 @@ class OllamaClientBase:
         pool = self._get_session_pool(self.base_url, effective_timeout)
         session = pool.acquire(timeout=effective_timeout)
         self._session = session
-        _log_event("OLLAMA_CLIENT", f"Session acquired from pool", extra={"base_url": self.base_url, "timeout": effective_timeout})
+        _log_event("OLLAMA_CLIENT", "Session acquired from pool", extra={"base_url": self.base_url, "timeout": effective_timeout})
         return session
 
     def _release_client(self, session: httpx.Client) -> None:
         if self._session_pool:
             self._session_pool.release(session)
-        _log_event("OLLAMA_CLIENT", f"Session released to pool")
+        _log_event("OLLAMA_CLIENT", "Session released to pool")
 
     def _calculate_backoff(self, attempt: int) -> float:
         delay = self.base_delay * (2 ** attempt)
@@ -258,7 +258,7 @@ class OllamaClientBase:
 
             self.circuit_breaker.record_success()
             duration = time.time() - start
-            _log_event("OLLAMA_CLIENT", f"Model pre-loaded successfully", extra={
+            _log_event("OLLAMA_CLIENT", "Model pre-loaded successfully", extra={
                 "model": self.model, "duration_seconds": round(duration, 2)
             })
             _log_model_call(self.model, "preload", "SYSTEM", duration=duration, success=True)
@@ -268,7 +268,7 @@ class OllamaClientBase:
         except Exception as e:
             self.circuit_breaker.record_failure()
             duration = time.time() - start
-            _log_event("OLLAMA_CLIENT", f"Model pre-load failed", level="WARNING", extra={
+            _log_event("OLLAMA_CLIENT", "Model pre-load failed", level="WARNING", extra={
                 "model": self.model, "error": str(e), "duration_seconds": round(duration, 2)
             })
             _log_model_call(self.model, "preload", "SYSTEM", duration=duration, success=False)
@@ -335,7 +335,7 @@ class OllamaClientBase:
             cached = cache.get(self.model, prompt, temperature, system=system, max_tokens=_cache_max_tokens)
             if cached:
                 elapsed = time.time() - start_time
-                _log_event("OLLAMA_CLIENT", f"Cache HIT", extra={"model": self.model, "task_type": task_type, "duration_ms": round(elapsed * 1000, 2)})
+                _log_event("OLLAMA_CLIENT", "Cache HIT", extra={"model": self.model, "task_type": task_type, "duration_ms": round(elapsed * 1000, 2)})
                 return OllamaResponse(content=cached["content"], model=cached["model"], done=cached["done"],
                                       total_duration=cached["total_duration"], load_duration=cached["load_duration"],
                                       prompt_eval_count=cached["prompt_eval_count"], eval_count=cached["eval_count"],
@@ -401,7 +401,7 @@ class OllamaClientBase:
                         model=self.model
                     )
 
-            _log_event("OLLAMA_CLIENT", f"No fallback available", level="ERROR",
+            _log_event("OLLAMA_CLIENT", "No fallback available", level="ERROR",
                        extra={"model": self.model, "fallback": fallback})
             raise LLMError(f"Circuit breaker OPEN para {self.model}", model=self.model)
 
@@ -512,7 +512,7 @@ class OllamaClientBase:
                     eval_count=int(data.get("eval_count", 0) or 0),
                     eval_duration=_safe_divide(data.get("eval_duration"), 1e9), raw=data)
                 elapsed = time.time() - start_time
-                _log_event("OLLAMA_CLIENT", f"Generate completed successfully", extra={
+                _log_event("OLLAMA_CLIENT", "Generate completed successfully", extra={
                     "model": self.model, "task_type": task_type, "duration_seconds": round(elapsed, 4),
                     "tokens_generated": ollama_response.eval_count, "tokens_prompt": ollama_response.prompt_eval_count,
                     "num_ctx_used": num_ctx, "num_predict_used": effective_max_tokens,
@@ -585,17 +585,17 @@ class OllamaClientBase:
                 embedding = singleton.embed(text)
                 if embedding is not None:
                     elapsed = time.time() - start_time
-                    _log_event("OLLAMA_CLIENT", f"Embed via LOCAL singleton (skipped HTTP)",
+                    _log_event("OLLAMA_CLIENT", "Embed via LOCAL singleton (skipped HTTP)",
                                extra={"model": embed_model, "embedding_dimension": len(embedding), "duration_ms": round(elapsed * 1000, 2)})
                     _log_model_call(embed_model, "embed", "EMBEDDING", input_size=len(text),
                                    output_size=len(embedding), duration=elapsed, success=True)
                     return embedding
             except Exception as e:
-                _log_event("OLLAMA_CLIENT", f"Singleton failed, falling back to HTTP", level="WARNING",
+                _log_event("OLLAMA_CLIENT", "Singleton failed, falling back to HTTP", level="WARNING",
                            extra={"model": embed_model, "error": str(e)})
 
         # Para otros modelos o si singleton falla: ruta HTTP normal
-        _log_event("OLLAMA_CLIENT", f"Embed started (HTTP)", extra={"model": embed_model, "text_length": len(text)})
+        _log_event("OLLAMA_CLIENT", "Embed started (HTTP)", extra={"model": embed_model, "text_length": len(text)})
         _log_model_call(embed_model, "embed", "EMBEDDING", input_size=len(text))
 
         if use_cache:
@@ -603,7 +603,7 @@ class OllamaClientBase:
             cached = cache.get(embed_model, text, None)
             if cached and "embedding" in cached:
                 elapsed = time.time() - start_time
-                _log_event("OLLAMA_CLIENT", f"Embed cache HIT", extra={"model": embed_model, "duration_ms": round(elapsed * 1000, 2)})
+                _log_event("OLLAMA_CLIENT", "Embed cache HIT", extra={"model": embed_model, "duration_ms": round(elapsed * 1000, 2)})
                 return cached["embedding"]
 
         effective_timeout = timeout or settings.ollama_timeout_embed
@@ -615,13 +615,13 @@ class OllamaClientBase:
                 "prompt": text,
                 "keep_alive": settings.ollama_keep_alive,
             }
-            _log_event("OLLAMA_CLIENT", f"Sending embed request", extra={"model": embed_model})
+            _log_event("OLLAMA_CLIENT", "Sending embed request", extra={"model": embed_model})
             response = session.post(f"{self.base_url}/api/embeddings", json=payload, timeout=effective_timeout)
             response.raise_for_status()
             data = response.json()
             embedding = data.get("embedding", [])
             elapsed = time.time() - start_time
-            _log_event("OLLAMA_CLIENT", f"Embed completed", extra={"model": embed_model, "embedding_dimension": len(embedding)})
+            _log_event("OLLAMA_CLIENT", "Embed completed", extra={"model": embed_model, "embedding_dimension": len(embedding)})
             _log_model_call(embed_model, "embed", "EMBEDDING", input_size=len(text), output_size=len(embedding), duration=elapsed, success=True)
             if use_cache:
                 cache = self._get_cache()

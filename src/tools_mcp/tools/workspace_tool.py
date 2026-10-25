@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from ..tool_base import (
     BaseTool,
@@ -109,6 +109,19 @@ class WorkspaceManageTool(BaseTool):
                 latency_ms=(time.perf_counter() - t0) * 1000,
             )
 
+        # ✅ FIX SEGURIDAD (2026-10-25): el session_id viene del cliente (y de un
+        # posible prompt injection). Se valida acá para devolver un fallo claro
+        # (no un "500" ni un borrado fuera del base): la tool corre con EXECUTE.
+        if action in ("inspect", "cleanup") and session_id:
+            try:
+                wm.validate_session_id(session_id)
+            except ValueError as e:
+                return ToolResult.fail(
+                    error=str(e),
+                    tool_name=self.name,
+                    latency_ms=(time.perf_counter() - t0) * 1000,
+                )
+
         latency = (time.perf_counter() - t0) * 1000
 
         try:
@@ -170,7 +183,10 @@ class WorkspaceManageTool(BaseTool):
                 workspaces = wm.list_workspaces()
                 results = []
                 for sid in workspaces:
-                    results.append({"session_id": sid, "deleted": wm.cleanup(sid)})
+                    try:
+                        results.append({"session_id": sid, "deleted": wm.cleanup(sid)})
+                    except ValueError as e:
+                        results.append({"session_id": sid, "deleted": False, "error": str(e)})
                 total_deleted = sum(1 for r in results if r["deleted"])
                 return ToolResult.ok(
                     output=f"{total_deleted}/{len(results)} workspaces eliminados",

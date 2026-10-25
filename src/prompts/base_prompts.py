@@ -12,7 +12,7 @@ que ningún agente puede violar, independientemente de su especialización.
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from src.utils.degradation import log_degraded
 

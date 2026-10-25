@@ -9,7 +9,7 @@
 # Propósito: exports para módulos de interfaz (web + cli)
 # ═══════════════════════════════════════════════════════════════
 
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List
 
 __version__ = "0.4.0"
 __author__ = "SaintWick"

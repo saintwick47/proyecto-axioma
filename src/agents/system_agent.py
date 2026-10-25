@@ -19,7 +19,6 @@ from typing import Optional, Tuple
 from src.agents.base import BaseAgent, AgentResult
 from src.core.promotion_gate import get_promotion_gate
 from src.domain.entities import Message
-from src.domain.types import AgentRole
 
 logger = logging.getLogger(__name__)
 

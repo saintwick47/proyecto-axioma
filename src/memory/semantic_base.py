@@ -471,7 +471,7 @@ class SemanticMemoryBase:
         try:
             return f"SemanticMemoryBase(collection={self.collection_name})"
         except Exception:
-            return f"SemanticMemoryBase(collection=unknown)"
+            return "SemanticMemoryBase(collection=unknown)"
 
     def __del__(self):
         try:

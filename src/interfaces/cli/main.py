@@ -36,14 +36,14 @@ from src.utils.ui import fuentes_de_respuesta
 # LOGGING — Integración con DetailedLogger
 # ============================================================================
 try:
-    from tools.detailed_logger import get_logger
+    # Prueba de disponibilidad (setea LOGGER_AVAILABLE), no se llama acá.
+    from tools.detailed_logger import get_logger  # noqa: F401
     LOGGER_AVAILABLE = True
 except ImportError:
     LOGGER_AVAILABLE = False
 
 try:
     from rich.console import Console
-    from rich.markdown import Markdown
     from rich.panel import Panel
     RICH_AVAILABLE = True
 except ImportError:
@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 # ✅ PARTICIÓN 50/50 (2026-10-24): la lógica del backup se movió al hermano
 # `backup.py`; se re-importa con los MISMOS nombres para que `main.cmd_backup`,
 # `main.crear_backup_json` y los helpers sigan existiendo como los mismos objetos.
-from .backup import (
+from .backup import (  # noqa: F401 — re-export: API pública intacta
     _BACKUP_LOCK,
     _BACKUP_MAX,
     _aplicar_retencion,
@@ -646,7 +646,6 @@ def cmd_voice(console: CLIConsole, model: Optional[str] = None) -> int:
     try:
         from src.multimodal.audio_pipeline import AudioPipeline
         from src.multimodal.stt_engine import STTConfig
-        from src.multimodal.tts_engine import TTSConfig
     except ImportError as e:
         console.print_error(f"Módulo de voz no disponible: {e}")
         console.print_info("Instalar: pip install faster-whisper sounddevice edge-tts webrtcvad-wheels soundfile")

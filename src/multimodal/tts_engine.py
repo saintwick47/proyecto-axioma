@@ -40,10 +40,14 @@ try:
     import sounddevice as sd
     import soundfile as sf
     _PLAYBACK_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # OSError: falta PortAudio (libportaudio2) o libsndfile; el import revienta
+    # aunque el paquete esté instalado. La reproducción se desactiva, pero el
+    # módulo sigue importándose (el TTS offline y edge-tts no dependen de esto).
     sd = None
     sf = None
     _PLAYBACK_AVAILABLE = False
+    logger.debug(f"[TTS] sounddevice/soundfile no disponible: {_exc}")
 
 # ✅ Semana 3 C3: pyttsx3 como fallback offline
 try:

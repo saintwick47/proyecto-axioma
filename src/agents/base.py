@@ -20,15 +20,13 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List, Generator
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
-from enum import Enum
 from collections import deque
 import time
 import uuid
-import traceback
 import threading
 
 from config.settings import settings
-from src.domain.types import TaskType, AgentRole, StatsProvider, ExecutableAgent, AgentPriority, RuntimeMode
+from src.domain.types import StatsProvider, ExecutableAgent, AgentPriority, RuntimeMode
 from src.domain.entities import (Message, Response, AgentState, AgentExecution,
                                  limpiar_marcado_interno)
 from src.domain.exceptions import AgentError, LLMError

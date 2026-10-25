@@ -25,7 +25,6 @@
 from __future__ import annotations
 
 import logging
-import signal
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,7 +34,7 @@ from contextlib import contextmanager
 # ── Import desde sandbox_staging (refactorización 50/50) ────────
 # Mantenemos la importación para compatibilidad con código externo
 # que importe StagingFS/gets_staging desde sandbox.py
-from .sandbox_staging import StagingEntry, StagingFS, get_staging
+from .sandbox_staging import StagingEntry, StagingFS, get_staging  # noqa: F401 — re-export
 
 # ── Import desde sandbox_execution (refactorización 50/50) ──────
 # Nombres movidos al hermano, re-importados con los MISMOS nombres:

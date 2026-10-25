@@ -48,7 +48,7 @@ except ImportError:
     _MODEL_SWAP_AVAILABLE = False
 
 try:
-    from src.core.memory_guard import get_memory_guard, MemoryGuard
+    from src.core.memory_guard import get_memory_guard, MemoryGuard  # noqa: F401 — disponibilidad
     _MEMORY_GUARD_AVAILABLE = True
 except ImportError:
     _MEMORY_GUARD_AVAILABLE = False

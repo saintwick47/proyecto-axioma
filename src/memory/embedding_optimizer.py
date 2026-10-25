@@ -17,11 +17,7 @@ import threading
 from typing import Optional, Dict, Any, List, Callable, Tuple
 from datetime import datetime, timezone
 from collections import OrderedDict
-from pathlib import Path
-from dataclasses import dataclass, field
-from config.settings import settings
-from config.paths import Paths
-from src.domain.exceptions import MemoryError
+from dataclasses import dataclass
 from src.utils.degradation import log_degraded
 
 # ============================================================================

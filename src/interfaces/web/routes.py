@@ -18,19 +18,18 @@
 # ═══════════════════════════════════════════════════════════════
 import logging
 import asyncio
-import os
-import signal
 import time
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, UploadFile, File, Form
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-import json
 from pathlib import Path
-from config.settings import settings
 from config.paths import Paths
-from src.domain.entities import Message, Response, MessageRole
+# ✅ 2026-10-25 (fuente única de la versión): /health devolvía "0.1.0" fijo
+# mientras el proyecto iba por otra versión. Se lee de `src/__init__.py`, igual
+# que `/status` (routes_extended) y `FastAPI(version=...)` (server).
+from src import __version__ as AXIOMA_VERSION
+from src.domain.entities import Message
 from src.domain.exceptions import AxiomaError, IntegrationError
 from src.router.smart_router import SmartRouter
 # ============================================================================
@@ -229,7 +228,7 @@ async def health_endpoint() -> Dict[str, Any]:
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "0.1.0",
+        "version": AXIOMA_VERSION,
     }
 
 # ═══════════════════════════════════════════════════════════════
@@ -368,7 +367,7 @@ async def upload_file_endpoint(
         allowed_extensions = {".jsonl", ".pdf", ".log", ".toon", ".txt", ".json", ".csv", ".py", ".md"}
         file_ext = Path(file.filename).suffix.lower() if file else ""
         if file_ext not in allowed_extensions:
-            _log_web_event("API", f"POST /api/v1/upload_file - INVALID_EXTENSION",
+            _log_web_event("API", "POST /api/v1/upload_file - INVALID_EXTENSION",
                            extra={"extension": file_ext, "allowed": list(allowed_extensions)})
             return FileUploadResponse(
                 success=False,
@@ -444,7 +443,7 @@ async def analyze_file_endpoint(request: FileAnalysisRequest) -> FileAnalysisRes
         upload_dir = Paths.DATA / "uploads"
         file_path = upload_dir / request.file_id
         if not file_path.exists():
-            _log_web_event("API", f"POST /api/v1/analyze_file - FILE_NOT_FOUND",
+            _log_web_event("API", "POST /api/v1/analyze_file - FILE_NOT_FOUND",
                            extra={"file_id": request.file_id})
             return FileAnalysisResponse(
                 success=False,

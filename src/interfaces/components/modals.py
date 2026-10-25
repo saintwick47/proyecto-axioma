@@ -18,7 +18,6 @@ import signal
 import time
 from typing import Optional, Dict, Any, Callable, List
 from nicegui import ui
-from datetime import datetime
 from config.settings import settings
 
 # ============================================================================
@@ -109,7 +108,7 @@ class AmbiguityWarningDialog:
                       extra={"duration": round(duration, 4),
                             "continue_callback": continue_callback is not None,
                             "clarify_callback": clarify_callback is not None})
-        logger.debug(f"AmbiguityWarningDialog initialized")
+        logger.debug("AmbiguityWarningDialog initialized")
 
     def create(self) -> ui.dialog:
         """

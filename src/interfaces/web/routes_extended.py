@@ -16,35 +16,21 @@
 # ✅ CORREGIDO: Importación consistente desde routes.py (router singleton, helpers, modelos)
 # ✅ CORREGIDO: Distribución 50/50 de responsabilidades entre archivos
 # ✅ COMPLETO: ~520 líneas — SIN OMISIONES — PROTOCOLO CUMPLIDO
-import logging
-import asyncio
 import os
-import signal
 import time
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-import json
+from typing import Optional, Dict, Any
 from pathlib import Path
 from config.settings import settings
 from config.paths import Paths
 # ✅ v0.6.9w (FIX VERSIONES): /status devolvía `"version": "0.2.0"` hardcodeada
 # mientras el proyecto va por 0.6.9. Fuente única: `src/__init__.py`.
 from src import __version__ as AXIOMA_VERSION
-from src.domain.entities import Message, Response, MessageRole
-from src.domain.exceptions import AxiomaError, IntegrationError
-from src.router.smart_router import SmartRouter
 # ✅ CORREGIDO: Importa router, helpers y modelos desde routes.py para evitar duplicación
 from src.interfaces.web.routes import (
-    router, _log_web_event, _log_error, LOGGER_AVAILABLE, logger,
-    ChatRequest, ChatResponse, FileUploadResponse, FileAnalysisRequest,
-    FileAnalysisResponse, BackupRequest, BackupResponse, ModelCheckResponse,
-    APIStatusResponse, get_router, cleanup_router
+    router, _log_web_event, _log_error, logger,
+    get_router
 )
-from src.agents.analyst import AnalystAgent
-from src.llm.client import OllamaClient
 
 # ✅ PLAN v2.0 (Fase 2): TraceStore — import seguro (mismo patrón que
 # dispatcher_operations.py); el endpoint /traces delega 100% en él.
@@ -471,6 +457,14 @@ async def get_traces(
                        extra={"error": str(e)})
         return {"available": False, "traces": [], "error": str(e)}
 # ═══════════════════════════════════════════════════════════════
+# HELPERS COMUNES
+# ═══════════════════════════════════════════════════════════════
+def _json_error(status_code: int, mensaje: str) -> JSONResponse:
+    """Respuesta JSON de error uniforme (workspace: 400/403/404)."""
+    return JSONResponse(status_code=status_code, content={"error": mensaje})
+
+
+# ═══════════════════════════════════════════════════════════════
 # ENDPOINT: /workspace/download (FASE 8) — Descarga segura de archivos
 # ═══════════════════════════════════════════════════════════════
 @router.get("/workspace/download")
@@ -496,7 +490,14 @@ async def download_workspace_file(session_id: str, filename: str):
     try:
         from src.core.workspace_manager import get_workspace_manager
         wm = get_workspace_manager()
-        workspace = wm.get_workspace(session_id)
+        # ✅ FIX 2026-10-25: el session_id del cliente se valida en WorkspaceManager.
+        try:
+            workspace = wm.get_workspace(session_id)
+        except ValueError as e:
+            duration = time.time() - start_time
+            _log_web_event("API", f"GET /api/v1/workspace/download - BLOCKED session_id - {duration:.2f}ms",
+                           extra={"session_id": session_id})
+            return _json_error(400, str(e))
         file_path = os.path.join(workspace, filename)
 
         # Seguridad 1: path traversal — el archivo debe estar DENTRO del workspace
@@ -506,10 +507,7 @@ async def download_workspace_file(session_id: str, filename: str):
             duration = time.time() - start_time
             _log_web_event("API", f"GET /api/v1/workspace/download - BLOCKED traversal - {duration:.2f}ms",
                            extra={"session_id": session_id, "filename": filename})
-            return JSONResponse(
-                status_code=403,
-                content={"error": "Acceso fuera del workspace"}
-            )
+            return _json_error(403, "Acceso fuera del workspace")
 
         # Seguridad 2: bloquear archivos internos (no son output del usuario)
         fn_lower = filename.lower()
@@ -519,29 +517,20 @@ async def download_workspace_file(session_id: str, filename: str):
             duration = time.time() - start_time
             _log_web_event("API", f"GET /api/v1/workspace/download - BLOCKED internal - {duration:.2f}ms",
                            extra={"session_id": session_id, "filename": filename})
-            return JSONResponse(
-                status_code=403,
-                content={"error": "Archivo interno del sistema, no descargable"}
-            )
+            return _json_error(403, "Archivo interno del sistema, no descargable")
         for prefix in blocked_prefixes:
             if fn_lower.startswith(prefix):
                 duration = time.time() - start_time
                 _log_web_event("API", f"GET /api/v1/workspace/download - BLOCKED prefix - {duration:.2f}ms",
                                extra={"session_id": session_id, "filename": filename})
-                return JSONResponse(
-                    status_code=403,
-                    content={"error": "Archivo interno del sistema, no descargable"}
-                )
+                return _json_error(403, "Archivo interno del sistema, no descargable")
 
         # Seguridad 3: el archivo debe existir y ser un archivo (no directorio)
         if not os.path.isfile(real_path):
             duration = time.time() - start_time
             _log_web_event("API", f"GET /api/v1/workspace/download - NOT FOUND - {duration:.2f}ms",
                            extra={"session_id": session_id, "filename": filename})
-            return JSONResponse(
-                status_code=404,
-                content={"error": f"Archivo no encontrado: {filename}"}
-            )
+            return _json_error(404, f"Archivo no encontrado: {filename}")
 
         duration = time.time() - start_time
         _log_web_event("API", f"GET /api/v1/workspace/download - SUCCESS - {duration:.2f}ms",
@@ -575,8 +564,16 @@ async def get_attempt_history(session_id: str):
     try:
         from src.core.workspace_manager import get_workspace_manager
         wm = get_workspace_manager()
+        # ✅ FIX SEGURIDAD (2026-10-25): mismo rechazo que en /workspace/download;
+        # antes `session_id=/etc` listaba/abría rutas fuera del base.
+        try:
+            workspace = wm.get_workspace(session_id)
+        except ValueError as e:
+            duration = time.time() - start_time
+            _log_web_event("API", f"GET /api/v1/workspace/attempts - BLOCKED session_id - {duration:.2f}ms",
+                           extra={"session_id": session_id})
+            return _json_error(400, str(e))
         history = wm.get_attempt_history(session_id)
-        workspace = wm.get_workspace(session_id)
 
         attempts = []
         for entry in history:

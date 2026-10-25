@@ -1,5 +1,6 @@
 # ═══════════════════════════════════════════════════════════════
-# AXIOMA v0.6.7 — CONFIGURACIÓN DE MODELOS
+# AXIOMA v0.7.5 — CONFIGURACIÓN DE MODELOS
+# (encabezado documental: la versión vigente vive en `src/__init__.py.__version__`)
 # ═══════════════════════════════════════════════════════════════
 # Ruta: /ruta/a/axioma/config/models.yaml
 # Autor: SaintWick

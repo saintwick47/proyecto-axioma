@@ -20,20 +20,17 @@
 #    - Model text fallback en create(): vicgalle/prometheus → qwen3:8b
 # ═══════════════════════════════════════════════════════════════
 import asyncio
-import base64
 import logging
 import re
-import time
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable, Tuple
+from typing import Optional, Dict, Any, List, Callable
 
-from nicegui import ui, events, context as _ng_context
+from nicegui import ui, context as _ng_context
 
 # ✅ Fase 5: reusa el writer de archivos ya probado de app_logic.py — no
 # duplica la lógica de guardado, solo el botón de descarga es nuevo acá.
 try:
-    from tools.detailed_logger import get_logger
+    from tools.detailed_logger import get_logger  # noqa: F401 — disponibilidad
     LOGGER_AVAILABLE = True
 except ImportError:
     LOGGER_AVAILABLE = False
@@ -599,7 +596,7 @@ class ChatComponent(ChatAttachmentsMixin, ChatRenderMixin):
             # que el `except` terminó, así que `e` ya no existe. Se captura ahora.
             _error_txt = str(e)
             self._schedule_ui(lambda: ui.notify(
-                f"❌ Error crítico en RAC",
+                "❌ Error crítico en RAC",
                 color='negative',
                 timeout=10,
             ))

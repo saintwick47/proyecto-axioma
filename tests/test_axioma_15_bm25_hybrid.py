@@ -145,7 +145,7 @@ class TestReranker:
     """v0.6.9t — re-ranking (proxy) para cerrar el retrieval híbrido."""
 
     def test_documento_con_frase_queda_arriba(self):
-        from src.utils.reranker import rerank, score_proxy
+        from src.utils.reranker import rerank
         cands = [
             {"text": "receta de milanesa al horno", "score": 0.5},
             {"text": "milanesa milanesa milanesa suelto", "score": 0.6},

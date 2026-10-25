@@ -27,7 +27,6 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 from config.settings import settings
-from config.paths import Paths
 from src.utils.degradation import log_degraded
 
 # ============================================================================

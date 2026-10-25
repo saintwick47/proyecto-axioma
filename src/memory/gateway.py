@@ -37,22 +37,12 @@
 import logging
 import time
 import uuid
-from typing import Optional, List, Dict, Any
-from pathlib import Path
+from typing import Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from config.settings import settings
 from config.paths import Paths
-from src.domain.exceptions import MemoryError
-from src.domain.entities import Message, Session
-from src.domain.types import TaskType
 from src.utils.degradation import log_degraded
 from .gateway_ops import MemoryGatewayOps, _log_memory, _log_error
-from .context_strategies import (
-    TokenEstimator, SelectorConfig,
-    RecencySelector, RelevanceSelector, HybridSelector, MythosInspiredSelector,
-    BaseSelector
-)
-import json
 
 # ── FASE 2 (plan_harness): SessionEventLog — evento por mensaje agregado ────
 # Import seguro: si la infraestructura de eventos no está disponible, la
@@ -67,7 +57,7 @@ except ImportError:
 # a src/memory/palace_storage.py. gateway.py queda como orquestador de capas.
 # Re-exporta Palace/MEMPALACE_AVAILABLE/_PALACE_LANCE_AVAILABLE/get_embedding_model
 # para compatibilidad interna (gateway los usa en _init_semantic/search_semantic).
-from .palace_storage import (  # noqa: E402
+from .palace_storage import (  # noqa: E402, F401 — re-export: API pública intacta
     Palace,
     MEMPALACE_AVAILABLE,
     _PALACE_LANCE_AVAILABLE,
@@ -98,7 +88,7 @@ logger = logging.getLogger(__name__)
 # ✅ Refactor 50/50 (2026-10-22): helpers de módulo movidos al hermano. Se
 # re-importan con los mismos nombres ⇒ API pública intacta (gateway.TASK_TO_SOURCE,
 # gateway._session_date) y `MemoryGateway` hereda del mixin de lectura.
-from .gateway_retrieval import (  # noqa: E402
+from .gateway_retrieval import (  # noqa: E402, F401 — re-export: API pública intacta
     MemoryGatewayRetrievalMixin,
     TASK_TO_SOURCE,
     _SESSION_DATE_RE,

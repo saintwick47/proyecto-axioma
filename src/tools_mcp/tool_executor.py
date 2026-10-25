@@ -29,7 +29,6 @@ from .tool_registry import ToolRegistry, get_registry
 # ── Import desde executor_infrastructure (refactorización 50/50) ──
 from .executor_infrastructure import (
     ToolMetrics,
-    CircuitBreaker,
     CircuitBreakerRegistry,
 )
 

@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 import pytest
 try:
-    from .axioma_report import section, check
+    from .axioma_report import check
 except ImportError:  # pragma: no cover
-    from axioma_report import section, check
+    from axioma_report import check
 
 
 # ════════════════════════════════════════════════════════════════# CONTENIDO FUSIONADO (ver ISSUE-057): este archivo absorbió otros por tema# ════════════════════════════════════════════════════════════════
@@ -684,8 +684,7 @@ class TestEWMAVivoYTelemetria:
 
     def test_tasa_de_exito_sobre_decididas(self, tmp_path):
         import asyncio
-        from src.core.feedback_loop_components import (ExplicitRating,
-                                                       FeedbackType)
+        from src.core.feedback_loop_components import (ExplicitRating)
         loop = self._loop(tmp_path)
         asyncio.run(loop.record_explicit("s", "general_chat", "LLM_Chat", "q", "r",
                                          ExplicitRating.GOOD))

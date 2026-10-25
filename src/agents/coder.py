@@ -25,21 +25,17 @@ from .coder_prompts import CoderPromptMixin
 # ── Módulo auxiliar (mismo directorio) ──────────────────────────
 from .coder_core import (
     # Constantes
-    QUALITY_THRESHOLDS, QUALITY_WEIGHTS, BLACKLIST_TTL,
-    # Dataclass
     GenerationCursor,
     # Logging
-    log_agent, log_error, log_event,
+    log_error, log_event,
     # Extracción
-    extract_code, extract_filename, suggest_filename, extract_code_blocks,
-    detect_refusal,
+    extract_code, extract_filename, suggest_filename, detect_refusal,
     # Complejidad
     is_complex_request,
     # Quality
-    analyze_code_quality, get_quality_threshold_for_level,
-    should_retry_for_quality, build_quality_critique,
+    analyze_code_quality, should_retry_for_quality, build_quality_critique,
     # Blacklist
-    get_code_hash, is_code_blacklisted, blacklist_code, init_blacklist,
+    is_code_blacklisted, blacklist_code, init_blacklist,
     # Chunked
     estimate_needs_chunking, extract_first_code_block, remove_overlap,
     detect_completion, update_open_structures, build_continuation_prompt,
@@ -839,7 +835,7 @@ class CoderAgent(CoderPromptMixin, BaseAgent):
         # ✅ MANEJO EXPLÍCITO DE EARLY EXIT CWE
         # ═══════════════════════════════════════════════════════════════
         except CriticalSecurityFlawDetected as e:
-            logger.warning(f"🚨 CRITICAL CWE FLAW DETECTED. Forzando reintento con crítica específica.")
+            logger.warning("🚨 CRITICAL CWE FLAW DETECTED. Forzando reintento con crítica específica.")
             cwe_critique = (
                 f"⚠️ FALLO DE SEGURIDAD CRÍTICO DETECTADO EN TU CÓDIGO: {e.args[0]}\n"
                 "REGLA ESTRICTA: NUNCA uses eval(), exec(), os.system(), subprocess.call() sin shell=False, ni pickle.loads().\n"

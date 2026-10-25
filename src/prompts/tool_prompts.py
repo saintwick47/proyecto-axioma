@@ -10,7 +10,7 @@ Informa al agente qué herramientas tiene disponibles,
 cuáles requieren confirmación y cuáles están bloqueadas.
 """
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
 
 # Descripciones de herramientas disponibles en AXIOMA

@@ -29,13 +29,12 @@ import json
 import hashlib
 import random
 import threading
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from collections import OrderedDict
 from config.settings import settings
 from config.paths import Paths
-from src.domain.exceptions import RouterError
 from src.utils.degradation import log_degraded
 
 # ✅ v0.6.3: L3 refactored to cache_l3.py. Import seguro con flag LanceDB.

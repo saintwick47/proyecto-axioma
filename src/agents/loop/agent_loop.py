@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 
 from .types import LoopPhase, ReflectionOutcome
 from .state_manager import StateManager, LoopState
-from .iteration_tracker import IterationTracker, IterationRecord
+from .iteration_tracker import IterationTracker
 from .stop_conditions import StopConditions, StopReason
 from .reflection_engine import ReflectionEngine, ReflectionResult
 

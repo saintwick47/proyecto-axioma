@@ -15,19 +15,13 @@
 # ═══════════════════════════════════════════════════════════════
 import logging
 import time
-import hashlib
-import json
 import os
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 from pathlib import Path
 from config.settings import settings
-from src.domain.types import TaskType
-from src.domain.entities import Message
-from src.domain.exceptions import AgentError, LLMError
+from src.domain.exceptions import LLMError
 from src.utils.degradation import log_degraded
-from .base import BaseAgent, AgentResult
-from .analyst_file_handlers import AnalystFileHandlersMixin
 
 # ═══════════════════════════════════════════════════════════════
 # ✅ FIX RAC (v0.6.9w): pre-análisis estático determinista + segmentación
@@ -47,7 +41,7 @@ from .rac_static import (
 # el agente (que hereda CB y fallback de BaseAgent).
 # ═══════════════════════════════════════════════════════════════
 try:
-    from src.llm.client_base import OllamaClientBase, ScenarioType
+    from src.llm.client_base import OllamaClientBase, ScenarioType  # noqa: F401 — disponibilidad
     _CLIENT_BASE_AVAILABLE = True
 except ImportError:
     _CLIENT_BASE_AVAILABLE = False
@@ -62,7 +56,7 @@ except ImportError:
 # INTEGRACIÓN DETAILEDLOGGER — IMPORT SEGURO
 # ============================================================================
 try:
-    from tools.detailed_logger import get_logger
+    from tools.detailed_logger import get_logger  # noqa: F401 — disponibilidad
     LOGGER_AVAILABLE = True
 except ImportError:
     LOGGER_AVAILABLE = False
@@ -194,7 +188,7 @@ class AnalystReviewMixin:
             if preload_ok:
                 logger.info(f"RAC: ✅ Modelo {rac_model} cargado en VRAM")
             else:
-                logger.warning(f"RAC: ⚠️ Pre-carga falló, se intentará en caliente")
+                logger.warning("RAC: ⚠️ Pre-carga falló, se intentará en caliente")
 
             # ── Paso 2: Crear cliente directo con disable_fallback=True ──
             # Esto garantiza que NUNCA se cambiará a otro modelo.
@@ -684,7 +678,7 @@ class AnalystReviewMixin:
             md_content += (f"> **Ciclo:** {sc.get('ciclo')} · **Analizados ahora:** "
                            f"{files_analyzed} · **Pendientes del ciclo:** "
                            f"{max(0, total_alcance - len(_completados_final))}\n")
-            md_content += f"> **Orden:** por riesgo estático (mayor primero)\n"
+            md_content += "> **Orden:** por riesgo estático (mayor primero)\n"
 
             acumulado = docs_dir / (f"RAC_{scope}_acumulado_ciclo{sc.get('ciclo')}.md")
             try:

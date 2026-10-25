@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:  # ✅ ISSUE-098: solo para anotaciones (evita ciclos en runtime)

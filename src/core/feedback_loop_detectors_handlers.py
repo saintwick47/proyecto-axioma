@@ -281,7 +281,6 @@ class ExplicitFeedbackHandler:
         Returns:
             FeedbackRecord creado
         """
-        import uuid
         rating = ExplicitRating.GOOD if thumbs_up else ExplicitRating.POOR
         return await self._create_record(
             session_id=session_id,
@@ -327,7 +326,6 @@ class ExplicitFeedbackHandler:
         Raises:
             ValueError: Si rating inválido o comentario requerido faltante
         """
-        import uuid
         # Validar rating
         if isinstance(rating, int):
             if rating < 1 or rating > 5:

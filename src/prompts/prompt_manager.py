@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 import yaml
 
-from .base_prompts import IdentityLayer, identity_layer
+from .base_prompts import identity_layer
 from .task_prompts import TaskLayer
 from .tool_prompts import ToolLayer
 from .context_injection import ContextLayer
@@ -38,7 +38,7 @@ from .reflection_triggers import ReflectionLayer
 
 # ── PromptOptimizer — import seguro (Fase 5) ────────────────────────────────
 try:
-    from .prompt_optimizer import get_prompt_optimizer, PromptOptimizer
+    from .prompt_optimizer import get_prompt_optimizer, PromptOptimizer  # noqa: F401 — disponibilidad
     _OPTIMIZER_AVAILABLE = True
 except ImportError:
     get_prompt_optimizer = None  # type: ignore[assignment]

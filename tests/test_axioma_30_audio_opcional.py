@@ -50,7 +50,13 @@ def test_sin_audio_el_preflight_no_sondea_dispositivos_y_explica_por_que(monkeyp
     from src.core import preflight
 
     sondeos = []
-    import sounddevice
+    try:
+        import sounddevice
+    except (ImportError, OSError) as exc:
+        # Sin PortAudio (libportaudio2) sounddevice no se puede importar: sin
+        # módulo no hay `query_devices` que espiar. Es el entorno del CI cuando
+        # el apt-get de las librerías de audio no llega a instalarlas.
+        pytest.skip(f"sin audio (PortAudio): {exc}")
     monkeypatch.setattr(sounddevice, "query_devices", lambda *a, **k: sondeos.append(1) or [], raising=False)
     monkeypatch.setenv("AXIOMA_SIN_AUDIO", "1")
 

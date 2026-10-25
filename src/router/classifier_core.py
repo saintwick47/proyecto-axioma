@@ -36,19 +36,12 @@
 # ═══════════════════════════════════════════════════════════════
 import logging
 import time
-import math
-import hashlib
 import json
-import re
-from typing import Optional, Dict, Any, List, Tuple, Set
+from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 from datetime import datetime
-from collections import Counter
-from config.settings import settings
 from config.paths import Paths
-from src.utils.degradation import log_degraded
 from src.domain.types import TaskType
-from src.domain.exceptions import RouterError
 from src.router.classifier_embedding import ClassifierEmbeddingMixin
 from src.router.classifier_learning import ClassifierLearningMixin
 from src.router.classifier_keyword_rules import ClassifierKeywordRulesMixin
@@ -186,11 +179,6 @@ def _log_error(error: Exception, context: str, extra: dict = None):
 # ✅ 2026-10-13 (refactorización, pieza 4): las tablas de palabras viven ahora en
 # `classifier_keywords.py`, junto a las otras cuatro. Se importan acá con los MISMOS nombres,
 # así el resto del archivo —y quien las importe de este módulo— sigue funcionando igual.
-from src.router.classifier_keywords import (
-    CODE_CONTEXT_KEYWORDS, CODE_EXPLANATION_KEYWORDS, CODE_VERBS, DOCUMENT_NOUNS,
-    GREETING_PATTERNS, LOCATION_PATTERNS, QUALITY_VALIDATION_KEYWORDS,
-    TASK_TYPE_NORMALIZATION, VISION_SCREEN_KEYWORDS,
-)
 
 
 class IntentClassifierCore(

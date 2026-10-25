@@ -11,7 +11,7 @@
 from datetime import datetime, timezone
 from enum import Enum
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 # ✅ 2026-09-29 — hallado con USO REAL (no con tests): el marcado INTERNO del

@@ -20,7 +20,6 @@ SUITES = {
     "test_axioma_01_config_domain": "Estructura del proyecto, config/ y dominio",
     "test_axioma_02_core": "Núcleo (core): dispatcher, colas, planner, hardware, calidad",
     "test_axioma_03_llm_router_memory": "LLM, router de intenciones y memoria",
-    "test_axioma_04_agents": "Agentes: base, coder, analyst, loop, parallel executor",
     "test_axioma_04_agents": "Agentes (incluye herramientas MCP y multimodal, fusionado)",
     "test_axioma_06_web_handlers_analisis": "Web, handlers, prompts, utils + análisis global",
     "test_axioma_26_rac_estatico": "RAC: validación estática, chunking AST y filtro anti-alucinación",

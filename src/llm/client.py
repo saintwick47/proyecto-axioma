@@ -13,7 +13,6 @@
 import time
 import json
 import logging
-import traceback
 import httpx
 from typing import Optional, Dict, Any, List, Generator, Callable
 from config.settings import settings
@@ -21,7 +20,7 @@ from src.domain.exceptions import LLMError
 # ✅ CORREGIDO: Importar clase base + todas las clases necesarias desde módulo hermano
 from src.llm.client_base import (
     OllamaClientBase, _log_model_call, _log_error, _log_event, GeneracionCancelada,
-    RequestCache, HTTPSessionPool, LOGGER_AVAILABLE, OllamaResponse,
+    RequestCache, HTTPSessionPool, OllamaResponse,
     CircuitBreaker, CircuitState, ScenarioType,
     num_predict_coherente, DEFAULT_NUM_PREDICT, TG_TOK_S, PP_TOK_S, CHARS_PER_TOKEN,
 )

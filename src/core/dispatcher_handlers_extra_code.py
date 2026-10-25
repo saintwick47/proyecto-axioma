@@ -22,13 +22,8 @@ import asyncio
 import logging
 import re
 import time
-import inspect
-import base64
-import json
-from types import SimpleNamespace
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
-from src.domain.entities import Message, Response, MessageRole
+from src.domain.entities import Message, Response
 from config.settings import settings
 
 from src.tools_mcp.tool_executor import get_executor, ExecutionContext, ToolPermission
@@ -40,25 +35,13 @@ from src.utils.degradation import log_degraded
 
 # ✅ v0.6.9v (REFACTOR 50/50): plan-pipeline (F3 /plan) extraído a
 # src/core/dispatcher_plan.py. DispatcherHandlersExtraMixin hereda el mixin.
-from .dispatcher_plan import DispatcherPlanMixin
 
 # Helpers/constantes compartidas que viven en dispatcher_handlers.py
 from .dispatcher_handlers import (
     _log_event,
     _log_error,
     _log_agent_execution,
-    _log_model_call,
-    _log_router_decision,
-    _get_caller_info,
-    _detect_code_content,
-    MAX_TOKENS_ANALYSIS,
-    MAX_TOKENS_CHAT,
-    MAX_TOKENS_DEFAULT,
-    expects_factual_grounding,
-    CODE_REVIEW_SYSTEM_PROMPT,
-    GENERAL_ANALYSIS_SYSTEM_PROMPT,
 )
-from src.llm.client_base import tokens_de_respuesta
 
 logger = logging.getLogger(__name__)
 

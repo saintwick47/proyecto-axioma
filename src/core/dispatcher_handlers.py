@@ -24,29 +24,19 @@ import logging
 import re
 import time
 import inspect
-import base64
-import json
-from pathlib import Path
-from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
-from src.domain.entities import Message, Response, MessageRole
+from typing import Optional, Any
+from src.domain.entities import Message, Response
 from config.settings import settings
 
 # ✅ NUEVO v1.3.0: Imports para Tool Calling en Agent Loop
-from src.tools_mcp.tool_executor import get_executor, ExecutionContext, ToolPermission
-from src.tools_mcp.tool_registry import get_registry
 # ✅ Fase 3: validación multicapa determinista sobre el contrato ya
 # parseado en Fase 2 (CoderAgent), no reparsea la respuesta cruda.
 # code_validator.py vive junto a code_contract.py en src/agents/.
-from src.agents.code_contract import CodeContract
-from src.agents.code_validator import CodeValidator, build_validation_critique
-from src.tools_mcp.sandbox import get_sandbox_executor
-from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)
 
 try:
-    from tools.detailed_logger import get_logger
+    from tools.detailed_logger import get_logger  # noqa: F401 — disponibilidad
     LOGGER_AVAILABLE = True
 except ImportError:
     LOGGER_AVAILABLE = False
@@ -338,7 +328,7 @@ class DispatcherHandlersMixin(DispatcherHandlersFilesMixin):
         try:
             result = await asyncio.to_thread(
                 self.data_handler.handle, message, task_type, session_id
-            ) if not asyncio.iscoroutinefunction(self.data_handler.handle) else \
+            ) if not inspect.iscoroutinefunction(self.data_handler.handle) else \
                 await self.data_handler.handle(message, task_type, session_id)
 
             _log_agent_execution("DataHandler", task_type, "completed",

@@ -20,9 +20,9 @@ import time
 
 from config.settings import settings
 from src.domain.types import TaskType
-from src.domain.exceptions import LLMError, RouterError
+from src.domain.exceptions import LLMError
 from .client import OllamaClient
-from .config import LLMConfig, ModelConfig
+from .config import LLMConfig
 
 logger = logging.getLogger(__name__)
 

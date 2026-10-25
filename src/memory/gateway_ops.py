@@ -16,10 +16,7 @@ import logging
 import time
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-from pathlib import Path
-from config.settings import settings
 from config.paths import Paths
-from src.domain.exceptions import MemoryError
 from src.utils.degradation import log_degraded
 
 # ============================================================================

@@ -9,7 +9,7 @@
 # ═══════════════════════════════════════════════════════════════
 # ✅ CORREGIDO: Orchestrator eliminado completamente — usa src.core.dispatcher
 
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List
 
 __version__ = "0.0.8"
 __author__ = "SaintWick"

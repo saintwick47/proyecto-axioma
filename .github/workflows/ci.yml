@@ -59,12 +59,16 @@ jobs:
         # ✅ 2026-10-07: medido — un `apt-get` colgado hizo que GitHub CANCELARA el trabajo entero; el
         # paso prometía tolerar fallas, pero sólo toleraba que el comando devolviera error, no que se
         # quedara colgado. Con el límite de tiempo y `continue-on-error`, el peor caso es quedarse sin
-        # las librerías de audio (y los tests de voz se saltean solos), nunca perder la corrida.
+        # las librerías de audio: los módulos de voz se importan igual (guarda `(ImportError, OSError)`
+        # en sounddevice) y los tests que necesitan audio se saltean solos, nunca perder la corrida.
         timeout-minutes: 5
         continue-on-error: true
         # ✅ ISSUE-149: si el espejo de paquetes falla (pasa seguido), este paso tumbaba TODOS los
         # siguientes y el error visible era un FileNotFoundError del portero. Ahora avisa y sigue:
-        # los tests de audio se degradan solos si falta la librería (verificado: 10 se saltean).
+        # sin las libs de audio se saltean los 2 tests que las usan (no se degradan: se saltan).
+        # Verificado simulando PortAudio ausente (sounddevice falso por PYTHONPATH): 24/24 archivos,
+        # 2 saltados (test_axioma_28 y test_axioma_30), exit 0. Antes de la guarda `OSError` era
+        # FALSO: el import de los 6 módulos de voz reventaba y test_audio_diagnostic ni se colectaba.
         run: |
           sudo apt-get update || echo "::warning::apt-get update falló; sigo sin las libs de audio"
           sudo apt-get install -y libportaudio2 libsndfile1 portaudio19-dev \

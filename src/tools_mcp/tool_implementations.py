@@ -14,11 +14,8 @@ from __future__ import annotations
 
 import ast
 import logging
-import mimetypes
 import operator
-import os
 import time
-from pathlib import Path
 from typing import Any, Optional
 
 from .tool_base import (

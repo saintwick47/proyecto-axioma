@@ -6,9 +6,7 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
-import importlib
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -22,11 +20,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SECTION = "1. Estructura, configuración y dominio"
 
 try:
-    from .suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from .suite_utils import has_symbols as _has_symbols,\
+        check_import as _check_import
 except ImportError:  # pragma: no cover
-    from suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from suite_utils import has_symbols as _has_symbols,\
+        check_import as _check_import
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -563,7 +561,6 @@ class TestTaskTemperatureWiring:
 class TestTemperaturePrecedenceRule:
     @staticmethod
     def _cfg(tmp_path, yaml_text):
-        import yaml as _yaml
         from src.llm.config import LLMConfig
         f = tmp_path / "m.yaml"
         f.write_text(yaml_text, encoding="utf-8")

@@ -26,10 +26,8 @@ from typing import TYPE_CHECKING, Optional, Dict, Any, List, Tuple
 if TYPE_CHECKING:  # ✅ ISSUE-098: solo anotación
     from src.domain.context import SessionContext
 from pathlib import Path
-from datetime import datetime
 from config.settings import settings
 from src.domain.types import TaskType
-from src.domain.exceptions import RouterError
 
 # ✅ CORREGIDO: Imports de módulos refactorizados
 from src.router.classifier_core import IntentClassifierCore, _log_router, _log_error
@@ -726,12 +724,6 @@ class IntentClassifier(ClassifierExternalDataMixin):
             - original_confidence: float (si hubo boost)
         """
         import time as _time
-        # Importar aquí para evitar circular import en tiempo de módulo
-        try:
-            from src.domain.context import SessionContext as _SC
-        except ImportError:
-            # Fallback si se llama fuera del proyecto (tests unitarios)
-            pass
 
         start = _time.time()
 

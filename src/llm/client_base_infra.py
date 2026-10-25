@@ -253,7 +253,7 @@ class CircuitBreaker:
         self.failure_count = 0
         self.state = CircuitState.CLOSED
         self.half_open_calls = 0
-        _log_event("CIRCUIT_BREAKER", f"SUCCESS → CLOSED", extra={"failure_count": 0, "state": self.state.value})
+        _log_event("CIRCUIT_BREAKER", "SUCCESS → CLOSED", extra={"failure_count": 0, "state": self.state.value})
 
     def record_failure(self) -> None:
         self.failure_count += 1

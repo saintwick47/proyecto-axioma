@@ -53,22 +53,16 @@
 #    Dependencia en UN SOLO SENTIDO (este módulo → hermano): sin AUD-CIR-001.
 # ═══════════════════════════════════════════════════════════════
 import asyncio
+import inspect
 import logging
 import threading
 import time
-import uuid
-import hashlib
-from enum import Enum, IntEnum
-from typing import Optional, Dict, Any, List, Callable, Awaitable, Tuple
+from typing import Optional, Dict, Any, List, Callable, Awaitable
 from datetime import datetime, timezone
-from collections import OrderedDict, deque
-from dataclasses import dataclass, field
-from pathlib import Path
-from config.settings import settings
-from config.paths import Paths
+from collections import OrderedDict
 
 # ── Re-exports de la mitad movida (mismos objetos ⇒ API pública intacta) ──
-from .task_queue_priority import (
+from .task_queue_priority import (  # noqa: F401 — re-export: API pública intacta
     TaskError,
     TaskPriority,
     QueueTaskStatus,
@@ -310,7 +304,7 @@ class TaskQueue(TaskQueuePriorityMixin):
         """Emite evento a todos los callbacks registrados."""
         for cb in self._callbacks.get(event, []):
             try:
-                if asyncio.iscoroutinefunction(cb):
+                if inspect.iscoroutinefunction(cb):
                     asyncio.create_task(cb(*args, **kwargs))
                 else:
                     cb(*args, **kwargs)

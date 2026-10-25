@@ -19,8 +19,7 @@ import logging
 # Estado: Fase 3 — Exports actualizados
 # ═══════════════════════════════════════════════════════════════
 
-from typing import Optional, Any, List, Dict
-from datetime import datetime
+from typing import Optional, Any, Dict
 from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)

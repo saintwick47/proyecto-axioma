@@ -356,9 +356,9 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 try:
-    from .axioma_report import section, check
+    from .axioma_report import check
 except ImportError:  # pragma: no cover
-    from axioma_report import section, check
+    from axioma_report import check
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))

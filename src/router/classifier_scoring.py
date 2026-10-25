@@ -62,7 +62,7 @@ class ClassifierScoringMixin:
     def _adaptive_threshold(self, task_type_str: Optional[str]) -> float:
         from src.router.classifier_core import (
             ADAPTIVE_DEFAULT_THRESHOLD, ADAPTIVE_THRESHOLDS, ADAPTIVE_VARIANCE_BOOST,
-            ADAPTIVE_VARIANCE_MAX, ADAPTIVE_VARIANCE_THRESHOLD, MIN_FLOOR_THRESHOLD,
+            ADAPTIVE_VARIANCE_MAX, ADAPTIVE_VARIANCE_THRESHOLD,
         )  # noqa: F401 — diferido, para no crear el ciclo de import
         """
         Calcula el threshold adaptativo para un tipo de tarea.
@@ -87,8 +87,7 @@ class ClassifierScoringMixin:
 
     def _assign_task_type_adaptive(self, calibrated_prob: float, raw_intent: Optional[str]) -> TaskType:
         from src.router.classifier_core import (
-            ADAPTIVE_DEFAULT_THRESHOLD, ADAPTIVE_THRESHOLDS, ADAPTIVE_VARIANCE_BOOST,
-            ADAPTIVE_VARIANCE_MAX, ADAPTIVE_VARIANCE_THRESHOLD, MIN_FLOOR_THRESHOLD,
+            MIN_FLOOR_THRESHOLD,
         )  # noqa: F401 — diferido, para no crear el ciclo de import
         """
         ✅ v4.8.0: Asigna TaskType con threshold adaptativo por tipo.
@@ -125,8 +124,7 @@ class ClassifierScoringMixin:
     @staticmethod
     def _assign_task_type(calibrated_prob: float, raw_intent: Optional[str]) -> TaskType:
         from src.router.classifier_core import (
-            ADAPTIVE_DEFAULT_THRESHOLD, ADAPTIVE_THRESHOLDS, ADAPTIVE_VARIANCE_BOOST,
-            ADAPTIVE_VARIANCE_MAX, ADAPTIVE_VARIANCE_THRESHOLD, MIN_FLOOR_THRESHOLD,
+            MIN_FLOOR_THRESHOLD,
         )  # noqa: F401 — diferido, para no crear el ciclo de import
         """
         ⚠️  LEGACY: Threshold fijo 0.3 floor, sin adaptive por tipo.

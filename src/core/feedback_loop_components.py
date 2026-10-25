@@ -17,7 +17,6 @@
 # ═══════════════════════════════════════════════════════════════
 
 import logging
-import threading
 import hashlib
 import sqlite3 as _sqlite3
 import threading as _threading
@@ -28,9 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, field
 
-from config.settings import settings
 from config.paths import Paths
-from src.domain.types import TaskType, AgentRole
 from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)

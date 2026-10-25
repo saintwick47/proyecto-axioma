@@ -17,14 +17,12 @@ import time
 import json
 import hashlib
 import sqlite3 as _sqlite3
-from typing import Optional, Dict, Any, List, Callable, Awaitable, Union
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 
-from config.settings import settings
 from config.paths import Paths
-from src.domain.types import TaskType, AgentRole
 
 # Importar componentes base (enums, dataclasses, EWMA, logging helpers)
 from .feedback_loop_components import (

@@ -313,11 +313,8 @@ class DispatcherProcessStepsMixin:
         # Semana 1 A1: KG enrichment
         if hasattr(self, '_user_profile') and self._user_profile:
             try:
-                from src.memory.knowledge_graph import KnowledgeGraph
-                from config.paths import Paths
                 _kg_ref = getattr(self._user_profile, '_kg', None)
                 if _kg_ref:
-                    from src.memory.gateway import MemoryGateway
                     words = [w for w in message.content.lower().split() if len(w) > 3]
                     kg_context = []
                     seen = set()

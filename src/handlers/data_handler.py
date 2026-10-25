@@ -33,17 +33,15 @@ Soporta:
 - time_query → datetime del sistema (via DataFetchers)
 - news_query → NewsAPI (via DataFetchers)
 """
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 import logging
 import time
-import traceback
 
 from src.domain.entities import Response, Message
-from config.settings import settings
 
 # ── Import desde data_fetchers (refactorización 50/50) ──────────
-from .data_fetchers import DataFetchers, get_coordinates
+from .data_fetchers import DataFetchers
 
 # ✅ CORREGIDO: Logger definido en scope global
 logger = logging.getLogger(__name__)
@@ -53,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ✅ INTEGRACIÓN AMBIGÜEDAD - FASE 1
 # ============================================================================
 try:
-    from src.utils.ambiguity_detector import AmbiguityDetector, detect_ambiguity
+    from src.utils.ambiguity_detector import AmbiguityDetector, detect_ambiguity  # noqa: F401 — disponibilidad
     AMBIGUITY_DETECTOR_AVAILABLE = True
 except ImportError:
     AMBIGUITY_DETECTOR_AVAILABLE = False

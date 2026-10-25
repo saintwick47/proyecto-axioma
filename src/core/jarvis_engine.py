@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from src.domain.entities import Message, Response
@@ -804,7 +803,7 @@ class JarvisEngine:
         # Fallback: LLM para pasos cognitivos o cuando SystemAgent falla
         llm = self._get_llm()
         if llm is None:
-            return f"(no ejecutado — LLM no disponible)"
+            return "(no ejecutado — LLM no disponible)"
 
         try:
             prompt = (

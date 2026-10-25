@@ -11,7 +11,7 @@
 # ═══════════════════════════════════════════════════════════════
 import logging
 import time
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
@@ -19,7 +19,6 @@ import json
 import threading
 import re
 from collections import OrderedDict
-from config.settings import settings
 from config.paths import Paths
 from src.domain.exceptions import MemoryError
 

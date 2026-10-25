@@ -168,7 +168,6 @@ class TestTaskBoard:
 class TestCoordinatorSwap:
     def test_run_on_model_basico(self):
         from src.core.agent_coordinator import AgentCoordinator
-        from src.core.memory_guard import MemoryGuard
         fs = FakeSwap()
         coord = AgentCoordinator(swap=fs, guard=FakeGuard(), board=None, allow_parallel=False)
         out = coord.run_on_model("qwen3:8b", lambda m, x: f"{m} {x}", caller="t", x=1)
@@ -187,7 +186,6 @@ class TestCoordinatorSwap:
         real de arranque y usa lookup seguro.
         """
         from src.core.agent_coordinator import AgentCoordinator
-        from src.core.memory_guard import MemoryGuard
         fs = FakeSwap()
         coord = AgentCoordinator(swap=fs, guard=FakeGuard(), board=None, allow_parallel=False)
         timeline = []
@@ -265,7 +263,6 @@ class TestCrossModelCheckpoint:
         test bajo carga de la suite completa).
         """
         from src.core.agent_coordinator import AgentCoordinator
-        from src.core.memory_guard import MemoryGuard
         fs = FakeSwap()
         coord = AgentCoordinator(swap=fs, guard=FakeGuard(), board=None, allow_parallel=False)
 
@@ -297,7 +294,6 @@ class TestCrossModelCheckpoint:
     def test_continuacion_persistida_no_se_pierde(self):
         """El checkpoint se guarda ANTES del swap del productor (no se pierde el hilo)."""
         from src.core.agent_coordinator import AgentCoordinator
-        from src.core.memory_guard import MemoryGuard
         fs = FakeSwap()
         coord = AgentCoordinator(swap=fs, guard=FakeGuard(), board=None, allow_parallel=False)
 
@@ -322,7 +318,6 @@ class TestCrossModelCheckpoint:
 class TestRunChain:
     def test_chain_dependencias(self):
         from src.core.agent_coordinator import AgentCoordinator
-        from src.core.memory_guard import MemoryGuard
         fs = FakeSwap()
         coord = AgentCoordinator(swap=fs, guard=FakeGuard(), board=None, allow_parallel=False)
         steps = [
@@ -346,7 +341,6 @@ class TestRunChain:
 
     def test_chain_circular_bloqueada(self):
         from src.core.agent_coordinator import AgentCoordinator
-        from src.core.memory_guard import MemoryGuard
         coord = AgentCoordinator(swap=FakeSwap(), guard=FakeGuard(), board=None,
                                  allow_parallel=False)
         steps = [
@@ -450,7 +444,7 @@ class TestShortTermRenewal:
 # ── Fusionado desde test_axioma_08_regresiones_log.py ──
 import inspect
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 def _coder_agent():

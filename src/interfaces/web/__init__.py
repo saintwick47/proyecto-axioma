@@ -115,9 +115,12 @@ def health_check() -> Dict[str, Any]:
     }
 
 
-def start_server(host: str = "0.0.0.0", port: int = 8000, reload: bool = False) -> None:
+def start_server(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> None:
     """
     Inicia servidor NiceGUI. Wrapper para uso directo desde main.py.
+
+    El default es 127.0.0.1 (sólo este equipo) por la misma razón que en
+    `app.start_server`: exponer la UI a la LAN tiene que ser explícito.
 
     Args:
         host: Host del servidor
@@ -125,7 +128,7 @@ def start_server(host: str = "0.0.0.0", port: int = 8000, reload: bool = False) 
         reload: Recargar automáticamente (dev only)
 
     Example:
-        >>> start_server(host='0.0.0.0', port=8000)
+        >>> start_server(host='127.0.0.1', port=8000)
     """
     from .app import start_server as _start_server
     _start_server(host=host, port=port, reload=reload)

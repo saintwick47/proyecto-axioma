@@ -1,17 +1,15 @@
 from __future__ import annotations
 import importlib
-import sys
 from pathlib import Path
 try:
     from .axioma_report import section, check
 except ImportError:  # pragma: no cover
     from axioma_report import section, check
 try:
-    from .suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from .suite_utils import import_safe as _import,\
+        api_check as _api_check
 except ImportError:  # pragma: no cover
-    from suite_utils import import_safe as _import, has_symbols as _has_symbols,\
-        api_check as _api_check, check_import as _check_import
+    from suite_utils import import_safe as _import, api_check as _api_check
 import asyncio
 import unittest.mock as _mock
 
@@ -262,7 +260,7 @@ class TestVoiceRuntimeRegression:
         """jarvis_mode_default=normal (default) → la voz NO debe estar
         activa por defecto. La UI lo enciende con set_voice(True)."""
         from config.settings import settings
-        from src.interfaces.web.voice_runtime import set_voice, is_voice_running
+        from src.interfaces.web.voice_runtime import is_voice_running
         from unittest.mock import MagicMock, patch
         import src.interfaces.web.voice_runtime as vr
         default = settings.jarvis_mode_default

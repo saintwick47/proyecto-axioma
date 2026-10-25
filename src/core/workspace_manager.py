@@ -38,6 +38,26 @@ _PACKAGE_NAME_RE = re.compile(
     r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*(\[[a-zA-Z0-9_,-]+\])?(==|>=|<=|~=|!=)?[a-zA-Z0-9._-]*$'
 )
 
+# ✅ FIX SEGURIDAD (2026-10-25): el `session_id` se usa como NOMBRE DE DIRECTORIO
+# (`self._base / sid`), así que tiene que validarse. Antes, `Path.__truediv__`
+# descartaba el base si `sid` era absoluto (`/etc` → `/etc`) y `..` permitía
+# salir (`../evil`): `GET /workspace/download?session_id=/etc&filename=passwd`
+# devolvía 200 con /etc/passwd y `cleanup('../evil')` borraba fuera del base.
+# Se RECHAZA (ValueError) en vez de sanear en silencio: el intento queda visible.
+# Formas legítimas relevadas en el repo y sus tests: "default", UUIDs con "-",
+# ids de la suite ("s_ws", "c2_sess_A", "suite_planmem_sess"), el generado por
+# la web "nicegui_YYYYMMDD_HHMMSS_microseg" y "<usuario>_YYYYMMDD". Todas entran
+# en [A-Za-z0-9_-]{1,64}; no hizo falta ampliar la regex.
+_SESSION_ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+
+
+def _session_id_error(session_id: Any) -> ValueError:
+    """Error uniforme para un session_id que no puede convertirse en directorio."""
+    return ValueError(
+        f"session_id inválido: {session_id!r}. Sólo se aceptan letras, números, "
+        "'_' y '-' (1 a 64 caracteres); no se permiten rutas, '..' ni nombres absolutos."
+    )
+
 
 class WorkspaceManager:
     """
@@ -60,10 +80,46 @@ class WorkspaceManager:
         self._base.mkdir(parents=True, exist_ok=True)
         logger.info(f"[WorkspaceManager] Base: {self._base}")
 
-    def get_workspace(self, session_id: str) -> str:
-        """Retorna path al workspace de la sesión. Lo crea si no existe."""
+    def _session_id(self, session_id: Optional[str]) -> str:
+        """Valida el formato y devuelve el sid efectivo ('default' si viene vacío)."""
         sid = session_id or "default"
+        if not isinstance(sid, str) or not _SESSION_ID_RE.fullmatch(sid):
+            raise _session_id_error(session_id)
+        return sid
+
+    def _workspace_path(self, session_id: Optional[str]) -> Path:
+        """Path del workspace de la sesión, validado contra el base.
+
+        Único punto donde un `session_id` se convierte en ruta. Valida formato
+        (whitelist) y contención REAL (`resolve()`, así un symlink dentro del
+        base que apunte afuera también se rechaza). No crea nada.
+        """
+        sid = self._session_id(session_id)
         ws = self._base / sid
+        try:
+            contenido = ws.resolve().is_relative_to(self._base.resolve())
+        except (OSError, RuntimeError) as exc:
+            raise _session_id_error(session_id) from exc
+        if not contenido:
+            raise _session_id_error(session_id)
+        return ws
+
+    def validate_session_id(self, session_id: Optional[str]) -> str:
+        """Valida un session_id de borde y devuelve el valor efectivo.
+
+        Público para que HTTP y la tool MCP distingan un id inválido (400/fail)
+        de un error interno (500/fail) sin duplicar la regla.
+        """
+        self._workspace_path(session_id)
+        return self._session_id(session_id)
+
+    def get_workspace(self, session_id: str) -> str:
+        """Retorna path al workspace de la sesión. Lo crea si no existe.
+
+        Raises:
+            ValueError: si `session_id` no es un nombre simple contenido en el base.
+        """
+        ws = self._workspace_path(session_id)
         ws.mkdir(parents=True, exist_ok=True)
         return str(ws)
 
@@ -196,8 +252,7 @@ class WorkspaceManager:
         Lista archivos en el workspace (excluye venv/ y script.py).
         Retorna lista de dicts con name, size_bytes, extension.
         """
-        sid = session_id or "default"
-        ws = self._base / sid
+        ws = self._workspace_path(session_id)
         if not ws.is_dir():
             return []
         files = []
@@ -212,8 +267,7 @@ class WorkspaceManager:
 
     def get_attempt_history(self, session_id: str) -> List[dict]:
         """Lista archivos attempt_N.py con sus tamaños."""
-        sid = session_id or "default"
-        ws = self._base / sid
+        ws = self._workspace_path(session_id)
         if not ws.is_dir():
             return []
         history = []
@@ -239,24 +293,36 @@ class WorkspaceManager:
                 mtime = script.stat().st_mtime
                 if mtime < cutoff:
                     sid = ws_dir.name
-                    self.cleanup(sid)
+                    try:
+                        self.cleanup(sid)
+                    except ValueError as e:
+                        logger.warning(f"[WorkspaceManager] Se omite '{sid}' en cleanup_stale: {e}")
+                        continue
                     deleted.append(sid)
             else:
                 # Sin script.py → workspace huérfano, eliminar
                 sid = ws_dir.name
-                self.cleanup(sid)
+                try:
+                    self.cleanup(sid)
+                except ValueError as e:
+                    logger.warning(f"[WorkspaceManager] Se omite '{sid}' en cleanup_stale: {e}")
+                    continue
                 deleted.append(sid)
         if deleted:
             logger.info(f"[WorkspaceManager] Cleanup: {len(deleted)} workspaces eliminados")
         return deleted
 
     def cleanup(self, session_id: str) -> bool:
-        """Elimina el workspace y su venv de una sesión."""
-        sid = session_id or "default"
-        ws = self._base / sid
+        """Elimina el workspace y su venv de una sesión.
+
+        Raises:
+            ValueError: si `session_id` intenta salir del base (p. ej. '../evil').
+                Se valida ANTES de tocar el disco: nunca se borra fuera del base.
+        """
+        ws = self._workspace_path(session_id)
         if ws.exists():
             shutil.rmtree(ws, ignore_errors=True)
-            logger.info(f"[WorkspaceManager] Workspace '{sid}' eliminado")
+            logger.info(f"[WorkspaceManager] Workspace '{ws.name}' eliminado")
             return True
         return False
 
@@ -265,8 +331,8 @@ class WorkspaceManager:
         return [p.name for p in self._base.iterdir() if p.is_dir()]
 
     def workspace_exists(self, session_id: str) -> bool:
-        """True si el workspace de la sesión ya existe."""
-        return (self._base / (session_id or "default")).is_dir()
+        """True si el workspace de la sesión ya existe (valida el id)."""
+        return self._workspace_path(session_id).is_dir()
 
     def venv_exists(self, session_id: str) -> bool:
         """True si el venv de la sesión ya existe."""

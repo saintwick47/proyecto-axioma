@@ -38,7 +38,7 @@ import traceback
 import socket
 import subprocess
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, List, Optional
 
@@ -196,14 +196,18 @@ def _system_diagnostics() -> dict:
 # SECCIÓN A — IMPORTS Y ESTRUCTURA
 # ═══════════════════════════════════════════════════════════════
 def test_import_code_contract() -> str:
-    from src.agents.code_contract import CodeFile, CodeContract, parse_code_contract, build_contract_critique
+    # Se importan TODOS los nombres que el test dice verificar (antes el
+    # mensaje los nombraba sin importarlos: una limpieza de F401 los borró).
+    from src.agents.code_contract import (  # noqa: F401 — verificación de API pública
+        CodeFile, CodeContract, parse_code_contract, build_contract_critique)
     assert callable(parse_code_contract)
     assert callable(build_contract_critique)
     return "CodeFile, CodeContract, parse_code_contract, build_contract_critique OK"
 
 
 def test_import_code_validator() -> str:
-    from src.agents.code_validator import CodeValidator, ValidationReport, LayerResult, build_validation_critique
+    from src.agents.code_validator import (  # noqa: F401 — verificación de API pública
+        CodeValidator, ValidationReport, LayerResult, build_validation_critique)
     assert callable(build_validation_critique)
     return "CodeValidator, ValidationReport, LayerResult, build_validation_critique OK"
 

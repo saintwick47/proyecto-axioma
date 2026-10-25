@@ -15,10 +15,9 @@ from __future__ import annotations
 import asyncio
 import collections
 import logging
-import struct
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import AsyncGenerator, Generator, List, Optional, Tuple
 
 import numpy as np
@@ -35,9 +34,13 @@ except ImportError:
 try:
     import sounddevice as sd
     _SD_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # OSError: sounddevice importa pero PortAudio (la librería del sistema) no
+    # está. Antes sólo se atrapaba ImportError y el módulo reventaba al importarse
+    # en un equipo/contenedor sin libportaudio2; sin audio el VAD se desactiva.
     _SD_AVAILABLE = False
     sd = None  # type: ignore[assignment]
+    logger.debug(f"[VAD] sounddevice no disponible: {_exc}")
 
 
 # ============================================================================

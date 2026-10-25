@@ -12,9 +12,9 @@
 import asyncio
 import logging
 import threading
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
-from src.core.task_queue import TaskQueue, Task, TaskPriority, TaskError
+from src.core.task_queue import TaskQueue, Task, TaskPriority
 
 logger = logging.getLogger(__name__)
 

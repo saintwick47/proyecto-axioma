@@ -3,7 +3,6 @@ import asyncio
 import sys
 from unittest.mock import patch
 from pathlib import Path
-import pytest
 try:
     from .axioma_report import section, check
 except ImportError:  # pragma: no cover
@@ -316,7 +315,6 @@ class TestFase5Evals:
     def test_run_evals_script(self):
         """✅ v0.6.9v: se inspecciona el MÓDULO resuelto por import."""
         import ast as _ast
-        import importlib.util
 
         section(SECTION)
         path = PROJECT_ROOT / "tools" / "run_evals.py"
@@ -715,7 +713,6 @@ class TestChatGroundingFactual:
     @staticmethod
     def _correr(query: str):
         """Ejecuta `_handle_chat` con executor y LLM falsos (sin red ni Ollama)."""
-        from types import SimpleNamespace
         from unittest.mock import patch
         from src.core.dispatcher_handlers_extra import DispatcherHandlersExtraMixin
         from src.domain.entities import Message

@@ -37,7 +37,7 @@ except ImportError:
     logger.warning("PIL no disponible — compresión limitada")
 
 try:
-    import numpy as np
+    import numpy as np  # noqa: F401 — sólo se comprueba que exista
     _NUMPY_AVAILABLE = True
 except ImportError:
     _NUMPY_AVAILABLE = False

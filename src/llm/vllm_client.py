@@ -37,7 +37,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -46,12 +46,8 @@ logger = logging.getLogger(__name__)
 from src.llm.client_base import (
     OllamaResponse,
     CircuitBreaker,
-    CircuitState,
     RequestCache,
-    _log_event,
-    _log_error,
     _log_model_call,
-    _safe_divide,
 )
 from src.domain.exceptions import LLMError
 
@@ -281,7 +277,7 @@ class VLLMClient:
     ) -> Generator[str, None, None]:
         """Genera respuesta en streaming via vLLM SSE."""
         if not self.circuit_breaker.can_execute():
-            raise LLMError(f"[vLLM] Circuit breaker OPEN", model=self.model)
+            raise LLMError("[vLLM] Circuit breaker OPEN", model=self.model)
 
         effective_temp = temperature if temperature is not None else self.config.temperature
         effective_timeout = timeout or self.timeout
@@ -330,7 +326,7 @@ class VLLMClient:
         t0 = time.perf_counter()
 
         if not self.circuit_breaker.can_execute():
-            raise LLMError(f"[vLLM] Circuit breaker OPEN", model=self.model)
+            raise LLMError("[vLLM] Circuit breaker OPEN", model=self.model)
 
         effective_temp = temperature if temperature is not None else self.config.temperature
         effective_timeout = timeout or self.timeout

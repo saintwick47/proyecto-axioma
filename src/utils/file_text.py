@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 # Límite por defecto para no saturar el contexto del LLM.
 DEFAULT_MAX_CHARS = 150_000

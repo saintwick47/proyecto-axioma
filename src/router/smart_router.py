@@ -17,10 +17,9 @@ import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
 from config.settings import settings
-from src.domain.exceptions import LLMError
 from src.domain.types import TaskType
 from src.llm.router import ModelRouter
-from .cache import RouterCache, get_router_cache, reset_router_cache
+from .cache import RouterCache, get_router_cache
 from .classifier import IntentClassifier
 from .smart_router_core import (
     CODE_MODEL,

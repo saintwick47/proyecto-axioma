@@ -15,7 +15,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 try:
     from .axioma_report import section, check
@@ -118,7 +117,7 @@ class TestPermissionModeDeny:
         """El permissions.json real carga y las reglas DENY protegen rutas críticas."""
         from src.tools_mcp.permissions import PermissionGateway
         from src.tools_mcp.tool_base import ToolPermission
-        import threading, os
+        import threading
 
         gw = PermissionGateway.__new__(PermissionGateway)
         gw._config_path = PROJECT_ROOT / "config" / "permissions.json"
@@ -258,7 +257,7 @@ class TestSessionEventLog:
     def test_no_rompe_sin_pool(self, tmp_path):
         # Degradación silenciosa si la infraestructura falta
         import src.learning.session_event_log as sel
-        from src.learning.session_event_log import SessionEventLog, SessionEventType
+        from src.learning.session_event_log import SessionEventLog
         # ✅ FIX 2026-08-29: el test parcheaba dbp.SQLiteConnectionPool, pero el
         # módulo importa el pool con `from ... import` (binding propio) y además
         # decide por el flag _POOL_AVAILABLE (session_event_log.py:48-50,99) —

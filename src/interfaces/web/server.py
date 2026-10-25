@@ -24,7 +24,6 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
-from typing import Dict, Any, Optional
 # ============================================================================
 # LOGGING — Integración con DetailedLogger
 # ============================================================================
@@ -82,6 +81,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from config.settings import settings
 from config.paths import Paths
+# ✅ 2026-10-25 (fuente única): la versión de FastAPI y la que se muestra al
+# arrancar salen de `src/__init__.py`, no de literales.
+from src import __version__ as AXIOMA_VERSION
 from .sesion_segura import secreto_de_sesion   # ✅ 2026-10-07: secreto de sesión por equipo
 
 # ═══════════════════════════════════════════════════════════════
@@ -134,7 +136,7 @@ def build_api_app():
         from fastapi.middleware.cors import CORSMiddleware
         from .request_stats import track_request_stats
 
-        app = FastAPI(title="AXIOMA API", version="0.1.0")
+        app = FastAPI(title="AXIOMA API", version=AXIOMA_VERSION)
 
         # ⚠️ MEDIDO el 2026-10-10: estaba `allow_origins=["*"]` JUNTO con `allow_credentials=True`. Con
         # esa combinación, Starlette **refleja el origen que pida el navegador** (no puede mandar `*` con
@@ -404,8 +406,8 @@ class WebServer:
                     _log_web_event("SERVER", "Ollama not available",
                                   extra={"host": settings.ollama_host})
                     logger.warning(f"⚠️  Ollama no disponible en {settings.ollama_host}")
-                    print(f"⚠️  Ollama no disponible - algunas funciones limitadas")
-                    print(f"   💡 Ejecuta: ollama serve")
+                    print("⚠️  Ollama no disponible - algunas funciones limitadas")
+                    print("   💡 Ejecuta: ollama serve")
                     client.close()
                     return
 
@@ -470,7 +472,7 @@ class WebServer:
                               extra={"duration": round(duration, 3), "error": str(e)})
                 logger.error(f"Error en verificación de modelos: {e}")
                 print(f"⚠️  Error verificando modelos: {e}")
-                print(f"💡  Verifica que Ollama esté corriendo: ollama serve\n")
+                print("💡  Verifica que Ollama esté corriendo: ollama serve\n")
 
         threading.Thread(target=_check, daemon=True).start()
 
@@ -514,7 +516,7 @@ class WebServer:
                       extra={"host": self.host, "port": self.port, "open_browser": self.open_browser})
 
         print("\n" + "="*60)
-        print("  AXIOMA v0.1.0 — Servidor Web NiceGUI")
+        print(f"  AXIOMA v{AXIOMA_VERSION} — Servidor Web NiceGUI")
         print("="*60)
         print(f"\n🌐 Servidor web iniciado en http://{self.host}:{self.port}")
         print(f"📁 Directorio web: {self.static_path}")
@@ -553,7 +555,7 @@ class WebServer:
         _log_web_event("SERVER", "NiceGUI server starting")
 
         try:
-            from .app import main_page, start_server
+            from .app import main_page, start_server  # noqa: F401 — prueba de importabilidad
 
             # ✅ FIX: Montar src/interfaces/web/ como /static
             # Esto hace que logo.png sea accesible en /static/logo.png
@@ -574,7 +576,7 @@ class WebServer:
                 port=self.port,
                 reload=False,       # ✅ Evita conflictos de signal handlers
                 show=False,         # ✅ Evita doble apertura (solo webbrowser.open controla)
-                title='AXIOMA v0.1.0',
+                title=f'AXIOMA v{AXIOMA_VERSION}',
                 favicon=favicon_option,  # ✅ Path absoluto o None, NO '/static/logo.png'
                 storage_secret=secreto_de_sesion(),      # ✅ 2026-10-07: secreto propio del equipo
                 reconnect_timeout=300,   # ✅ FIX: 300s para aguantar LLM calls lentos sin desconectar
@@ -590,8 +592,8 @@ class WebServer:
             _log_web_event("SERVER", "NiceGUI import failed",
                           extra={"duration": round(duration, 4), "error": str(e)})
             logger.error(f"NiceGUI no está instalado: {e}")
-            print(f"\n❌ Error: NiceGUI no está instalado")
-            print(f"💡 Ejecuta: pip install nicegui\n")
+            print("\n❌ Error: NiceGUI no está instalado")
+            print("💡 Ejecuta: pip install nicegui\n")
             sys.exit(1)
 
         except Exception as e:

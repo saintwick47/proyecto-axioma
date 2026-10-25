@@ -20,7 +20,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 try:
-    import pvporcupine
+    import pvporcupine  # noqa: F401 — sólo se comprueba que exista
     _PORCUPINE_AVAILABLE = True
 except ImportError:
     _PORCUPINE_AVAILABLE = False
@@ -61,8 +61,13 @@ def _load_oww_model():
 try:
     import sounddevice as sd
     _SD_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as _exc:
+    # OSError: sounddevice está instalado pero falta PortAudio (librería del
+    # sistema). Sin audio la detección por micrófono queda desactivada, pero el
+    # módulo tiene que poder importarse igual.
     _SD_AVAILABLE = False
+    sd = None  # type: ignore[assignment]
+    logger.debug(f"[WakeWord] sounddevice no disponible: {_exc}")
 
 WAKE_WORDS_ES = ["axioma", "hey axioma", "oye axioma"]
 _SAMPLE_RATE  = 16000

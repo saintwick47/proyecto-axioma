@@ -26,6 +26,16 @@ class SettingsWeb(BaseModel):
     debug: bool = False
     reload: bool = False
 
+    # 🔐 Token de las rutas que ESCRIBEN configuración por la API
+    # (`/api/v1/preflight/claves` y `/modelos`). Vacío = sin token: se permite
+    # en loopback y se rechaza si AXIOMA está expuesto a la red. Se manda en el
+    # header `X-AXIOMA-Token` (ver `routes_preflight.exigir_token_de_escritura`).
+    axioma_web_token: str = Field(
+        default="",
+        description="Token para las rutas de la API que escriben el .env "
+                    "(header X-AXIOMA-Token); vacío = sólo loopback",
+    )
+
     # ═══════════════════════════════════════════════════════════
     # === APIs EXTERNAS ===
     # ═══════════════════════════════════════════════════════════

@@ -41,6 +41,7 @@
 # y graceful shutdown.
 # ═══════════════════════════════════════════════════════════════
 import asyncio
+import inspect
 import logging
 import threading
 import time
@@ -156,7 +157,7 @@ class ParallelExecutor:
         """Emite evento a todos los callbacks registrados."""
         for cb in self._callbacks.get(event, []):
             try:
-                if asyncio.iscoroutinefunction(cb):
+                if inspect.iscoroutinefunction(cb):
                     asyncio.create_task(cb(*args, **kwargs))
                 else:
                     cb(*args, **kwargs)

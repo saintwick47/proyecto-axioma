@@ -23,9 +23,9 @@ from tools.auditor.aud_detectors_regresiones import (
 import pytest
 
 try:
-    from .axioma_report import section, check
+    from .axioma_report import check
 except ImportError:  # pragma: no cover
-    from axioma_report import section, check
+    from axioma_report import check
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SECTION = "18. Auditor — regresiones de detectores y política R3"
@@ -324,7 +324,6 @@ class TestScoreWiring:
     def _auditor(self, findings):
         """Auditor mínimo con hallazgos inyectados (sin correr detectores)."""
         from pathlib import Path
-        from tools.auditor.aud_core import AudFinding, AudSeverity, AudVerdict
         from tools.auditor.aud_main import AxiomaAuditor
         a = AxiomaAuditor(Path("."))
         a.findings = list(findings)
@@ -378,8 +377,6 @@ class TestScoreWiring:
 
     def test_wiring_en_repo_real(self):
         """En el repo real los 3 detectores deben estar en el desglose."""
-        from pathlib import Path
-        from tools.auditor.aud_core import CodeIndex
         from tools.auditor.aud_main import AxiomaAuditor, DETECTORS
         a = AxiomaAuditor(PROJECT_ROOT)
         a.build_index()

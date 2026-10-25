@@ -3,7 +3,7 @@ import logging
 # ═══════════════════════════════════════════════════════════════
 # main.py - Entry Point Principal de AXIOMA
 # Ruta: /ruta/a/axioma/main.py
-# Versión: 1.0.8
+# Versión: 0.7.5 (se muestra desde `src/__init__.py.__version__`; ver `AXIOMA_VERSION`)
 #
 # Punto de entrada para CLI y servidor web (NiceGUI + API).
 # Orquesta el arranque del sistema: warm-up de modelos, verificación
@@ -21,7 +21,7 @@ import threading
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from importlib.metadata import version, PackageNotFoundError
 
 # Configuración de rutas — ✅ ISSUE-147 (2026-10-04, Fase 0 de contenedores):
@@ -116,13 +116,13 @@ if not _check_and_update_deps(auto_update=False):
 # IMPORTS DE AXIOMA (Después del pre-flight check)
 # ═══════════════════════════════════════════════════════════════
 from config.settings import settings
-from config.paths import Paths
-from src.domain.exceptions import AxiomaError, ConfigurationError
-from src.utils.ui import print_fuentes
+# ✅ 2026-10-25: la versión que se muestra (banner, ayuda, log de arranque) sale
+# de la fuente única; antes el archivo decía 1.0.8, 1.0.6 y 0.1.0 a la vez.
+from src import __version__ as AXIOMA_VERSION
 
 try:
     from tools.detailed_logger import (
-        initialize_logger, close_logger, get_logger, DetailedLogger
+        initialize_logger, close_logger, get_logger
     )
     LOGGER_AVAILABLE = True
 except ImportError as e:
@@ -315,7 +315,7 @@ def _warmup_models() -> bool:
         results = asyncio.run(warm_up_all())
 
         if "error" in results:
-            print(f"⚠️  [WARMUP] Ollama no disponible — los modelos se cargarán bajo demanda")
+            print("⚠️  [WARMUP] Ollama no disponible — los modelos se cargarán bajo demanda")
             _log("MAIN", "Warm-up falló: Ollama no disponible", level="WARNING")
             return False
 
@@ -341,7 +341,7 @@ def _warmup_models() -> bool:
 
             return True
         else:
-            print(f"⚠️  [WARMUP] Ningún modelo pudo cargarse — se cargarán bajo demanda")
+            print("⚠️  [WARMUP] Ningún modelo pudo cargarse — se cargarán bajo demanda")
             _log("MAIN", "Warm-up: 0 modelos cargados", level="WARNING")
             return False
     except Exception as e:
@@ -472,7 +472,6 @@ def cmd_chat(query: Optional[str] = None) -> int:
     vive en `src/interfaces/cli/main.py::cmd_chat`; acá quedan las cosas propias del
     entry point: warm-up de modelos y chequeo de hardware.
     """
-    import asyncio
     start = time.time()
     _log_func_call("cmd_chat", {"query": query[:50] if query else None})
     try:
@@ -495,7 +494,7 @@ def cmd_chat(query: Optional[str] = None) -> int:
             print(f"📝 Consulta: '{query}'")
             print("💡 Ejecuta 'python main.py --check'")
         else:
-            print("💡 AXIOMA v0.1.0 — Sistema en construcción.")
+            print(f"💡 AXIOMA v{AXIOMA_VERSION} — Sistema en construcción.")
         _log_func_return("cmd_chat", False, time.time() - start)
         return 1
 
@@ -612,7 +611,7 @@ def cmd_web(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True
             # ✅ 2026-08-25: el audio NO se auto-activa. Se inicia solo si la
             # configuración lo pide (jarvis_mode_default) o cuando el usuario
             # lo habilita en la UI (Modo Jarvis → voice_runtime.set_voice).
-            from src.interfaces.web.voice_runtime import register, set_voice, is_voice_running
+            from src.interfaces.web.voice_runtime import register, set_voice
             register(_vp)
             if settings.jarvis_mode_default in ("jarvis", "voice_only"):
                 set_voice(True)
@@ -790,7 +789,7 @@ def _construir_parser() -> argparse.ArgumentParser:
     (había que escribir `--chat ""`).
     """
     parser = argparse.ArgumentParser(
-        prog="axioma", description="AXIOMA v1.0.6 — Sistema Multi-Agente de IA",
+        prog="axioma", description=f"AXIOMA v{AXIOMA_VERSION} — Sistema Multi-Agente de IA",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Ejemplos:
@@ -847,7 +846,7 @@ VRAM Management (v1.0.6):
 def main() -> int:
     start = time.time()
     try:
-        _log("MAIN", "AXIOMA v1.0.6 starting", extra={
+        _log("MAIN", f"AXIOMA v{AXIOMA_VERSION} starting", extra={
             "python_version": sys.version.split()[0],
             "platform": sys.platform,
             "pid": os.getpid(),

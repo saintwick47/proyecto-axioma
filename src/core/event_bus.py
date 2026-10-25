@@ -30,7 +30,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from src.domain.events import AxiomaEvent, EventTypes
+from src.domain.events import AxiomaEvent
 
 logger = logging.getLogger(__name__)
 

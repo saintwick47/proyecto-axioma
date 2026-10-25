@@ -19,7 +19,6 @@ from typing import Dict, List, Set
 
 # Las tablas NO son sólo texto: `KEYWORD_MAP` arma sus valores con `TaskType.….value` (274 usos)
 # y hay un uso de `settings`. Son exactamente los mismos imports que tenía `classifier_core.py`.
-from config.settings import settings
 from src.domain.types import TaskType
 
 KEYWORD_MAP: Dict[str, str] = {

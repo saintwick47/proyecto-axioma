@@ -23,7 +23,6 @@
 #   SyntaxError: unterminated string literal (detected at line 210)
 # ✅ v0.0.11: Eliminado moondream:v2 de validación (v0.6.5)
 # ═══════════════════════════════════════════════════════════════
-import asyncio
 import json
 import logging
 import os
@@ -32,8 +31,7 @@ import sys
 import time
 import warnings
 from pathlib import Path
-from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable, Union, Tuple
+from typing import Optional, Dict, Any, List, Callable, Tuple
 from nicegui import ui, app as nicegui_app
 from src.utils.degradation import log_degraded
 

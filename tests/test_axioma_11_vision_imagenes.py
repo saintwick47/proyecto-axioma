@@ -22,7 +22,7 @@ import pytest
 # batería de diagnóstico para que los tests usen los mismos insumos.
 try:
     from tools.vision_battery import (
-        _png_b64, _solid, _shape, _count_circles, _text_image, _noise,
+        _png_b64, _solid, _shape, _count_circles, _text_image,
     )
     _IMG_GEN_OK = True
 except Exception:  # pragma: no cover

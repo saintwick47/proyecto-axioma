@@ -22,10 +22,8 @@ import sqlite3
 import threading
 import hashlib
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timezone
-from collections import OrderedDict
-from config.settings import settings
 from config.paths import Paths
 from src.domain.exceptions import MemoryError
 
@@ -278,7 +276,7 @@ class CacheL2:
 
                 duration = time.time() - start
                 _log_cache("init_db", "L2", duration=duration, success=True, db_path=str(self.db_path))
-                logger.debug(f"CacheL2 schema initialized")
+                logger.debug("CacheL2 schema initialized")
 
         except sqlite3.Error as e:
             duration = time.time() - start

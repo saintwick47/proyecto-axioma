@@ -9,8 +9,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from src.domain.entities import Message, MessageRole
 from src.utils.degradation import log_degraded

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 
 from src.domain.types import TaskType
 from src.core.dependency_graph import DependencyGraph
-from src.core.task_decomposer import TaskDecomposer, SubTask
+from src.core.task_decomposer import TaskDecomposer
 
 logger = logging.getLogger(__name__)
 
