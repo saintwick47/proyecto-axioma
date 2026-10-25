@@ -15,6 +15,12 @@ Los comandos de abajo son para el proyecto en el equipo. Con contenedor, mirá l
 ════════════════════════════════════════════════════════════════════════════════
 No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CLIC.
 
+  DESDE EL RELEASE (v0.7.5, sin descargar el proyecto; la imagen se baja YA COMPILADA de GHCR):
+    Windows   → doble clic en AXIOMA-Setup.exe
+    Linux/macOS → bash axioma-instalar.sh
+  Los dos dejan el acceso directo y encienden AXIOMA. El ZIP del proyecto sigue siendo la alternativa
+  (abajo), para quien prefiera el código fuente.
+
   ./instalar/instalar_axioma.sh       # UNA SOLA VEZ: comprueba Docker, arma la imagen,
                                       # deja el acceso directo en el menú y arranca
   ./instalar/iniciar_axioma.sh        # cada vez: enciende y ABRE EL NAVEGADOR
@@ -44,7 +50,8 @@ WINDOWS (PowerShell; hace falta Docker Desktop con WSL 2). Los mismos guiones, c
     hace falta abrir PowerShell nunca más).
   · En Windows NO se usa `network_mode: host` (no existe ahí): va el servicio `axioma-puente`
     (perfil `puente`, publica el 8080 y llega al Ollama del equipo por `host.docker.internal`).
-    Consecuencia: el puerto es 8080 fijo y la VOZ todavía no está disponible en Windows.
+    Consecuencia: el puerto es 8080 fijo y la VOZ DEL CONTENEDOR no está disponible en Windows
+    (sí hay un demonio nativo: ver el bloque de abajo, `instalar\rafael_windows.ps1`).
   · El servicio se nombra UNO POR UNO: `docker compose --profile puente up -d axioma-puente`
     (`... axioma-puente ollama` si además hay que levantar el Ollama propio). Medido el
     2026-10-06: sin nombrarlo, `--profile puente` levanta ADEMÁS `axioma`, que usa la red del

@@ -11,7 +11,7 @@
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | 584 commits · `main` · último tag `v0.7.5` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 584 |
+| 🟢 En desarrollo activo | 610 commits · `main` · último tag `v0.7.5` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 610 |
 
 ---
 
@@ -147,7 +147,8 @@ python axioma_auditor.py --include-tools-tests   # audita también tools/ y test
 # axioma_inspector.py fue FUSIONADO en el auditor (v8.3): singletons, asyncio
 # module-level, imports circulares, duplicados, integración, tests y SCORE.
 # v0.7.5: axioma_auditor.py es SHIM — la lógica vive en tools/auditor/
-# (5 módulos aud_*; tipos AudVerdict/AudSeverity/AudFinding sin colisión).
+# (6 módulos aud_*; `aud_detectors_infra.py` es el mayor, ~1136 líneas; tipos
+# AudVerdict/AudSeverity/AudFinding sin colisión).
 # ⚠️ SCORE 100 ≠ calidad: sólo resta CRITICAL/HIGH. MEDIUM/LOW se reportan en
 # summary.debt (índice por detector) y el gate bloquea si empeoran vs el baseline.
 
@@ -280,9 +281,9 @@ otros proyectos que puedan estar adentro del árbol de trabajo y no tengan nada 
 | LOC Python | **≈ 117.400** |
 | Clases (incl. anidadas) | **≈ 678** |
 | Funciones (incl. métodos) | **≈ 4.471** |
-| Archivos de test | **24** `test_axioma_*.py` en `tests/` (la suite del proyecto) |
+| Archivos de test | **26** `test_axioma_*.py` en `tests/` (la suite del proyecto) |
 
-> **2026-10-25:** suite en verde con **24 archivos** `test_axioma_*.py` (**1138 tests**,
+> **2026-10-25:** suite en verde con **26 archivos** `test_axioma_*.py` (**1191 tests**,
 SCORE AXIOMA **100/100**, MEDIUM 0) y **gate de calidad** en CI. Los archivos de
 test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líneas
 (regla R13 del proyecto: ≤950 líneas por archivo de tests). Se sumaron el canal de imágenes (visión +
@@ -298,7 +299,7 @@ las pruebas de seguridad web y audio opcional — regenerar estructura con
 axioma/
 ├── main.py                  # Entry point CLI + servidor web
 ├── Rafael.py                # Daemon autónomo (systemd)
-├── src/                     # Paquete principal (156 archivos .py)
+├── src/                     # Paquete principal (223 archivos .py)
 │   ├── core/                # Dispatcher, colas, VRAM, feedback, jarvis
 │   ├── agents/              # Agentes especializados (+ loop/)
 │   ├── router/              # Clasificador + SmartRouter + caché L1/L2/L3

@@ -18,9 +18,8 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 | **Sistema** | Linux, macOS o Windows con Docker | — |
 | **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop) | — |
 
-En **Windows** hace falta Docker Desktop con **WSL 2**; los instaladores y el demonio de voz se prueban en cada cambio sobre un Windows real (runner de GitHub Actions). Ahí AXIOMA usa el puerto **8080** y la **voz todavía
-no está disponible** (el chat y los modelos funcionan igual). En **macOS** el instalador todavía se ejecuta
-desde una consola.
+En **Windows** hace falta Docker Desktop con **WSL 2**; los instaladores y el demonio de voz se prueban en cada cambio sobre un Windows real (runner de GitHub Actions). Ahí AXIOMA usa el puerto **8080** y la **voz del contenedor no está disponible**; sí existe un **demonio nativo** que usa la voz de Windows
+(`instalar/rafael_windows.ps1`, ver [`MANUAL_RAFAEL.md`](MANUAL_RAFAEL.md)). El chat y los modelos funcionan igual. En **macOS** el instalador todavía se ejecuta desde una consola.
 
 Con menos de 16 GB **igual funciona**: AXIOMA te avisa de la restricción concreta. Con una placa de video
 con memoria suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en paralelo** en vez de
@@ -33,19 +32,19 @@ modelos.
 
 1. **Instalá Docker** desde [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
    y abrilo una vez para que arranque.
-2. **Descargá este proyecto**: botón verde **Code → Download ZIP** y descomprimilo.
-3. **Ejecutá el instalador**:
-   - **Linux**: doble clic en `instalar/instalar_axioma.sh` (o `./instalar/instalar_axioma.sh` desde una
-     consola).
-   - **Windows**: clic derecho en `instalar/instalar_axioma.ps1` → **Ejecutar con PowerShell**. Si Windows
-     bloquea el guion, usá
-     `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`. Necesita Docker
-     Desktop con WSL 2.
-   - **macOS**: `./instalar/instalar_axioma.sh` desde una consola.
-
-   Comprueba Docker, arma AXIOMA, deja un **acceso directo en tu menú** (en Windows, también en el
-   Escritorio) y lo enciende.
+2. **Bajá el instalador desde la página de _Releases_ de este repositorio** (versión **v0.7.5**):
+   - **Windows**: `AXIOMA-Setup.exe` — **doble clic** (necesita Docker Desktop con WSL 2).
+   - **Linux y macOS**: `axioma-instalar.sh` — desde una consola, `bash axioma-instalar.sh`.
+3. **Ejecutalo y esperá**: comprueba Docker, **baja la imagen ya compilada desde GHCR** (GitHub Container
+   Registry; si no puede, la arma en tu equipo), deja un **acceso directo en tu menú** (en Windows, también
+   en el Escritorio) y lo enciende.
 4. **Usalo**: cada vez, doble clic en el acceso directo: se enciende y **se abre solo en tu navegador**.
+
+> **Alternativa sin Release (código fuente)**: botón verde **Code → Download ZIP** y descomprimilo. Después
+> ejecutá `instalar/instalar_axioma.sh` (Linux/macOS) o, en Windows, clic derecho en
+> `instalar/instalar_axioma.ps1` → **Ejecutar con PowerShell** (si Windows bloquea el guion:
+> `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`). Es el mismo
+> instalador, sin la descarga de la imagen publicada.
 
 ## ¿Qué se descarga?
 
@@ -88,6 +87,9 @@ que tengas en mente va a andar en tu PC, la pantalla **🧩 Configurar AXIOMA** 
 
 **Voz (opcional)**: un servicio aparte escucha la frase *"hey rafael"*:
 `docker compose --profile voz up -d voz` (encender) · `docker compose --profile voz stop voz` (apagar).
+En **Windows** ese servicio del contenedor no está disponible, pero hay un **demonio nativo** que usa la voz
+del sistema: `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\rafael_windows.ps1`
+(detalle en [`MANUAL_RAFAEL.md`](MANUAL_RAFAEL.md)).
 
 ---
 

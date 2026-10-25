@@ -27,14 +27,20 @@ búsqueda web, archivos y memoria persistente por usuario.
    ```
 1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop));
    en **Windows** además **WSL 2**.
-2. Descargar el proyecto y ejecutar **una sola vez** `instalar/instalar_axioma.sh` (doble clic en Linux).
-   En **Windows** es `instalar/instalar_axioma.ps1`:
-   `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`; deja acceso
-   directo en el menú Inicio y en el Escritorio. Ahí el puerto es 8080 fijo (no hay `network_mode: host`)
-   y la voz todavía no está disponible. **El instalador pregunta cómo vas a usar AXIOMA** (1: sólo esta
-   computadora —recomendado—, 2: otros equipos de tu casa/oficina, 3: desde internet) y guarda
-   `AXIOMA_WEB_HOST` en el `.env`; en el primer arranque del CLI aparece el mismo aviso, una sola vez
-   (marcador `data/.primer_arranque`).
+2. **Bajar el instalador de la página de _Releases_** (versión **v0.7.5**, lo más simple):
+   - **Windows**: `AXIOMA-Setup.exe` — doble clic (necesita Docker Desktop con WSL 2).
+   - **Linux y macOS**: `axioma-instalar.sh` — `bash axioma-instalar.sh`.
+
+   Baja la **imagen ya compilada desde GHCR** (GitHub Container Registry) y deja un acceso directo
+   «AXIOMA» en el menú Inicio (y en el Escritorio, en Windows). **Alternativa con el código fuente**:
+   descargar el proyecto y ejecutar **una sola vez** `instalar/instalar_axioma.sh` (doble clic en Linux);
+   en **Windows** es `instalar/instalar_axioma.ps1`:
+   `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`. Ahí el puerto
+   es 8080 fijo (no hay `network_mode: host`) y la **voz del contenedor no está disponible**: existe un
+   **demonio nativo** que usa la voz de Windows (`instalar/rafael_windows.ps1`, ver `MANUAL_RAFAEL.md`).
+   **El instalador pregunta cómo vas a usar AXIOMA** (1: sólo esta computadora —recomendado—, 2: otros
+   equipos de tu casa/oficina, 3: desde internet) y guarda `AXIOMA_WEB_HOST` en el `.env`; en el primer
+   arranque del CLI aparece el mismo aviso, una sola vez (marcador `data/.primer_arranque`).
 3. De ahí en adelante, **doble clic en el icono «AXIOMA»**: se enciende y se abre en el navegador.
 4. La primera vez, AXIOMA **pide crear tu usuario** (no hay ninguno predefinido) y abre la pantalla
    **🧩 Configurar AXIOMA**, que dice qué falta y lo instala con un clic.
@@ -191,8 +197,8 @@ comentario y etiquetas — esa calificación **entrena al sistema**
 ## 7. Tests y verificación
 
 ```bash
-venv/bin/python tools/run_all_tests.py --timeout 150   # suite completa (24 archivos, 1138 tests) + reporte
-venv/bin/python tools/quality_gate.py                  # gate de calidad (13 condiciones)
+venv/bin/python tools/run_all_tests.py --timeout 150   # suite completa (26 archivos, 1191 tests) + reporte
+venv/bin/python tools/quality_gate.py                  # gate de calidad (15 condiciones)
 python -m pytest tests/            # pytest directo (suite del proyecto)
 AXIOMA_VISION_E2E=1 python -m pytest tests/test_axioma_11_vision_imagenes.py -q   # visión real (requiere Ollama, ~7 min)
 python tools/vision_battery.py     # batería de visión (13 casos sintéticos)

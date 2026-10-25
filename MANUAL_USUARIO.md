@@ -43,37 +43,39 @@ falta, el instalador mismo te lo dice.
 
 ---
 
-## 4. Paso 2: descargar AXIOMA
+## 4. Paso 2: bajar el instalador de AXIOMA
 
-1. En esta página (el repositorio), tocá el botón verde **Code**.
-2. Elegí **Download ZIP**.
-3. Descomprimí el archivo donde quieras (por ejemplo, en el Escritorio). Se va a crear una carpeta llamada
-   `proyecto-axioma`.
+La forma más simple es la página de **_Releases_** de este repositorio (la versión **v0.7.5**):
+
+- **Windows**: bajá **`AXIOMA-Setup.exe`** (es un solo archivo).
+- **Linux y macOS**: bajá **`axioma-instalar.sh`** (también un solo archivo).
+
+> **Si preferís el código fuente** (alternativa): en esta página tocá el botón verde **Code → Download ZIP**,
+> descomprimilo donde quieras (por ejemplo, en el Escritorio) y seguí el paso 3 con la carpeta
+> `proyecto-axioma` que se crea.
 
 ---
 
 ## 5. Paso 3: instalarlo (5 minutos, una sola vez)
 
-Dentro de la carpeta `proyecto-axioma` hay una carpeta **`instalar`**. Ahí está el instalador.
+- **Windows**: **doble clic** en el `AXIOMA-Setup.exe` que bajaste. Necesita Docker Desktop con WSL 2; si
+  algo falta, el instalador mismo te lo dice.
+- **Linux y macOS**: abrí una consola donde bajaste el archivo y escribí
+  `bash axioma-instalar.sh` (la consola es una ventana de texto; el comando se copia y se pega, y Enter).
 
-- **Linux**: hacé **doble clic** en `instalar_axioma.sh` y elegí **Ejecutar**.
-- **Windows**: `instalar_axioma.ps1` **no se puede** ejecutar con doble clic (Windows bloquea los guiones
-  recién bajados). Hacé esto, que es una sola vez:
-  1. Abrí la carpeta `instalar`, hacé **clic derecho** en `instalar_axioma.ps1` y elegí
-     **Ejecutar con PowerShell**.
-  2. Si Windows dice que *"la ejecución de scripts está deshabilitada"*, abrí **PowerShell** en la carpeta
-     `proyecto-axioma` (clic derecho dentro de la carpeta → *Abrir en Terminal*) y pegá esto:
-     ```powershell
-     powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1
-     ```
-  3. Al terminar te deja un **acceso directo «AXIOMA»** en el menú Inicio y en el Escritorio: después
-     arrancás con doble clic ahí, sin tocar más la consola.
-- **macOS**: por ahora hay que abrir una consola dentro de esa carpeta y escribir
-  `./instalar/instalar_axioma.sh` (la consola es una ventana de texto; el comando se copia y se pega, y
-  Enter).
+El instalador **baja la imagen ya compilada desde GHCR** (GitHub Container Registry), deja un **acceso
+directo «AXIOMA»** en tu menú (en Windows, también en el Escritorio) y lo enciende. La primera vez tarda
+unos minutos.
 
-> En Windows, AXIOMA usa el puerto **8080** (ahí no se puede cambiar) y la **voz todavía no está
-> disponible**: el chat y los modelos funcionan igual.
+> **Si bajaste el ZIP** (la alternativa del paso 2): entrá a la carpeta `proyecto-axioma`, abrí la carpeta
+> **`instalar`** y ejecutá ahí `instalar_axioma.sh` (Linux/macOS) o `instalar_axioma.ps1` (Windows, clic
+> derecho → **Ejecutar con PowerShell**; si Windows lo bloquea, usá
+> `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`). Es el mismo
+> instalador, sin la descarga de la imagen publicada.
+
+> En Windows, AXIOMA usa el puerto **8080** (ahí no se puede cambiar) y la **voz del contenedor no está
+> disponible**: el chat y los modelos funcionan igual. Para hablar en Windows hay un **demonio nativo**
+> (`instalar/rafael_windows.ps1`), explicado en `MANUAL_RAFAEL.md`.
 
 ### El instalador te pregunta cómo vas a usar AXIOMA
 
@@ -193,6 +195,15 @@ enciende aparte:
 docker compose --profile voz up -d voz     # encender la voz
 docker compose --profile voz stop voz      # apagarla
 ```
+
+**En Windows** ese servicio del contenedor no puede usar el audio del equipo, pero AXIOMA trae un
+**demonio nativo** que habla con la voz que ya tiene Windows, sin instalar nada más:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\rafael_windows.ps1
+```
+
+El detalle está en `MANUAL_RAFAEL.md`; el chat y los modelos funcionan igual sin la voz.
 
 ---
 
