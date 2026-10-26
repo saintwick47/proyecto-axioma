@@ -278,7 +278,7 @@ def _validation_state(passed: bool, response_meta: Dict[str, Any]) -> str:
 # Explorador de archivos (v0.6.9p) — navegación UI 📁 → adjuntar
 # ═══════════════════════════════════════════════════════════════
 _EXPLORE_SKIP_DIRS = frozenset({
-    ".git", ".venv", "venv", "node_modules", "__pycache__",
+    ".git", ".venv", "venv", "venv_axioma", "node_modules", "__pycache__",
     ".pytest_cache", ".optimizer_backups", "deepseek-harness",
     ".idea", ".gradle", ".cache", "cache", ".local",
 })

@@ -84,7 +84,16 @@ def verificar_interprete(nombre_script: str) -> None:
     if importlib.util.find_spec("pydantic_settings") is not None:
         return
 
-    venv_py = Path(__file__).resolve().parents[2] / "venv" / "bin" / "python"
+    # ✅ 2026-10-26: hay DOS entornos. AXIOMA usa `venv_axioma/`; el viejo `venv/` quedó
+    # como entorno del proyecto cervecero (ver `requirements.txt`). Se prueban en ese
+    # orden para no sugerir un intérprete que no tiene las dependencias de AXIOMA.
+    raiz = Path(__file__).resolve().parents[2]
+    venv_py = next(
+        (p for p in (raiz / "venv_axioma" / "bin" / "python",
+                     raiz / "venv" / "bin" / "python") if p.exists()),
+        raiz / "venv_axioma" / "bin" / "python",
+    )
+    activate = venv_py.parents[1] / "bin" / "activate"
     print("\n❌ Faltan las dependencias de AXIOMA: 'pydantic_settings' no está instalado.",
           file=sys.stderr)
     print(f"   Estás ejecutando con: {sys.executable}", file=sys.stderr)
@@ -93,7 +102,7 @@ def verificar_interprete(nombre_script: str) -> None:
               file=sys.stderr)
         args = " ".join(sys.argv[1:])
         print(f"       {venv_py} {nombre_script} {args}".rstrip(), file=sys.stderr)
-        print(f"       source venv/bin/activate && python {nombre_script}", file=sys.stderr)
+        print(f"       source {activate} && python {nombre_script}", file=sys.stderr)
     else:
         print("\n   Instalá las dependencias:  pip install -r requirements.txt",
               file=sys.stderr)

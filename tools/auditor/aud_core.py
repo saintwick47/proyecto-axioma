@@ -189,7 +189,7 @@ def _resolve_top_level_imports_for(rel: Path, tree: ast.Module) -> Set[str]:
 # ============================================================================
 
 DEFAULT_EXCLUDE_DIRS = frozenset({
-    '.git', 'data', 'logs', '__pycache__', '.venv', 'venv',
+    '.git', 'data', 'logs', '__pycache__', '.venv', 'venv', 'venv_axioma',
     '.optimizer_backups', 'node_modules', 'tests', 'benchmarks',
     'tools', 'docs', 'reports', 'cache', 'inforchat',
     'deepseek-harness', '.pytest_cache', '.coverage'

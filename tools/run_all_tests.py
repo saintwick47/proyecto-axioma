@@ -74,9 +74,21 @@ def main() -> int:
     ap.add_argument("--run-id", default="", help="Run-id explícito (default: timestamp)")
     args = ap.parse_args()
 
-    python = str(_ROOT / "venv" / "bin" / "python")
-    if not Path(python).exists():
-        python = sys.executable
+    # ✅ 2026-10-26: hay dos entornos (`venv_axioma/` = AXIOMA, `venv/` = project cervecero).
+    # Se usa el intérprete con el que se invocó este script si ya es un venv del proyecto;
+    # si no, se prefiere `venv_axioma` y después `venv` (compatibilidad).
+    actual = Path(sys.executable).resolve()
+    python = sys.executable
+    for _nombre in ("venv_axioma", "venv"):
+        _cand = (_ROOT / _nombre / "bin" / "python")
+        if _cand.exists() and _cand.resolve() == actual:
+            break
+    else:
+        for _nombre in ("venv_axioma", "venv"):
+            _cand = _ROOT / _nombre / "bin" / "python"
+            if _cand.exists():
+                python = str(_cand)
+                break
 
     run_id = args.run_id.strip() or datetime.now(timezone.utc).strftime("batch_%Y%m%d_%H%M%S")
     files = sorted(TESTS_DIR.glob("test_axioma_*.py"))

@@ -107,7 +107,7 @@ Adjuntás una imagen con 📎, escribís tu pregunta (o nada → la describe) y 
 ```bash
 python tools/vision_battery.py                      # batería diagnóstica 13 casos → logs/vision_battery_*.md
 python tools/vision_battery.py --quick              # subconjunto rápido
-AXIOMA_VISION_E2E=1 venv/bin/python -m pytest tests/test_axioma_11_vision_imagenes.py -q   # 47 tests (integración real)
+AXIOMA_VISION_E2E=1 venv_axioma/bin/python -m pytest tests/test_axioma_11_vision_imagenes.py -q   # 47 tests (integración real)
 ```
 
 Settings: `vision_num_predict` (512) · `vision_preprocess_enabled` · `vision_ocr_enabled` · `vision_ocr_min_conf` (60) · `llm_vision_model`.
@@ -136,8 +136,8 @@ python tools/log_health_report.py           # health report desde logs (E2; v2 d
 python axioma_auditor.py                        # auditoría completa (38 detectores → logs/)
 python axioma_auditor.py --full --run-tests     # + pytest + SCORE AXIOMA /100
 python axioma_auditor.py --format json -o logs/audit_summary.json   # resumen máquina (lo lee el gate)
-venv/bin/python tools/run_all_tests.py --timeout 150   # suite por archivo + reporte con run_id
-venv/bin/python tools/quality_gate.py           # 15 condiciones de calidad (CI/local, incluye ratchet de deuda)
+venv_axioma/bin/python tools/run_all_tests.py --timeout 150   # suite por archivo + reporte con run_id
+venv_axioma/bin/python tools/quality_gate.py           # 15 condiciones de calidad (CI/local, incluye ratchet de deuda)
 python axioma_auditor.py --detectors security_harness   # solo protecciones FASE 1-3
 python axioma_auditor.py --detectors plan_v2_protections # solo protecciones PLAN v2.0
 python axioma_auditor.py --write-baseline        # congela la deuda en audit_baseline.json

@@ -20,7 +20,7 @@ collect_ignore = [
     # PASAN (7 saltan, 52 s, offline), pero **netron y actron son herramientas que
     # todavía NO están integradas al proyecto** (decisión del usuario): sus tests no
     # pertenecen a la suite de AXIOMA. Quedan como diagnóstico MANUAL:
-    #     venv/bin/python -m pytest tests/test_netron.py -q      # 157 passed, 7 skipped
+    #     venv_axioma/bin/python -m pytest tests/test_netron.py -q      # 157 passed, 7 skipped
     # Si algún día se integran al runtime, se quitan de esta lista y entran a la suite.
     "test_netron.py",
 ]

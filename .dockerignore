@@ -15,6 +15,7 @@
 # --- Otros proyectos y artefactos de la máquina ---
 deepseek-harness/
 venv/
+venv_axioma/
 .venv/
 env/
 .git/

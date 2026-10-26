@@ -220,7 +220,7 @@ class CorpusLibrary:
             return {"error": str(exc)}
 
     def index_folder(self, folder: str,
-                     exclude: tuple = ("venv", ".git", "node_modules",
+                     exclude: tuple = ("venv", "venv_axioma", ".git", "node_modules",
                                        "__pycache__", "data", ".pytest_cache",
                                        ".optimizer_backups", "deepseek-harness"),
                      ) -> Dict[str, Any]:

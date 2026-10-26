@@ -504,7 +504,7 @@ def barrer_volumen(niveles=(40, 55, 70), segundos=3.0, fs=16000):
     de los cuadros ⇒ **el turno nunca se cerraba** (el log muestra buffers que crecen de
     4,9 s a 29,3 s sin despachar nada). El punto medio hay que medirlo, no adivinarlo.
 
-    Uso:  venv/bin/python tests/test_audio_diagnostic.py --volumen
+    Uso:  venv_axioma/bin/python tests/test_audio_diagnostic.py --volumen
     Leé la MISMA frase en cada nivel; al final imprime una tabla para elegir.
     """
     import subprocess

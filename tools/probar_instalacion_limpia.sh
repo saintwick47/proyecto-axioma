@@ -88,7 +88,7 @@ paso "Copiando el proyecto a una carpeta temporal (sin tu entorno)"
 DESTINO="$(mktemp -d "/tmp/axioma_limpia_XXXXXX")"
 dato "destino: $DESTINO"
 if ! rsync -a \
-      --exclude 'venv/' --exclude 'data/' --exclude 'logs/' --exclude '.git/' \
+      --exclude 'venv/' --exclude 'venv_axioma/' --exclude 'data/' --exclude 'logs/' --exclude '.git/' \
       --exclude '.env' --exclude '.env.local' --exclude '__pycache__/' --exclude '*.pyc' \
       --exclude 'docs/' --exclude 'cache/' --exclude '.optimizer_backups/' \
       --exclude 'deepseek-harness/' --exclude '.pytest_cache/' --exclude '.ruff_cache/' \

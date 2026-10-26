@@ -309,7 +309,7 @@ def test_el_contexto_de_compilacion_deja_fuera_lo_pesado_y_lo_ajeno():
     texto = (PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8")
     patrones = [ln.strip() for ln in texto.splitlines()
                 if ln.strip() and not ln.strip().startswith("#")]
-    for excluido in ("deepseek-harness/", "venv/", ".git/", "data/", "logs/",
+    for excluido in ("deepseek-harness/", "venv/", "venv_axioma/", ".git/", "data/", "logs/",
                      ".optimizer_backups/", ".env", "__pycache__/"):
         assert excluido in patrones, f"el contexto de compilación no excluye {excluido}"
     for necesario in ("src/", "config/", "tests/", "tools/"):

@@ -12,8 +12,8 @@
 #      otra, acá se ve.
 #
 # Uso:
-#   venv/bin/python tools/verificar_primer_arranque.py                 # contra 127.0.0.1:8080
-#   venv/bin/python tools/verificar_primer_arranque.py --url http://…  # otra dirección
+#   venv_axioma/bin/python tools/verificar_primer_arranque.py                 # contra 127.0.0.1:8080
+#   venv_axioma/bin/python tools/verificar_primer_arranque.py --url http://…  # otra dirección
 #
 # Requisitos: AXIOMA andando (`instalar/iniciar_axioma.sh`) y playwright con Chromium.
 # Deja capturas en `data/capturas/` para poder mirarlas.

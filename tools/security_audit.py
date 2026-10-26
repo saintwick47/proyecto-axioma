@@ -242,7 +242,8 @@ SKIP_EXTENSIONS: Set[str] = {
 }
 
 SKIP_DIRS: Set[str] = {
-    '.git', '__pycache__', 'node_modules', '.venv', 'venv', 'env',
+    '.git', '__pycache__', 'node_modules', '.venv', 'venv', 'venv_axioma', 'env',
+    'cache', 'deepseek-harness',
     '.idea', '.vscode', '.pytest_cache', '.mypy_cache', 'htmlcov',
     '.tox', '.nox', '.cache', '.ruff_cache',
     'dist', 'build', '.eggs', '*.egg-info',

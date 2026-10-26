@@ -7,6 +7,35 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Entorno propio de AXIOMA: `venv_axioma/` (2026-10-26)
+
+- **Se separaron los entornos.** AXIOMA usa **`venv_axioma/`**, creado limpio con
+  **Python 3.14.8** e instalado desde `requirements.txt` (188 pins, todos exactos;
+  `pip check` limpio). El viejo **`venv/`** queda como entorno del proyecto cervecero,
+  sin tocar: `beer_vgb_mobile` sigue importando `flet==0.85.1`, `customtkinter`,
+  `PIL 12.3.0` y `certifi` desde ahí. **Mover un venv no es una opción** (las rutas
+  quedan cocidas en `bin/activate`, shebangs y `.pth`), así que no se movió nada.
+- **Dos paquetes no están en PyPI**: `pyatspi` y `gi` vienen de at-spi (paquetes del
+  sistema). Se replicaron en `venv_axioma` como **symlinks** a
+  `/usr/lib/python3.14/site-packages/`, igual que estaban en `venv/`; documentado en
+  la cabecera de `requirements.txt`. `torch`/`torchaudio` se instalaron del índice CPU
+  (`--index-url https://download.pytorch.org/whl/cpu`), como ya documentaba el archivo.
+- **`tools/run_all_tests.py` lanzaba pytest con `venv/bin/python` hardcodeado.**
+  Ahora usa el intérprete con el que se lo invoca si ya es un venv del proyecto, y si
+  no prefiere `venv_axioma/` y después `venv/`. Sin ese arreglo la suite corría con el
+  entorno viejo aunque la invocaras con el nuevo (medido: `test_axioma_33` se colgaba
+  120 s porque el documentador indexaba los ~40 000 archivos de `venv_axioma/`).
+- **`venv_axioma/` agregado a los recorredores y exclusiones del árbol**: `.gitignore`,
+  `.dockerignore`, `commit.py`, `preparar_publicacion.sh`, `probar_instalacion_limpia.sh`,
+  `structure_detector.py`, los 4 del `documentador/`, los 3 del `auditor/`,
+  `corpus.py`, `app_logic.py`, `tool_fs_implementations.py` y `promotion_gate.py`.
+  Test de regresión del `.dockerignore` extendido.
+- **`security_audit.py`**: `SKIP_DIRS` no incluía `cache/` (se colgaba recorriendo
+  51,9 GB) ni `deepseek-harness/`; ahora sí, más `venv_axioma/`.
+- **Verificación con el venv nuevo**: suite **26/26 · 1198 tests**, auditor **118
+  hallazgos (0 CRITICAL/HIGH/MEDIUM) · deuda 68 · SCORE 100**, gate **15/15 ✅**,
+  `main.py --help` y `Rafael.py --help` arrancan, `build_api_app()` construye la app.
+
 ### Seguridad web y detectores nuevos (2026-10-26)
 
 - **Tarea 1 — path traversal REAL en `POST /v1/analyze_file` (CWE-22), corregido.**

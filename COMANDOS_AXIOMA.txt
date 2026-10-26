@@ -7,7 +7,38 @@
 
 ▶ DESARROLLO (sin contenedor) — TRABAJAR DESDE LA RAÍZ DEL PROYECTO:
 cd /ruta/al/proyecto
-(usar el venv:  source venv/bin/activate   — o anteponer venv/bin/ a python)
+
+▶ ACTIVAR EL ENTORNO (una vez por terminal):
+
+  ⚠️ El script `activate` es de bash: en **fish** hay que usar `activate.fish`.
+     Si ves `'case' builtin usado fuera de un bloque 'switch'`, usaste el de bash.
+
+  AXIOMA (venv_axioma/ — Python 3.14.8):
+
+    fish:
+       source venv_axioma/bin/activate.fish
+       python -V                            # 3.14.8
+       which python                         # .../venv_axioma/bin/python
+       deactivate                           # al terminar (o cerrá la terminal)
+
+    bash / zsh:
+       source venv_axioma/bin/activate
+       deactivate
+
+  ENTORNO ANTERIOR (venv/ — se conserva para otros proyectos de este equipo):
+       source venv/bin/activate.fish        # fish
+       source venv/bin/activate             # bash / zsh
+       deactivate
+
+  SIN ACTIVAR (equivalente, y más seguro si dudás cuál está activo):
+     venv_axioma/bin/python <script.py>
+     venv_axioma/bin/python -m pytest tests/ -q
+
+  ⚠️ En este equipo hay DOS entornos: `venv_axioma/` es el de AXIOMA y tiene sus
+     dependencias; `venv/` es el anterior y NO las tiene todas. Si ves
+     `ModuleNotFoundError` (p. ej. `pydantic_settings`), mirá `which python`: casi seguro
+     está activo el equivocado. Los comandos de abajo asumen `venv_axioma/` activo.
+
 Los comandos de abajo son para el proyecto en el equipo. Con contenedor, mirá la sección 0.
 
 ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -95,7 +126,7 @@ Verificaciones del proyecto (para quien quiera comprobar que todo está bien)
 
   tools/verificar_imagen.sh                    # compila, MIDE el tamaño, corre la suite adentro
   tools/verificar_imagen.sh --solo-plan        # muestra los pasos sin ejecutar
-  venv/bin/python tools/verificar_primer_arranque.py   # guía de primer arranque en navegador real
+  venv_axioma/bin/python tools/verificar_primer_arranque.py   # guía de primer arranque en navegador real
 
 ════
 1. 🚀 ENTRY POINT — main.py
@@ -274,7 +305,7 @@ ls -t logs/axioma_test_report_*.md | head -1
   otros procesos, ese check puede reportar FAIL de entorno (no es bug del código)
   — libere espacio en /tmp y vuelva a ejecutar.
 · Comandos con venv sin activar:
-    venv/bin/python -m pytest tests/
+    venv_axioma/bin/python -m pytest tests/
 · Ver ayuda completa de pytest:
     python -m pytest --help
 
@@ -468,13 +499,13 @@ python Rafael.py --mode jarvis
 #   1-5 + comentario + etiquetas, que ahora SÍ llega al FeedbackLoop.
 #
 # Verificación (lo que se corre antes de dar algo por terminado):
-venv/bin/python tools/run_all_tests.py --timeout 150    # suite (24 archivos) + reporte con run_id
-venv/bin/python axioma_auditor.py                       # SCORE AXIOMA /100
-venv/bin/python axioma_auditor.py --format json -o logs/audit_summary.json
-venv/bin/python tools/quality_gate.py                   # 15 condiciones (SCORE, HIGH, detectores, ratchet de deuda, run_id, health)
-venv/bin/python tools/quality_gate.py --no-require-health   # modo CI (sin logs de runtime)
-venv/bin/python tools/log_health_report.py              # health report desde logs
-venv/bin/python tools/audit_silent_excepts.py           # inventario de except silenciosos
+venv_axioma/bin/python tools/run_all_tests.py --timeout 150    # suite (24 archivos) + reporte con run_id
+venv_axioma/bin/python axioma_auditor.py                       # SCORE AXIOMA /100
+venv_axioma/bin/python axioma_auditor.py --format json -o logs/audit_summary.json
+venv_axioma/bin/python tools/quality_gate.py                   # 15 condiciones (SCORE, HIGH, detectores, ratchet de deuda, run_id, health)
+venv_axioma/bin/python tools/quality_gate.py --no-require-health   # modo CI (sin logs de runtime)
+venv_axioma/bin/python tools/log_health_report.py              # health report desde logs
+venv_axioma/bin/python tools/audit_silent_excepts.py           # inventario de except silenciosos
 #
 # API nueva:
 #   GET /api/v1/metrics/degradation   → contrato vs degradación esperada (+alertas)

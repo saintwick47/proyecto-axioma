@@ -294,7 +294,7 @@ class FsSearchTool(BaseTool):
 
     # Directorios pesados/irrelevantes que se saltan al caminar (velocidad).
     _SKIP_DIRS = frozenset({
-        "venv", ".git", "__pycache__", "node_modules", ".cache",
+        "venv", "venv_axioma", ".git", "__pycache__", "node_modules", ".cache",
         ".optimizer_backups", "backups", ".venv", "site-packages",
         ".pytest_cache", ".mypy_cache", "dist", "build", ".git_backup",
         # ✅ plan_rafael: dirs pesados/internos que no aportan a la búsqueda

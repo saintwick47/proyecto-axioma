@@ -856,7 +856,7 @@ def _collect_referenced_from_tools(root: Path) -> set:
         candidates.extend(tools_dir.rglob("*.py"))
     candidates.extend(root.glob("*.py"))
     for py in candidates:
-        if any(part in {"__pycache__", "venv", ".venv", "node_modules"} for part in py.parts):
+        if any(part in {"__pycache__", "venv", "venv_axioma", ".venv", "node_modules"} for part in py.parts):
             continue
         try:
             tree = ast.parse(py.read_text(encoding="utf-8", errors="ignore"))

@@ -245,7 +245,7 @@ class FifoCacheDetector(BaseDetector):
 # ============================================================================
 
 _ROOT_PY_DIRS = ('src', 'config', 'tools', 'tests')
-_ROOT_PY_EXCLUDE = ('__pycache__', 'venv', 'deepseek-harness', '.git', 'data',
+_ROOT_PY_EXCLUDE = ('__pycache__', 'venv', 'venv_axioma', 'deepseek-harness', '.git', 'data',
                     'logs', 'cache', 'inforchat', 'node_modules', 'benchmarks',
                     '.optimizer_backups')
 

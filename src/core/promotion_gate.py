@@ -96,7 +96,7 @@ PROMO_ROOT = Path.home() / ".axioma" / "promotions"
 SHADOW_ROOT = Path("/tmp/axioma_shadow")
 MAX_ATTEMPTS = 3
 SHADOW_IGNORE = shutil.ignore_patterns(
-    "venv", ".git", "__pycache__", ".pytest_cache", "*.pyc", "*.pyo",
+    "venv", "venv_axioma", ".git", "__pycache__", ".pytest_cache", "*.pyc", "*.pyo",
     # ✅ AUDITORÍA 2026-08-25: la sombra es para validar promoción de CÓDIGO
     # — excluir runtime/datos pesados (data/ 22GB rompía el copytree en tmpfs).
     "data", "logs", "cache", "deepseek-harness", "inforchat", "node_modules",
