@@ -183,7 +183,7 @@ lxml_html_clean==0.4.4
 fpdf2==2.8.8
 qrcode==8.2
 # ✅ 2026-09-01: extracción real de texto en PDF/DOCX (src/utils/file_text.py)
-pypdf==6.16.2
+pypdf==6.21.2
 python-docx==1.2.0
 # ═══════════════════════════════════════════════════════════════
 # === SECURITY / DEFENSE ===
@@ -210,7 +210,7 @@ flatbuffers==25.12.19
 # ═══════════════════════════════════════════════════════════════
 requests==2.33.1
 urllib3==2.7.0
-certifi==2026.7.22
+certifi==2026.10.23
 charset-normalizer==3.4.7
 requests-oauthlib==2.0.0
 oauthlib==3.3.1
