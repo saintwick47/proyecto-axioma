@@ -169,6 +169,29 @@ def build_api_app():
                         status_code=400)
             return await call_next(request)
 
+        # ✅ 2026-10-26: CSRF en las peticiones mutantes. Un sitio externo puede disparar un
+        # POST/PUT/PATCH/DELETE "simple" (formulario/multipart/query) SIN preflight de CORS; el
+        # navegador manda `Origin`, así que si está presente y no coincide con el `Host` del
+        # servidor, es cross-origin: se rechaza. Sin `Origin`/`Referer` (curl, scripts, tests)
+        # no aplica — el CSRF es un ataque de navegador.
+        @app.middleware("http")
+        async def _validar_origen(request, call_next):
+            if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+                origen = request.headers.get("origin") or request.headers.get("referer")
+                if origen:
+                    from urllib.parse import urlparse
+                    host_origen = _host_sin_puerto(urlparse(origen).netloc)
+                    host = _host_sin_puerto(request.headers.get("host", ""))
+                    if host_origen and host_origen != host:
+                        _log_web_event("SERVER", f"Origen rechazado: {host_origen!r} != {host!r} (¿CSRF?)",
+                                       level="WARNING")
+                        return JSONResponse(
+                            {"detail": f"Origen no permitido ({host_origen}). AXIOMA sólo acepta "
+                                       "peticiones del mismo origen: abrí la UI con la misma "
+                                       "dirección del servidor."},
+                            status_code=403)
+            return await call_next(request)
+
         # Contador REAL de requests: `/api/v1/stats` devolvía total_requests,
         # avg_latency_ms y uptime_seconds en 0 (stub) mientras `router_metrics`
         # era real. Coste: unos ints por request.

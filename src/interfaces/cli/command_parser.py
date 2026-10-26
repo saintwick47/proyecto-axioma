@@ -53,10 +53,10 @@ from __future__ import annotations
 
 import logging
 import shlex
-# noqa: F401 — `dataclass`/`field` eran atributos de este módulo antes del
+# `dataclass`/`field`/`Callable`/`Tuple` eran atributos de este módulo antes del
 # split; se conservan para no cambiar el namespace (los tipos viven en el hermano).
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass, field  # noqa: F401 — namespace histórico
+from typing import Any, Callable, Dict, List, Optional, Tuple  # noqa: F401 — idem
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ except ImportError:
     _FILE_AUDIT_AVAILABLE = False
 
 # ── Re-exports de la mitad movida (API pública intacta) ─────────────────────
-from .command_parser_commands import (  # noqa: E402 — re-export de compatibilidad
+from .command_parser_commands import (  # noqa: E402, F401 — re-export de compatibilidad
     CommandResult,
     CommandDef,
     CommandParserCommandsMixin,

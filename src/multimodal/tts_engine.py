@@ -403,7 +403,7 @@ class TTSEngine:
     def speak_sync(self, text: str) -> bool:
         try:
             try:
-                loop = asyncio.get_running_loop()
+                loop = asyncio.get_running_loop()  # noqa: F841 — detecta event loop activo
                 # Loop activo — correr en thread separado para no bloquear
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:

@@ -7,6 +7,80 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Seguridad web y detectores nuevos (2026-10-26)
+
+- **Tarea 1 — path traversal REAL en `POST /v1/analyze_file` (CWE-22), corregido.**
+  `src/interfaces/web/routes.py:466` hacía `file_path = upload_dir / request.file_id`
+  sin validar: con `file_id="/etc/passwd"` `Path` **descarta** `upload_dir`,
+  `extract_file_text` leía el archivo y su contenido salía al LLM. Sonda antes
+  (snapshot `HEAD` en `/tmp`, `TestClient`): `200 success=True` y las primeras líneas
+  de `/etc/passwd` (`root:x:0:0…`) en el mensaje al agente. **Después:** `"/etc/passwd"`,
+  `"../evil"`, un absoluto y `"a/b"` → **400** y **nada leído** (`vistos == []`);
+  un archivo subido de verdad sigue analizándose (200, `CONTENIDO-OK`). Mismo patrón
+  que `/upload_file` y `WorkspaceManager`: sólo el basename (`safe_id == file_id`,
+  sin `.`/`..`) y `file_path.resolve().is_relative_to(upload_dir.resolve())`; se
+  valida ANTES del `try` para que el 400 no lo trague el `except`. Test de regresión
+  en `test_axioma_29_seguridad_web.py` (37 passed).
+- **AUD-FSR — path derivado pasado a un helper de lectura** (`file_read_sink`,
+  MEDIUM; HIGH si el contenido sale del proceso). El detector vive al lado de
+  AUD-PTH y reusa su propagación de taint, pero reporta con ID propio los sinks que
+  no eran `open`/`read_text`: `extract_file_text`, `PdfReader`, `Document`,
+  `json.load`/`yaml.safe_load` (`load`, `safe_load`), `load_workbook`, `extract_text`.
+  Sonda sobre el `routes.py` pre-fix en `/tmp`: **1 hallazgo, `AUD-FSR-001` en
+  `routes.py:466`**, HIGH (el texto termina en `Message(...)` → LLM). En el árbol
+  corregido: **0** (tampoco en `workspace_manager`, el upload ni el download).
+  Evita FPs porque no propaga `Path(x).name`/`basename` y no marca funciones con
+  `resolve().is_relative_to(...)`/`fullmatch`.
+- **AUD-AUTH-002 — POST mutante sin auth con "simple request" (CSRF, CWE-352).**
+  `csrf_simple_request` (MEDIUM) marca POST sin `Depends(auth)` cuyo body es
+  simple (Query/Path/Form/File/multipart, sin modelo Pydantic). Sonda: **3**
+  (`/upload_file`, `/preflight/instalar`, `/preflight/instalar/{id}/detener`) y
+  **ninguna** de las 2 con token (`/preflight/claves`, `/preflight/modelos`).
+  Los POST con body JSON y los DELETE/PUT/PATCH quedan fuera (no son simple requests).
+- **AUD-AUTH-003 — inventario de rutas mutantes sin auth.** `mutating_routes_inventory`
+  (INFO, **1 hallazgo agregado** con la lista): **7** rutas (`DELETE /sessions/{id}`,
+  `POST /preflight/instalar`, `POST …/detener`, `POST /chat`, `POST /upload_file`,
+  `POST /analyze_file`, `POST /rac`).
+- **AUD-TMP — `tempfile.mktemp`/`os.tmpnam` (TOCTOU, CWE-377).** `tempfile_mktemp`
+  (MEDIUM) encuentra los **3** de `tools/verify_axioma.py:430,928,950` y no marca
+  `NamedTemporaryFile` ni `tmp_path_factory.mktemp` (API de pytest). Scope por
+  detector: `BaseDetector.include_tools` (opt-in) hace que el auditor construya un
+  índice ampliado SÓLO para ese detector; el scope por defecto del resto no cambia.
+- **AUD-EXEC — falso positivo corregido.** `_is_obvious_constant` ahora acepta
+  ternarios de literales y concatenación/formateo con ambos lados constantes:
+  `os.system('clear' if os.name != 'nt' else 'cls')`
+  (`tools/netron/netron_dashboard.py:1520`) **deja de salir**; `os.system(cmd)`
+  dinámico se sigue marcando.
+- **Baseline de deuda regenerado** (`--write-baseline`): **117 → 124 hallazgos**,
+  deuda **68 → 98** (6 MEDIUM nuevos: 3 CSRF + 3 TOCTOU; +1 INFO de inventario),
+  SCORE **100**, **38 detectores** (antes 34), ratchet sin regresión. Docs
+  (`README.md`, `COMANDOS_AXIOMA.txt`) actualizados a 38. Tests nuevos en
+  `test_axioma_34_auditor_honesto.py` (33 → 39 passed) y `test_axioma_29` (36 → 37).
+
+### Limpieza (2026-10-26)
+
+- **Tarea 1 — `tools/` sin F401.** 71 imports eliminados y 65 conservados con `# noqa: F401`
+  justificado: re-exports de compatibilidad en `axioma_doc_base` (30), `axioma_doc_extractors`
+  (10) y `axioma_doc_analysis_passes` (16), más imports de disponibilidad en `tools/__init__.py`
+  (3), `benchmark_suites.py` (1) y `system_check.py` (5). `ruff --select F401 tools/` → **0**;
+  suite **1181 passed + 10 skipped (1191)**, auditor **117** (0 CRITICAL/HIGH/MEDIUM, deuda 68),
+  gate **15/15**.
+- **Tarea 2 — CHANGELOG sin `[Unreleased]` duplicados.** Los 15 `## [Unreleased] — En Desarrollo`
+  (debajo de v0.7.5) se consolidaron en una única sección `## Historial`. No había entradas sin
+  publicar debajo: todas eran notas `### v0.6.x` ya publicadas, que quedan intactas.
+  `## [Sin publicar]` sigue siendo el único bloque de no publicado;
+  `grep -c '^## \[Unreleased\]'` → **0**.
+- **Tarea 3 — imports y variables intencionales, marcados (no borrados).** 16 F401 y 5 F841 con
+  `# noqa` + comentario: 11 en `command_parser.py` (namespace histórico y API pública;
+  `log_degraded` lo exige el test R3 que lee el fuente), 5 en `long_term.py`
+  (`SQLiteConnectionPool` lo exige el check de API pública de `test_axioma_03`), `stm`/`ltm`/`sm`/`gw`
+  como prueba de humo en `src/memory/__init__.py`, y `loop` como sonda de event loop en
+  `tts_engine.py`. `ruff --select F401,F841` en esos archivos → **0**.
+- **Tarea 4 — F821 real corregido.** `SettingsPaths.ensure_directories` anotaba `-> "Settings"`
+  (nombre inexistente: `typing.get_type_hints()` fallaba con `NameError`); ahora es
+  `-> "SettingsPaths"`. `ruff --select F821 config/settings_paths.py` → **0** y `get_type_hints()`
+  resuelve la clase.
+
 ### Auditor (`tools/auditor/`)
 - **A1 — SCORE honesto: índice de deuda + baseline + ratchet.** El SCORE /100 sigue
   siendo la métrica del gate (sólo resta CRITICAL/HIGH) pero **ya no se presenta como
@@ -854,7 +928,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
-## [Unreleased] — En Desarrollo
+## Historial — versiones anteriores a v0.7.0
+
+> Nota: estas notas corresponden a versiones ya publicadas (v0.0.x–v0.6.x).
+> El encabezado «Unreleased» era un duplicado estructural; el contenido no se modificó.
 
 ### 🧠 v0.6.9z — P1.3: el loop de aprendizaje consume su salida (ISSUE-069) — 2026-09-14
 
@@ -1044,8 +1121,6 @@ cualquier verificación estática previa.
 - ✅ `docs/ISSUES_REPORT.md` (solo pendientes) + `docs/ISSUES_HISTORY.md`
   (historial completo `ISSUE-001…058`).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.9i — Clasificador kNN (bge-m3): implementado y MEDIDO → flag OFF — 2026-09-06
 
 - ✅ **Implementación** (`classifier.py`): kNN por embeddings sobre 182
@@ -1064,8 +1139,6 @@ cualquier verificación estática previa.
   disponible para experimentar (mejorar ejemplos por tarea) y como base de un
   futuro ruteo híbrido. Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.9h — Juez = chat: implementado y MEDIDO → se mantiene coder — 2026-09-06
 
 - ✅ **Implementación opt-in**: setting `validator_model` (vacío = llm_fallback_1).
@@ -1081,8 +1154,6 @@ cualquier verificación estática previa.
   como juez por defecto**. El setting queda como opt-in para experimentar
   (VALIDATOR_MODEL=qwen3:8b + subir timeout del validador).
 - Sin commit (lo hace el usuario).
-
-## [Unreleased] — En Desarrollo
 
 ### 🟢 v0.6.9g — Fix short_term expirada para siempre + traza de validación dinámica — 2026-09-06
 
@@ -1100,8 +1171,6 @@ cualquier verificación estática previa.
   loguea `[CodeValidator] dynamic FAIL: <primer error 300 chars>` — para
   diagnosticar los 8 fallos de tests en la próxima corrida.
 - Suites memoria/router ✓ (76). Sin commit (lo hace el usuario).
-
-## [Unreleased] — En Desarrollo
 
 ### 🟢 v0.6.9f — Fix batería re-run (log 14:38-15:02): timeout de retry + orden clasificador — 2026-09-06
 
@@ -1124,8 +1193,6 @@ cualquier verificación estática previa.
 - Verificado offline: carrito→code_generation, explicación→code_explanation,
   "validá la calidad"→quality_validation. Suites 03/02 ✓ (69). Sin commit (lo
   hace el usuario).
-
-## [Unreleased] — En Desarrollo
 
 ### 🟢 v0.6.9e — Fix batería de calidad de código (prueba codigo.txt): ruteo — 2026-09-06
 
@@ -1155,8 +1222,6 @@ cualquier verificación estática previa.
   pub/sub ya NO es finance, bitcoin sigue finance. +2 tests de regresión.
 - Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.9d — Documentador: entry-points conectados + cableado de quality_monitor y security_listener — 2026-09-05
 
 - ✅ **Mejora 1 — axioma_doc_flow_mapper**: los archivos con guard
@@ -1180,8 +1245,6 @@ cualquier verificación estática previa.
   puede bloquear peticiones legítimas.
 - Suites (02/07/08): 83 ✓. Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.9c — M1 retención de memoria + M2 telemetría (health report) — 2026-09-05
 
 - ✅ **M1 — Retención** (`memory/gateway.py` + setting `memory_retention_days`,
@@ -1196,8 +1259,6 @@ cualquier verificación estática previa.
   Verificado sobre logs reales (5 embeddings ~296 ms, search_semantic
   ~157 ms). Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.9b — Fix: crítica sembrada se descartaba en attempt=1 (F + repair Fase 4) — 2026-09-05
 
 - ✅ **Verificación de las levas A-G (v0.6.9a)**: A/B/C/D/E/G correctas;
@@ -1211,8 +1272,6 @@ cualquier verificación estática previa.
   (sin cambio), y la semilla externa ahora entra en el primer intento.
   `is_retry`/`quality_score` del system prompt también responden a crítica
   presente (modo revisión). Sin commit (lo hace el usuario).
-
-## [Unreleased] — En Desarrollo
 
 ### 🟢 v0.6.9a — Calidad de código: lote bajo riesgo (A·B·C·D) + riesgo medio con flags (E·F·G) — 2026-09-05
 
@@ -1243,8 +1302,6 @@ cualquier verificación estática previa.
 - Todos los cambios con default OFF o aditivos (no alteran el flujo actual).
   Suites core/agents/regresiones ✓ (76). Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.8zz — Fix sandbox: tests generados sin import (NameError) + guard sin-progreso — 2026-09-05
 
 - ✅ **Diagnóstico (log 17:17 + reproducción offline)**: el `SANDBOX_EXECUTION
@@ -1266,8 +1323,6 @@ cualquier verificación estática previa.
   original (NameError) y del caso OK ✓, suites core/agents/regresiones ✓.
 - Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.8yy — Fix /plan: el validador reemplazaba el artefacto ("respondía cualquier cosa") — 2026-09-05
 
 - ✅ **Diagnóstico en vivo (log 17:17)**: el pipeline `/plan [coder, validator]`
@@ -1286,8 +1341,6 @@ cualquier verificación estática previa.
   loop con regen idéntica cacheada) — falla ambiental del sandbox, separada
   de este fix. Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.8xx — Fix /plan: CODE_AUTONOMOUS no mapeaba roles → caía al fallback atómico — 2026-09-04
 
 - ✅ **Diagnóstico en vivo (log 19:14)**: `/plan generá un programa…` ya llegaba
@@ -1305,8 +1358,6 @@ cualquier verificación estática previa.
   validator]; /plan haiku → None. +1 test de regresión.
 - Sin commit (lo hace el usuario).
 
-## [Unreleased] — En Desarrollo
-
 ### 🟢 v0.6.8ww — Fix: /plan interceptado por la UI como "comando desconocido" — 2026-09-04
 
 - ✅ **Causa raíz (prueba en vivo)**: `/plan generá un programa…` respondía
@@ -1320,8 +1371,6 @@ cualquier verificación estática previa.
   detecta por el prefijo y arma el pipeline F3. `/plan` solo → mensaje de uso.
 - Verificado por lógica: `/plan…` → dispatcher; `/modo`, `/rac`, `/help` →
   CommandParser como antes. Sin commit (lo hace el usuario).
-
-## [Unreleased] — En Desarrollo
 
 ### 🟢 v0.6.8vv — E2: auto-reporte de salud desde logs — 2026-09-04
 

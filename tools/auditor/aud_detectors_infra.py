@@ -1134,3 +1134,90 @@ class NameCollisionDetector(BaseDetector):
                 )
 
 
+class TempfileMktempDetector(BaseDetector):
+    """AUD-TMP — `tempfile.mktemp()` / `os.tmpnam()` (TOCTOU, CWE-377).
+
+    ✅ v0.7.6: `mktemp` devuelve un NOMBRE libre, no crea el archivo: entre
+    la comprobación y el `open`/`Path(...)` hay una ventana en la que otro
+    proceso puede crear ese path (symlink attack). Se reemplaza por
+    `mkstemp`/`NamedTemporaryFile`/`TemporaryDirectory`.
+
+    Scope: los 3 usos reales viven en `tools/verify_axioma.py`, que el
+    índice histórico NO mira. `include_tools = True` amplía el scope SOLO
+    para este detector (sin cambiar el del resto del auditor).
+    """
+    name = "tempfile_mktemp"
+    description = "tempfile.mktemp/os.tmpnam (TOCTOU) — no crea el archivo"
+    include_tools = True
+
+    def _tempfile_aliases(self, tree: ast.Module) -> Tuple[set, set]:
+        """Nombres importados de `tempfile`/`os` que son mktemp/tmpnam.
+
+        Detecta `import tempfile as t`, `from tempfile import mktemp` y
+        `from os import tmpnam`.
+        """
+        modules = {"tempfile"}
+        direct = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    if a.name == "tempfile":
+                        modules.add(a.asname or a.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module == "tempfile":
+                    for a in node.names:
+                        if a.name == "mktemp":
+                            direct.add(a.asname or a.name)
+                elif node.module == "os":
+                    for a in node.names:
+                        if a.name == "tmpnam":
+                            direct.add(a.asname or a.name)
+        return modules, direct
+
+    def _detect(self) -> None:
+        for rel, tree in self.index.asts.items():
+            tempfile_mods, direct = self._tempfile_aliases(tree)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                f = node.func
+                api = ""
+                if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) \
+                        and f.attr == "mktemp" and f.value.id in tempfile_mods:
+                    api = f"{f.value.id}.mktemp()"
+                elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) \
+                        and f.value.id == "os" and f.attr == "tmpnam":
+                    api = "os.tmpnam()"
+                elif isinstance(f, ast.Name) and f.id in direct:
+                    api = f"{f.id}() (importado de tempfile/os)"
+                if not api:
+                    continue
+                # `NamedTemporaryFile`/`mkstemp`/`TemporaryDirectory` no
+                # matchean (no se llaman mktemp/tmpnam), y `tmp_path_factory`
+                # es un atributo de pytest, no un alias de tempfile → tampoco.
+                self._add(
+                    finding_id=f"AUD-TMP-{len(self.findings) + 1:03d}",
+                    title=f"{api} (TOCTOU) en {rel}:{node.lineno}",
+                    severity=AudSeverity.MEDIUM,
+                    verdict=AudVerdict.NEW,
+                    file=str(rel),
+                    line_start=int(getattr(node, "lineno", 0) or 0),
+                    code_snippet=(ast.unparse(node)[:200]
+                                  if hasattr(ast, "unparse") else ""),
+                    explanation=(
+                        "`mktemp()`/`tmpnam()` devuelven un nombre libre pero "
+                        "NO crean el archivo. Entre la comprobación y el uso "
+                        "(open/write/Path) otro proceso puede crear ese path, "
+                        "p. ej. un symlink a un archivo ajeno: race condition "
+                        "TOCTOU (CWE-377)."
+                    ),
+                    recommendation=(
+                        "Usar `tempfile.mkstemp()` (devuelve fd + path ya "
+                        "creados), `NamedTemporaryFile` o `TemporaryDirectory`, "
+                        "y cerrar/limpiar con context manager."
+                    ),
+                    confidence=0.95,
+                    tags={"security", "toctou", "cwe-377", "tempfile"},
+                )
+
+

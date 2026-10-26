@@ -1,17 +1,17 @@
 {
   "schema": 1,
-  "generated_at": "2026-10-25T17:57:47-0300",
-  "git_commit": "301497c",
+  "generated_at": "2026-10-26T16:44:30-0300",
+  "git_commit": "946315d",
   "auditor_version": "0.7.5",
   "root": "/ruta/a/axioma",
   "score": 100,
   "counts": {
-    "total": 117,
+    "total": 118,
     "critical": 0,
     "high": 0,
     "medium": 0,
     "low": 68,
-    "info": 49
+    "info": 50
   },
   "debt_index": 68,
   "by_detector": {
@@ -32,6 +32,12 @@
       "low": 1,
       "info": 1,
       "total": 2
+    },
+    "mutating_routes_inventory": {
+      "medium": 0,
+      "low": 0,
+      "info": 1,
+      "total": 1
     }
   },
   "detectors_run": [
@@ -68,6 +74,10 @@
     "path_containment",
     "unsafe_path_delete",
     "native_import_oserror",
-    "unsafe_exec"
+    "unsafe_exec",
+    "file_read_sink",
+    "csrf_simple_request",
+    "mutating_routes_inventory",
+    "tempfile_mktemp"
   ]
 }

@@ -31,7 +31,7 @@ from tools.auditor.aud_detectors_infra import (
     FireAndForgetThreadDetector, FixedTimeoutDetector,
     LruWithoutMoveToEndDetector, MissingGlobalTimeoutDetector,
     NameCollisionDetector, RiskyDeadCodeDetector, StaticPriorityDetector,
-    UnboundedCacheDetector,
+    TempfileMktempDetector, UnboundedCacheDetector,
 )
 from tools.auditor.aud_detectors_salud import (
     EnvModelsDetector, FifoCacheDetector, MissingCompoundIndexDetector,
@@ -40,13 +40,15 @@ from tools.auditor.aud_detectors_salud import (
 )
 from tools.auditor.aud_detectors_arquitectura import (
     AsyncModuleLevelDetector, CircularImportDetector, ConfigRefsDetector,
-    DuplicateCodeDetector, IntegrationDetector, PlanV2ProtectionsDetector,
+    CsrfSimpleRequestDetector, DuplicateCodeDetector, IntegrationDetector,
+    MutatingRoutesInventoryDetector, PlanV2ProtectionsDetector,
     SecurityHarnessDetector, SingletonViolationDetector,
 )
 # ✅ v0.6.9v: detectores de las clases de bug halladas en la sesión de
 # refactorización + observabilidad (ver docs/ISSUES_HISTORY.md).
 from tools.auditor.aud_detectors_regresiones import (
     ConfigTaskKeysDetector,
+    FileReadSinkDetector,
     FragileSourceGrepTestDetector,
     NativeImportOSErrorDetector,
     NondeterministicHardwareTestDetector,
@@ -107,6 +109,11 @@ DETECTORS: Dict[str, type[BaseDetector]] = {
     'unsafe_path_delete': UnsafePathDeleteDetector,
     'native_import_oserror': NativeImportOSErrorDetector,
     'unsafe_exec': UnsafeExecDetector,
+    # ✅ v0.7.6: seguridad de la superficie web + TOCTOU de temporales.
+    'file_read_sink': FileReadSinkDetector,          # AUD-FSR
+    'csrf_simple_request': CsrfSimpleRequestDetector,  # AUD-AUTH-002
+    'mutating_routes_inventory': MutatingRoutesInventoryDetector,  # AUD-AUTH-003
+    'tempfile_mktemp': TempfileMktempDetector,       # AUD-TMP (scope tools/)
 }
 
 
@@ -333,6 +340,25 @@ class AxiomaAuditor:
             print(f"    → {sum(len(v) for v in self.index.functions.values())} funciones",
                   file=sys.stderr)
 
+    def _index_ampliado(self) -> CodeIndex:
+        """Índice con `tools/` y `tests/` para los detectores que los piden.
+
+        ✅ v0.7.6: opt-in POR DETECTOR (`BaseDetector.include_tools`). Se
+        construye una sola vez y se reutiliza; el índice por defecto del
+        auditor no cambia, así que el resto sigue sin ver `tools/`/`tests/`.
+        Si el usuario ya corrió con `--include-tools-tests`, se reutiliza.
+        """
+        if self.index.include_tools_tests:
+            return self.index
+        if getattr(self, "_idx_ampliado", None) is None:
+            idx = CodeIndex(self.root)
+            idx.build(include_tools_tests=True)
+            self._idx_ampliado = idx
+            if self.verbose:
+                print(f"[*] Índice ampliado (include_tools): "
+                      f"{len(idx.files)} archivos", file=sys.stderr)
+        return self._idx_ampliado
+
     def run_detectors(self,
                       detector_names: Optional[List[str]] = None) -> None:
         names = detector_names or list(DETECTORS.keys())
@@ -343,7 +369,9 @@ class AxiomaAuditor:
                 continue
             if self.verbose:
                 print(f"[*] Ejecutando detector: {name}", file=sys.stderr)
-            detector = cls(self.index)
+            index = (self._index_ampliado()
+                     if getattr(cls, "include_tools", False) else self.index)
+            detector = cls(index)
             result = detector.run()
             self.detector_results.append(result)
             self.findings.extend(result.findings)

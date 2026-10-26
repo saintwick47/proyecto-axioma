@@ -308,11 +308,11 @@ python tests/test_rafael_bridge.py        # Diagnóstico puente Widget ↔ Daemo
 ════════════════════════════════════════════════════════════════════════════════
 5. 🛡️ AUDITORÍA COMPLETA DEL PROYECTO — axioma_auditor.py (UNIFICADO)
 ════════════════════════════════════════════════════════════════════════════════
-Auditor unificado (v0.7.5 — 34 detectores; axioma_auditor.py es SHIM, la
+Auditor unificado (v0.7.5 — 38 detectores; axioma_auditor.py es SHIM, la
 lógica vive en tools/auditor/: aud_core · aud_detectors_infra ·
 aud_detectors_salud · aud_detectors_arquitectura · aud_main):
 
-python axioma_auditor.py                          # Auditoría completa (34 detectores)
+python axioma_auditor.py                          # Auditoría completa (38 detectores)
 python axioma_auditor.py --detectors syntax_import,env_models   # Solo algunos detectores
 python axioma_auditor.py --format json -o audit.json            # Salida JSON
 python axioma_auditor.py -o -                    # Informe a stdout en vez de logs/
@@ -351,7 +351,7 @@ Modos:
 Genera el informe automáticamente en:
 logs/axioma_audit_report_<fecha_hora>.md
 
-Qué audita (34 detectores):
+Qué audita (38 detectores):
 · syntax_import      → errores de sintaxis + módulos que no importan (salud base)
 · silent_exceptions  → except: desnudos, except ...: pass, handlers que tragan errores
 · env_models         → .env vs .env.example + referencias a modelos obsoletos

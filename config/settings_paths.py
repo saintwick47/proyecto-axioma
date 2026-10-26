@@ -42,7 +42,7 @@ class SettingsPaths(BaseModel):
         return path.resolve() if path.exists() else path.absolute()
 
     @model_validator(mode="after")
-    def ensure_directories(self) -> "Settings":
+    def ensure_directories(self) -> "SettingsPaths":
         """Crea directorios críticos si no existen."""
         for dir_path in [self.data_dir, self.logs_dir, self.cache_dir]:
             if not dir_path.exists():

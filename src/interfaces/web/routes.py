@@ -19,7 +19,7 @@
 import logging
 import asyncio
 import time
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -460,10 +460,34 @@ async def analyze_file_endpoint(request: FileAnalysisRequest) -> FileAnalysisRes
     start_time = time.time()
     _log_web_event("API", f"POST /api/v1/analyze_file - file_id={request.file_id}",
                    extra={"analysis_type": request.analysis_type})
+    # ✅ FIX AUD-PTH-008 / CWE-22 (2026-10-26): el `file_id` lo manda el
+    # cliente y se concatenaba a `uploads/` sin validar. Con
+    # `file_id="/etc/passwd"`, `Path(base) / "/etc/passwd"` DESCARTA la base,
+    # `extract_file_text` leía el archivo y su contenido terminaba en el LLM
+    # (reproducido). Mismo patrón que `/upload_file` y WorkspaceManager: sólo
+    # un NOMBRE (sin separadores ni "..") + contención real tras resolver
+    # symlinks. Se valida ANTES del try para que el 400 no lo trague el except.
+    file_id = request.file_id or ""
+    safe_id = Path(file_id.replace("\\", "/")).name
+    upload_dir = Paths.DATA / "uploads"
+    if not file_id or safe_id != file_id or safe_id in {".", ".."}:
+        _log_web_event("API", "POST /api/v1/analyze_file - INVALID_FILE_ID",
+                       extra={"file_id": file_id})
+        raise HTTPException(
+            status_code=400,
+            detail=(f"file_id inválido: {request.file_id!r} — tiene que ser un "
+                    f"nombre de archivo dentro de {upload_dir}"),
+        )
+    file_path = upload_dir / safe_id
+    if not file_path.resolve().is_relative_to(upload_dir.resolve()):
+        _log_web_event("API", "POST /api/v1/analyze_file - INVALID_FILE_ID",
+                       extra={"file_id": file_id})
+        raise HTTPException(
+            status_code=400,
+            detail=(f"file_id inválido: {request.file_id!r} — sale de {upload_dir}"),
+        )
     try:
         # Validar que el archivo existe
-        upload_dir = Paths.DATA / "uploads"
-        file_path = upload_dir / request.file_id
         if not file_path.exists():
             _log_web_event("API", "POST /api/v1/analyze_file - FILE_NOT_FOUND",
                            extra={"file_id": request.file_id})

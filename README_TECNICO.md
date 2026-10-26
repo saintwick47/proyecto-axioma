@@ -133,7 +133,7 @@ pytest tests/ -v
 python tools/log_health_report.py           # health report desde logs (E2; v2 detector: clasificación de errores, anomalías/verdicto, reintentos, reparaciones, delta vs previo)
 
 # Seguridad / auditoría
-python axioma_auditor.py                        # auditoría completa (34 detectores → logs/)
+python axioma_auditor.py                        # auditoría completa (38 detectores → logs/)
 python axioma_auditor.py --full --run-tests     # + pytest + SCORE AXIOMA /100
 python axioma_auditor.py --format json -o logs/audit_summary.json   # resumen máquina (lo lee el gate)
 venv/bin/python tools/run_all_tests.py --timeout 150   # suite por archivo + reporte con run_id

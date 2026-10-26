@@ -1031,3 +1031,217 @@ class IntegrationDetector(BaseDetector):
                         )
 
 
+# ============================================================================
+# DETECTORES: superficie de escritura sin auth (AUD-AUTH-002 / AUD-AUTH-003)
+# ============================================================================
+# ✅ v0.7.6: medido con TestClient — `POST /v1/upload_file`,
+# `POST /v1/preflight/instalar` y `POST /v1/preflight/instalar/<id>/detener`
+# aceptan un POST "simple" (multipart/query/path, SIN modelo Pydantic) y NO
+# tienen `Depends(...)` de auth. Un navegador puede dispararlos cross-origin
+# sin preflight (CSRF). Las dos rutas que sí tienen token
+# (`/preflight/claves`, `/preflight/modelos`) no se marcan.
+
+_MUTATING_METHODS = {"post", "put", "patch", "delete"}
+# "Simple request" CORS/CSRF: sólo POST con content-type simple (form,
+# multipart, text/plain). PUT/PATCH/DELETE disparan preflight → fuera.
+_SIMPLE_CSRF_METHODS = {"post"}
+_AUTH_HINTS = re.compile(
+    r"(token|auth|seguridad|security|permission|permiso|verify|verificar|"
+    r"apikey|api_key|clave|exigir|credential|login|session)", re.I)
+_NON_BODY_ANNOTATIONS = {"Request", "Response", "BackgroundTasks", "WebSocket"}
+
+
+def _callable_name(expr: ast.AST) -> str:
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        return expr.attr
+    return ""
+
+
+def _names_in(expr: ast.AST) -> Set[str]:
+    out: Set[str] = set()
+    for n in ast.walk(expr):
+        if isinstance(n, ast.Name):
+            out.add(n.id)
+        elif isinstance(n, ast.Attribute):
+            out.add(n.attr)
+    return out
+
+
+def _looks_like_auth(expr: ast.AST) -> bool:
+    """¿La expresión (Depends/Security/llamada) es un chequeo de auth?"""
+    for n in ast.walk(expr):
+        if isinstance(n, ast.Call) and _callable_name(n.func) in (
+                "Depends", "Security"):
+            if any(_AUTH_HINTS.search(name) for name in _names_in(n)):
+                return True
+    return False
+
+
+def _route_info(func: ast.AST):
+    """(método, path, decorador) del primer decorador de ruta mutante."""
+    for dec in getattr(func, "decorator_list", []):
+        if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute) \
+                and dec.func.attr in _MUTATING_METHODS:
+            ruta = ""
+            if dec.args and isinstance(dec.args[0], ast.Constant) \
+                    and isinstance(dec.args[0].value, str):
+                ruta = dec.args[0].value
+            return dec.func.attr.upper(), ruta, dec
+    return None
+
+
+def _has_auth(func: ast.AST, dec: ast.Call) -> bool:
+    # 1) dependencies=[Depends(...)] en el decorador.
+    for kw in dec.keywords:
+        if kw.arg == "dependencies" and _looks_like_auth(kw.value):
+            return True
+    # 2) parámetro con Depends/Security de auth.
+    args = getattr(func, "args", None)
+    if args is not None:
+        todos = (list(getattr(args, "posonlyargs", [])) + list(args.args)
+                 + list(args.kwonlyargs) + [args.vararg, args.kwarg])
+        for a in todos:
+            default = a.default if hasattr(a, "default") else None
+            if default is not None and _looks_like_auth(default):
+                return True
+    return False
+
+
+def _pydantic_models(index) -> Set[str]:
+    """Nombres de clases Pydantic (BaseModel directo o vía otro modelo)."""
+    modelos: Set[str] = set()
+    for nombre, defs in index.classes.items():
+        for _, cls in defs:
+            bases = {_callable_name(b) for b in cls.bases}
+            if "BaseModel" in bases or (bases & modelos):
+                modelos.add(nombre)
+    return modelos
+
+
+def _param_is_body_model(func: ast.AST, modelos: Set[str]) -> bool:
+    args = getattr(func, "args", None)
+    if args is None:
+        return False
+    todos = (list(getattr(args, "posonlyargs", [])) + list(args.args)
+             + list(args.kwonlyargs))
+    for a in todos:
+        if a.arg in ("self", "cls"):
+            continue
+        ann = getattr(a, "annotation", None)
+        if ann is None:
+            continue
+        if _callable_name(ann) in _NON_BODY_ANNOTATIONS:
+            continue
+        if _names_in(ann) & modelos:
+            return True
+    return False
+
+
+def _mutating_routes(index):
+    """[(rel, func, método, path, tiene_auth)] de handlers HTTP mutantes."""
+    out = []
+    for rel, tree in index.asts.items():
+        for func in ast.walk(tree):
+            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            info = _route_info(func)
+            if not info:
+                continue
+            metodo, ruta, dec = info
+            out.append((rel, func, metodo, ruta, _has_auth(func, dec)))
+    return out
+
+
+class CsrfSimpleRequestDetector(BaseDetector):
+    """AUD-AUTH-002 — POST mutante sin auth con body "simple" (CSRF)."""
+    name = "csrf_simple_request"
+    description = ("POST mutante sin auth y con body simple "
+                   "(Query/Path/Form/File, sin modelo Pydantic) → CSRF")
+
+    def _detect(self) -> None:
+        # ✅ 2026-10-26: si el `server.py` del ÍNDICE monta el middleware GLOBAL de mismo
+        # origen (`_validar_origen`), TODAS las rutas mutantes ya están protegidas contra
+        # CSRF: marcarlas ruta por ruta sería un falso positivo. Se mira el índice (no el
+        # archivo real) para que los tests puedan controlar el caso.
+        for _ruta_idx, _src in self.index.files.items():
+            if str(_ruta_idx).replace("\\", "/").endswith("interfaces/web/server.py"):
+                if "_validar_origen" in _src:
+                    return
+        modelos = _pydantic_models(self.index)
+        for rel, func, metodo, ruta, auth in _mutating_routes(self.index):
+            if metodo.lower() not in _SIMPLE_CSRF_METHODS or auth:
+                continue
+            if _param_is_body_model(func, modelos):
+                continue  # JSON body → el navegador no lo manda cross-origin
+            self._add(
+                finding_id=f"AUD-AUTH-002-{len(self.findings) + 1:03d}",
+                title=(f"Endpoint mutante sin auth con simple request: "
+                       f"{metodo} {ruta} ({rel}:{func.lineno})"),
+                severity=AudSeverity.MEDIUM,
+                verdict=AudVerdict.NEW,
+                file=str(rel),
+                line_start=int(getattr(func, "lineno", 0) or 0),
+                code_snippet=f"{metodo} {ruta} → {func.name}()",
+                explanation=(
+                    "El handler muta estado (POST) y no exige "
+                    "`Depends(...)`/token de auth. Su body es 'simple' "
+                    "(Query/Path/Form/File o multipart, sin modelo Pydantic), "
+                    "así que un navegador puede dispararlo cross-origin como "
+                    "simple request SIN preflight CORS: una página ajena "
+                    "ejecuta el handler (CSRF). Medido: un POST con "
+                    "`Origin: evil` ejecutó el handler."
+                ),
+                recommendation=(
+                    "Exigir el token de escritura (`depends=[Depends("
+                    "exigir_token_de_escritura)]`, como /preflight/claves) o "
+                    "validar `Origin`/`Sec-Fetch-Site`; y que el body tenga "
+                    "un modelo Pydantic (application/json) cuando aplique."
+                ),
+                confidence=0.85,
+                tags={"security", "csrf", "cwe-352", "auth"},
+            )
+
+
+class MutatingRoutesInventoryDetector(BaseDetector):
+    """AUD-AUTH-003 — inventario INFO de rutas mutantes sin auth."""
+    name = "mutating_routes_inventory"
+    description = "Inventario (INFO) de rutas POST/PUT/PATCH/DELETE sin auth"
+
+    def _detect(self) -> None:
+        sin_auth = [(rel, func, metodo, ruta)
+                    for rel, func, metodo, ruta, auth in _mutating_routes(self.index)
+                    if not auth]
+        if not sin_auth:
+            return
+        lista = "; ".join(
+            f"{metodo} {ruta or func.name} ({rel}:{func.lineno})"
+            for rel, func, metodo, ruta in sorted(
+                sin_auth, key=lambda x: (str(x[0]), x[1].lineno)))
+        primero_rel, primero_func, _, _ = sin_auth[0]
+        self._add(
+            finding_id="AUD-AUTH-003-001",
+            title=f"{len(sin_auth)} rutas mutantes sin auth (inventario)",
+            severity=AudSeverity.INFO,
+            verdict=AudVerdict.NEW,
+            file=str(primero_rel),
+            line_start=int(getattr(primero_func, "lineno", 0) or 0),
+            code_snippet=lista[:500],
+            explanation=(
+                f"Hay {len(sin_auth)} handlers mutantes "
+                "(POST/PUT/PATCH/DELETE) sin `Depends(...)` de auth. No todos "
+                "son explotables por CSRF (los que tienen body JSON no son "
+                "'simple requests'), pero conviene tener el inventario "
+                "explícito y decidir cuáles exigen token."
+            ),
+            recommendation=(
+                "Revisar la lista y exigir token en los que mutan estado "
+                "global o del usuario; dejar como excepción justificada los "
+                "que sean idempotentes o de sólo lectura."
+            ),
+            confidence=0.9,
+            tags={"security", "csrf", "auth", "inventory"},
+        )
+
+

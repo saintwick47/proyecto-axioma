@@ -341,6 +341,12 @@ class CodeIndex:
 class BaseDetector:
     name: str = "base"
     description: str = ""
+    # ✅ v0.7.6: scope por detector. Por defecto se mantiene el alcance
+    # histórico (tools/ y tests/ FUERA). Los detectores de seguridad que
+    # deben ver `tools/` (p. ej. los `tempfile.mktemp` de verify_axioma.py)
+    # lo activan con `include_tools = True`; el auditor les pasa un índice
+    # ampliado sin cambiar el scope del resto.
+    include_tools: bool = False
 
     def __init__(self, index: CodeIndex):
         self.index = index

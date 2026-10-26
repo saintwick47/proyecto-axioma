@@ -915,3 +915,32 @@ def test_el_aviso_de_primer_arranque_respeta_la_opcion_elegida(tmp_path):
                                              salida=salida)
     assert opcion == 2
     assert "AXIOMA_WEB_HOST=0.0.0.0" in salida.getvalue(), salida.getvalue()
+
+
+def test_analyze_file_no_lee_fuera_de_uploads(tmp_path, monkeypatch):
+    """MEDIDO (2026-10-26): `file_id="/etc/passwd"` descartaba la base y el archivo se leía."""
+    from config.paths import Paths
+    from src.agents import analyst as modulo_analyst
+
+    monkeypatch.setattr(Paths, "DATA", tmp_path, raising=False)
+    (tmp_path / "uploads").mkdir()
+    (tmp_path / "uploads" / "20261026_120000_ok.txt").write_text("CONTENIDO-OK", encoding="utf-8")
+    visto = []
+
+    class _Falso:
+        def __init__(self, *a, **k):
+            pass
+
+        def execute(self, message, analysis_type=None):
+            visto.append(message.content)
+            return type("R", (), {"success": True, "content": "ok", "error": None})()
+
+    monkeypatch.setattr(modulo_analyst, "AnalystAgent", _Falso)
+    cliente, _ = _cliente_api(tmp_path, monkeypatch)
+    for fid in ("/etc/passwd", "../evil", str(tmp_path / "uploads"), "a/b"):
+        r = cliente.post("/v1/analyze_file", json={"file_id": fid})
+        assert r.status_code == 400, (fid, r.status_code, r.text[:120])
+    assert visto == [], f"no se tenía que leer nada: {visto}"
+    r = cliente.post("/v1/analyze_file", json={"file_id": "20261026_120000_ok.txt"})
+    assert r.status_code == 200 and r.json()["success"] is True, r.text[:160]
+    assert "CONTENIDO-OK" in visto[0]

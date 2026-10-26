@@ -563,6 +563,29 @@ _WRITE_CALLS = {"write_text", "write_bytes", "touch", "mkdir", "makedirs"}
 _READ_CALLS = {"read_text", "read_bytes", "open", "iterdir", "glob", "rglob",
                "listdir", "scandir", "walk", "copy", "copy2", "copyfile",
                "copytree", "tarfile", "text", "read"}
+# ✅ v0.7.6 (AUD-FSR): helpers que LEEN un archivo sin que el path aparezca
+# como argumento de un sink clásico. Calibrado con los helpers REALES del
+# repo (`def extract_file_text` en src/utils/file_text.py, `PdfReader`,
+# `docx.Document`, `json.load`, `yaml.safe_load`, `openpyxl.load_workbook`).
+# Son nombres de la FUNCIÓN/atributo llamada; el detector sólo los marca si
+# el argumento es un path DERIVADO de un parámetro (misma propagación de
+# taint que AUD-PTH) y la función no valida contención.
+_READ_HELPER_CALLS = {
+    "extract_file_text",   # src/utils/file_text.py
+    "PdfReader",           # pypdf
+    "Document",            # python-docx
+    "load_workbook",       # openpyxl
+    "extract_text",        # pypdf page.extract_text()
+    "read_pdf",
+    "safe_load",           # yaml.safe_load
+    "load",                # json.load / pickle.load / numpy.load
+}
+# Nombres de llamada que indican que el contenido LEÍDO sale del proceso
+# (LLM, HTTP, otro servicio). Si el resultado del helper termina acá, el
+# hallazgo sube a HIGH.
+_OUTBOUND_CALL_HINTS = re.compile(
+    r"(message|chat|llm|model|analyst|agent|send|post|request|completion|"
+    r"generate|execute|query|embed|prompt|http)$", re.I)
 # Atributos que ya son un NOMBRE de archivo (sin separadores de path) o que
 # validan contención → no propagan taint.
 _SANITIZING_ATTRS = {"name", "stem", "suffix", "parts", "parent"}
@@ -797,6 +820,136 @@ def _sink_categories(func: ast.AST, deriv: ast.AST,
     return cats
 
 
+def _helper_sink_calls(func: ast.AST, deriv: ast.AST,
+                       names: Set[str]) -> List[ast.Call]:
+    """Llamadas a helpers de lectura que reciben el path derivado.
+
+    ✅ v0.7.6 (AUD-FSR): el sink no es `open`, es `extract_file_text(path)`,
+    `PdfReader(str(path))`, `json.load(open(path))`, etc. Se exige que el
+    argumento (o el propio `func`) mencione el path derivado: los helpers que
+    reciben un `basename`/`Path(...).name` ya no propagan taint y no entran.
+    """
+    out: List[ast.Call] = []
+    for node in _own_ast_nodes(func):
+        if not isinstance(node, ast.Call):
+            continue
+        if _attr_name(node.func) not in _READ_HELPER_CALLS:
+            continue
+        if _mentions(node.func, deriv, names) or any(
+                _mentions(arg, deriv, names) for arg in node.args):
+            out.append(node)
+    return out
+
+
+def _assigned_names(func: ast.AST, value: ast.AST) -> Set[str]:
+    """Nombres locales asignados EXACTAMENTE desde `value`."""
+    names: Set[str] = set()
+    for node in _own_ast_nodes(func):
+        if isinstance(node, ast.Assign) and node.value is value:
+            for t in node.targets:
+                if isinstance(t, ast.Name):
+                    names.add(t.id)
+        elif isinstance(node, ast.AnnAssign) and node.value is value \
+                and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+    return names
+
+
+def _read_result_leaves_process(func: ast.AST, call: ast.Call) -> bool:
+    """¿El texto leído por `call` termina en una llamada de salida (LLM/HTTP)?
+
+    Heurística acotada: el resultado se asigna a una variable y esa variable
+    se interpola en un f-string o se pasa como argumento de una llamada cuyo
+    nombre es de salida (`Message`, `execute`, `chat`, `post`, `send`...).
+    Es el caso de `/analyze_file`: `content = extract_file_text(...)` →
+    `Message(content=f"...{content}")` → el archivo sale al LLM.
+    """
+    targets = _assigned_names(func, call)
+    if not targets:
+        return False
+    for node in _own_ast_nodes(func):
+        if not isinstance(node, ast.Call) or node is call:
+            continue
+        if int(getattr(node, "lineno", 0) or 0) <= int(getattr(call, "lineno", 0) or 0):
+            continue
+        fname = _attr_name(node.func) or ""
+        if not _OUTBOUND_CALL_HINTS.search(fname):
+            continue
+        for arg in list(node.args) + [k.value for k in node.keywords]:
+            if any(isinstance(n, ast.Name) and n.id in targets
+                   for n in ast.walk(arg)):
+                return True
+    return False
+
+
+class FileReadSinkDetector(BaseDetector):
+    """AUD-FSR — path derivado pasado a un helper de lectura de archivos.
+
+    ✅ v0.7.6: cierra el hueco que dejó AUD-PTH. El path traversal REAL de
+    `/analyze_file` (`routes.py:466`) no aparecía porque el sink no era
+    `open` sino `extract_file_text(file_path)`: el path se construía sin
+    validar y se pasaba a un helper, y el detector sólo miraba los sinks
+    directos. Reusa la propagación de taint de AUD-PTH.
+    """
+    name = "file_read_sink"
+    description = ("Path derivado sin contención pasado a un helper de lectura "
+                   "(extract_file_text, PdfReader, json.load…)")
+
+    def _detect(self) -> None:
+        for rel, tree in self.index.asts.items():
+            for func in ast.walk(tree):
+                if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                derivaciones = _iter_path_derivations(func)
+                if not derivaciones or _has_containment_validation(func):
+                    continue
+                # Los sinks destructivos ya los reporta unsafe_path_delete.
+                if any("destructive" in _sink_categories(func, d, _derivation_vars(func, d))
+                       for d, _ in derivaciones):
+                    continue
+                for deriv, operando in derivaciones:
+                    names = _derivation_vars(func, deriv)
+                    for call in _helper_sink_calls(func, deriv, names):
+                        sale = _read_result_leaves_process(func, call)
+                        helper = _attr_name(call.func) or "?"
+                        # El hallazgo se ancla en la CONSTRUCCIÓN del path
+                        # (misma línea que reportaría AUD-PTH), no en el
+                        # helper: es ahí donde falta la validación.
+                        linea = int(getattr(deriv, "lineno", 0) or 0)
+                        self._add(
+                            finding_id=f"AUD-FSR-{len(self.findings) + 1:03d}",
+                            title=(f"Path derivado pasado a {helper}() sin "
+                                   f"contención en {rel}:{linea}"),
+                            severity=(AudSeverity.HIGH if sale
+                                      else AudSeverity.MEDIUM),
+                            verdict=AudVerdict.NEW,
+                            file=str(rel),
+                            line_start=linea,
+                            code_snippet=(ast.unparse(call)[:200]
+                                          if hasattr(ast, "unparse") else ""),
+                            explanation=(
+                                f"{func.name}() construye un path con "
+                                f"`{ast.unparse(operando)[:60] if hasattr(ast, 'unparse') else '?'}` "
+                                f"(parámetro de la función) sin "
+                                "`resolve().is_relative_to(...)`, `realpath` + "
+                                f"`startswith` ni allowlist por regex, y se lo "
+                                f"pasa a `{helper}()`, que LEE el archivo. "
+                                "AUD-PTH no lo veía porque el sink es el helper, "
+                                "no `open` (CWE-22 path traversal)."
+                            ),
+                            recommendation=(
+                                "Validar el parámetro ANTES de construir el "
+                                "path: sólo el basename, y después "
+                                "`p = (base / param).resolve(); "
+                                "p.is_relative_to(base.resolve())` (patrón de "
+                                "`/upload_file` y WorkspaceManager)."
+                            ),
+                            confidence=0.8,
+                            tags={"security", "path-traversal", "cwe-22",
+                                  "file-read-helper"},
+                        )
+
+
 class PathContainmentDetector(BaseDetector):
     """`Path(base) / param` / `os.path.join(base, param)` sin contención.
 
@@ -1012,7 +1165,14 @@ class NativeImportOSErrorDetector(BaseDetector):
 
 
 def _is_obvious_constant(expr: ast.AST) -> bool:
-    """True si la expresión es un literal (o contenedor de literales)."""
+    """True si la expresión es un literal (o contenedor de literales).
+
+    ✅ v0.7.6 (FP medido en tools/netron/netron_dashboard.py:1520):
+    `os.system('clear' if os.name != 'nt' else 'cls')` es una expresión de
+    LITERALES: la condición mira `os.name`, pero el argumento que llega al
+    shell es siempre una constante. Igual la concatenación de strings
+    constantes (`"a" + "b"`). Sin esto se reportaba como inyección.
+    """
     if isinstance(expr, ast.Constant):
         return True
     if isinstance(expr, (ast.List, ast.Tuple, ast.Set)):
@@ -1023,6 +1183,15 @@ def _is_obvious_constant(expr: ast.AST) -> bool:
             all(_is_obvious_constant(e) for e in expr.values)
     if isinstance(expr, ast.JoinedStr):
         return all(isinstance(v, ast.Constant) for v in expr.values)
+    if isinstance(expr, ast.IfExp):
+        # Ternario de literales: ambas ramas son constantes.
+        return (_is_obvious_constant(expr.body)
+                and _is_obvious_constant(expr.orelse))
+    if isinstance(expr, ast.BinOp) and isinstance(expr.op, (ast.Add, ast.Mod)):
+        # Concatenación/formateo con AMBOS lados constantes. Si un lado es
+        # una variable, no es obvio y se sigue reportando.
+        return (_is_obvious_constant(expr.left)
+                and _is_obvious_constant(expr.right))
     if isinstance(expr, ast.UnaryOp) and isinstance(expr.op, ast.USub):
         return _is_obvious_constant(expr.operand)
     return False

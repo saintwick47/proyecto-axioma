@@ -115,7 +115,7 @@ def health_check() -> Dict[str, bool]:
 
     try:
         from .short_term import ShortTermMemory
-        stm = ShortTermMemory()
+        stm = ShortTermMemory()  # noqa: F841 — prueba de humo: import+constructor
         results["short_term"] = True
     except Exception as e:
         log_degraded(logger, e, "src/memory/__init__.py:health_check")
@@ -123,7 +123,7 @@ def health_check() -> Dict[str, bool]:
 
     try:
         from .long_term import LongTermMemory
-        ltm = LongTermMemory()
+        ltm = LongTermMemory()  # noqa: F841 — prueba de humo: import+constructor
         results["long_term"] = True
     except Exception as e:
         log_degraded(logger, e, "src/memory/__init__.py:health_check")
@@ -131,7 +131,7 @@ def health_check() -> Dict[str, bool]:
 
     try:
         from .semantic import SemanticMemory
-        sm = SemanticMemory()
+        sm = SemanticMemory()  # noqa: F841 — prueba de humo: import+constructor
         results["semantic"] = True
     except Exception as e:
         log_degraded(logger, e, "src/memory/__init__.py:health_check")
@@ -139,7 +139,7 @@ def health_check() -> Dict[str, bool]:
 
     try:
         from .gateway import MemoryGateway
-        gw = MemoryGateway()
+        gw = MemoryGateway()  # noqa: F841 — prueba de humo: import+constructor
         results["gateway"] = True
     except Exception as e:
         log_degraded(logger, e, "src/memory/__init__.py:health_check")

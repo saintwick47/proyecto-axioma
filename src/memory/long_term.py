@@ -14,14 +14,14 @@ import logging
 import time
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path  # noqa: F401 — namespace histórico de este módulo
 import sqlite3
 import json
-import threading
-from config.paths import Paths
+import threading  # noqa: F401 — namespace histórico de este módulo
+from config.paths import Paths  # noqa: F401 — namespace histórico de este módulo
 from src.domain.exceptions import MemoryError
 # ✅ CORREGIDO: Importar clase base desde módulo hermano
-from src.memory.long_term_base import LongTermMemoryBase, _log_memory, _log_error, LOGGER_AVAILABLE, logger, SQLiteConnectionPool
+from src.memory.long_term_base import LongTermMemoryBase, _log_memory, _log_error, LOGGER_AVAILABLE, logger, SQLiteConnectionPool  # noqa: F401 — API pública (tests exigen SQLiteConnectionPool)
 from src.utils.degradation import log_degraded
 
 # ============================================================================

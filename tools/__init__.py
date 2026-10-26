@@ -10,7 +10,7 @@
 #    fusionados en tools/system_check.py (ver system_check.py).
 # ═══════════════════════════════════════════════════════════════
 
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List
 
 __version__ = "0.5.1"
 __author__ = "SaintWick"
@@ -65,19 +65,25 @@ def health_check() -> Dict[str, Any]:
     }
 
     try:
-        from . import system_check
+        # Import de disponibilidad: se ejecuta sólo por su efecto (si falla,
+        # el except marca la herramienta como no disponible).
+        from . import system_check  # noqa: F401
         results["system_check"] = True
     except Exception:
         results["system_check"] = False
 
     try:
-        from . import model_tester
+        # Import de disponibilidad: se ejecuta sólo por su efecto (si falla,
+        # el except marca la herramienta como no disponible).
+        from . import model_tester  # noqa: F401
         results["model_tester"] = True
     except Exception:
         results["model_tester"] = False
 
     try:
-        from . import structure_detector
+        # Import de disponibilidad: se ejecuta sólo por su efecto (si falla,
+        # el except marca la herramienta como no disponible).
+        from . import structure_detector  # noqa: F401
         results["structure_detector"] = True
     except Exception:
         results["structure_detector"] = False

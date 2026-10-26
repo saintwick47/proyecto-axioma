@@ -26,7 +26,13 @@ from tools.auditor.aud_core import (
     AudVerdict,
     CodeIndex,
 )
+from tools.auditor.aud_detectors_arquitectura import (
+    CsrfSimpleRequestDetector,
+    MutatingRoutesInventoryDetector,
+)
+from tools.auditor.aud_detectors_infra import TempfileMktempDetector
 from tools.auditor.aud_detectors_regresiones import (
+    FileReadSinkDetector,
     NativeImportOSErrorDetector,
     PathContainmentDetector,
     UnsafeExecDetector,
@@ -699,3 +705,169 @@ class TestHistorialExitCodeYMetadatos:
             assert "26 detectores" not in text
         assert AUDITOR_VERSION == project_version
         assert f"{len(DETECTORS)} detectores" in help_out.stdout
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# v0.7.6 — detectores de seguridad (AUD-FSR / AUTH-002 / AUTH-003 / TMP)
+# ─────────────────────────────────────────────────────────────────────────
+# Bug real medido: `POST /analyze_file` aceptaba `file_id="/etc/passwd"`,
+# `Path(upload_dir) / "/etc/passwd"` descartaba la base y
+# `extract_file_text` leía el archivo. AUD-PTH no lo veía porque el sink era
+# el helper. Además: 3 POST sin auth con body "simple" (CSRF), 7 rutas
+# mutantes sin auth, 3 `tempfile.mktemp` en tools/ (fuera del scope histórico).
+
+FSR_SRC = '''
+from pathlib import Path
+from src.utils.file_text import extract_file_text
+
+def analizar(request, base):
+    p = base / request.file_id
+    contenido = extract_file_text(p)
+    return Message(content=f"Analiza: {contenido}")
+'''
+
+FSR_SAFE_SRC = '''
+from pathlib import Path
+
+def analizar(request, base):
+    fid = Path(request.file_id).name
+    p = (base / fid).resolve()
+    if not p.is_relative_to(base.resolve()):
+        raise ValueError("fuera del base")
+    return extract_file_text(p)
+'''
+
+AUTH_SRC = '''
+from fastapi import APIRouter, Depends, File, UploadFile
+from pydantic import BaseModel
+
+router = APIRouter()
+def exigir_token_de_escritura(request): ...
+
+class Cuerpo(BaseModel):
+    valor: str
+
+@router.post("/simple")
+async def simple(flag: bool = False): ...
+
+@router.post("/upload")
+async def subir(file: UploadFile = File(...)): ...
+
+@router.post("/json")
+async def json_ep(datos: Cuerpo): ...
+
+@router.post("/con-token", dependencies=[Depends(exigir_token_de_escritura)])
+async def con_token(datos: Cuerpo): ...
+
+@router.delete("/borrar/{x}")
+async def borrar(x: str): ...
+'''
+
+TMP_SRC = '''
+import os
+import tempfile
+
+a = tempfile.mktemp(suffix=".png")
+with tempfile.NamedTemporaryFile() as f:
+    pass
+
+def x(tmp_path_factory):
+    return tmp_path_factory.mktemp("x")
+
+b = os.tmpnam()
+'''
+
+EXEC_LITERAL_SRC = '''
+import os
+
+def limpiar():
+    os.system('clear' if os.name != 'nt' else 'cls')
+    os.system("echo " + "hola")
+
+def ejecutar(cmd):
+    os.system(cmd)
+'''
+
+
+class TestDetectoresSeguridadV076:
+    def test_fsr_detecta_helper_de_lectura_con_path_derivado(self, tmp_path):
+        f = _run(FileReadSinkDetector, tmp_path, "traversal.py", FSR_SRC)
+        check("AUD-FSR detecta extract_file_text(path derivado)", len(f) == 1,
+              str([(x.finding_id, x.line_start) for x in f]), SECTION)
+        check("AUD-FSR ancla el hallazgo en la derivación (línea 6)",
+              f and f[0].line_start == 6, str(f[0].line_start) if f else None, SECTION)
+        check("AUD-FSR escala a HIGH si el contenido sale al LLM",
+              f and f[0].severity is AudSeverity.HIGH,
+              f[0].severity if f else None, SECTION)
+        assert len(f) == 1 and f[0].line_start == 6
+        assert f[0].severity is AudSeverity.HIGH
+
+    def test_fsr_no_marca_basename_ni_path_validado(self, tmp_path):
+        f = _run(FileReadSinkDetector, tmp_path, "safe.py", FSR_SAFE_SRC)
+        check("AUD-FSR no marca basename + is_relative_to", f == [], str(f), SECTION)
+        # Y en el árbol real (upload/workspace_manager/download ya corregidos): 0.
+        real = FileReadSinkDetector(_index(PROJECT_ROOT)).run().findings
+        check("AUD-FSR = 0 en los lugares ya corregidos del repo", real == [],
+              str([(x.file, x.line_start) for x in real]), SECTION)
+        assert f == [] and real == []
+
+    def test_auth_002_solo_post_simple_sin_token(self, tmp_path):
+        f = CsrfSimpleRequestDetector(_index_src(tmp_path, AUTH_SRC)).run().findings
+        rutas = sorted(x.title.split("simple request: ")[1].split(" (")[0] for x in f)
+        check("AUD-AUTH-002 marca los 2 POST simples sin auth",
+              rutas == ["POST /simple", "POST /upload"], str(rutas), SECTION)
+        check("AUD-AUTH-002 NO marca el que tiene token",
+              not any("con-token" in r for r in rutas), str(rutas), SECTION)
+        check("AUD-AUTH-002 NO marca body Pydantic (json) ni DELETE",
+              all("json" not in r and "borrar" not in r for r in rutas), str(rutas), SECTION)
+        check("AUD-AUTH-002 severidad MEDIUM",
+              all(x.severity is AudSeverity.MEDIUM for x in f), "", SECTION)
+        assert rutas == ["POST /simple", "POST /upload"]
+
+    def test_auth_003_inventario_agregado_info(self, tmp_path):
+        f = MutatingRoutesInventoryDetector(
+            _index_src(tmp_path, AUTH_SRC)).run().findings
+        check("AUD-AUTH-003 emite UN hallazgo agregado", len(f) == 1, str(len(f)), SECTION)
+        check("AUD-AUTH-003 es INFO", f and f[0].severity is AudSeverity.INFO, "", SECTION)
+        # sin auth: simple, upload, json, borrar (con-token SÍ tiene auth)
+        check("AUD-AUTH-003 lista las 4 rutas sin auth",
+              f and "4 rutas mutantes sin auth" in f[0].title,
+              f[0].title if f else None, SECTION)
+        assert len(f) == 1 and f[0].severity is AudSeverity.INFO
+        assert all(r in f[0].code_snippet for r in ("/simple", "/upload", "/json", "/borrar"))
+
+    def test_tmp_mktemp_scoped_a_tools(self, tmp_path):
+        # En `tools/`, el índice por defecto NO lo ve (scope histórico).
+        p = tmp_path / "tools" / "probe.py"
+        p.parent.mkdir(parents=True)
+        p.write_text(TMP_SRC, encoding="utf-8")
+        default = TempfileMktempDetector(_index(tmp_path)).run().findings
+        check("AUD-TMP respeta el scope por defecto (tools/ fuera)", default == [],
+              str(default), SECTION)
+        check("AUD-TMP declara include_tools", TempfileMktempDetector.include_tools is True,
+              "", SECTION)
+        ampliado = CodeIndex(tmp_path)
+        ampliado.build(include_tools_tests=True)
+        f = TempfileMktempDetector(ampliado).run().findings
+        lineas = sorted(x.line_start for x in f)
+        check("AUD-TMP encuentra tempfile.mktemp y os.tmpnam", len(f) == 2,
+              str([(x.line_start, x.title) for x in f]), SECTION)
+        check("AUD-TMP NO marca NamedTemporaryFile ni tmp_path_factory.mktemp",
+              lineas == [5, 12], str(lineas), SECTION)
+        assert len(f) == 2 and lineas == [5, 12]
+
+    def test_exec_no_marca_ternario_de_literales(self, tmp_path):
+        f = _run(UnsafeExecDetector, tmp_path, "limpiar.py", EXEC_LITERAL_SRC)
+        check("AUD-EXEC no marca el ternario de literales (FP de netron)",
+              len(f) == 1, str([(x.line_start, x.title) for x in f]), SECTION)
+        check("AUD-EXEC sigue marcando os.system(cmd) dinámico",
+              f and f[0].line_start == 9, str(f[0].line_start) if f else None, SECTION)
+        assert len(f) == 1 and f[0].line_start == 9
+
+
+def _index_src(tmp_path: Path, src: str) -> CodeIndex:
+    """Índice de un fixture con un único `src/app.py`."""
+    p = tmp_path / "src" / "app.py"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(src, encoding="utf-8")
+    return _index(tmp_path)
