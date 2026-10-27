@@ -37,10 +37,11 @@ except (ImportError, OSError) as _exc:
 try:
     import sounddevice as sd
     _SD_AVAILABLE = True
-except (ImportError, OSError) as _exc:
-    # OSError: sounddevice importa pero PortAudio (la librería del sistema) no
-    # está. Antes sólo se atrapaba ImportError y el módulo reventaba al importarse
-    # en un equipo/contenedor sin libportaudio2; sin audio el VAD se desactiva.
+except Exception as _exc:  # noqa: BLE001 - PortAudioError deriva de Exception, NO de OSError
+    # 2026-10-27 (medido en CI): `import sounddevice` INICIALIZA PortAudio y en un equipo sin
+    # servidor de audio lanza `PortAudioError: PulseAudio_Initialize: Can't connect to server`
+    # (PaErrorCode -9999). Al no ser OSError, el guarda viejo no lo atrapaba y el módulo
+    # reventaba al importarse en el runner. Sin audio el VAD se desactiva, no se rompe.
     _SD_AVAILABLE = False
     sd = None  # type: ignore[assignment]
     logger.debug(f"[VAD] sounddevice no disponible: {_exc}")

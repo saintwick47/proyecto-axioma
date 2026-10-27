@@ -40,8 +40,11 @@ try:
     import sounddevice as sd
     import soundfile as sf
     _PLAYBACK_AVAILABLE = True
-except (ImportError, OSError) as _exc:
-    # OSError: falta PortAudio (libportaudio2) o libsndfile; el import revienta
+except Exception as _exc:  # noqa: BLE001 - PortAudioError deriva de Exception, NO de OSError
+    # 2026-10-27 (medido en CI): `import sounddevice` INICIALIZA PortAudio y en un equipo sin
+    # servidor de audio lanza `PortAudioError: PulseAudio_Initialize: Can't connect to server`
+    # (PaErrorCode -9999). Al no ser OSError, el guarda viejo no lo atrapaba y el módulo
+    # reventaba al importarse en el runner (sin audio). Sin audio se degrada, no se rompe.
     # aunque el paquete esté instalado. La reproducción se desactiva, pero el
     # módulo sigue importándose (el TTS offline y edge-tts no dependen de esto).
     sd = None

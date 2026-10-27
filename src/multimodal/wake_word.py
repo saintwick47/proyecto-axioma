@@ -37,7 +37,8 @@ try:
         "resources", "models", "hey_jarvis_v0.1.onnx",
     )
     _OWW_AVAILABLE = os.path.exists(_OWW_MODEL_PATH)
-except (ImportError, OSError) as _exc:
+except Exception as _exc:  # noqa: BLE001 - PortAudioError no es OSError
+    # 2026-10-27: PortAudio falla AL IMPORTAR sin servidor de audio (CI/headless).
     # ✅ FIX AUD-IEO-008 (2026-10-25): openwakeword/onnxruntime pueden lanzar
     # OSError; simplemente queda desactivado (no se usa por default).
     _OWW_AVAILABLE = False
@@ -67,8 +68,11 @@ def _load_oww_model():
 try:
     import sounddevice as sd
     _SD_AVAILABLE = True
-except (ImportError, OSError) as _exc:
-    # OSError: sounddevice está instalado pero falta PortAudio (librería del
+except Exception as _exc:  # noqa: BLE001 - PortAudioError deriva de Exception, NO de OSError
+    # 2026-10-27 (medido en CI): `import sounddevice` INICIALIZA PortAudio y en un equipo sin
+    # servidor de audio lanza `PortAudioError: PulseAudio_Initialize: Can't connect to server`
+    # (PaErrorCode -9999). Al no ser OSError, el guarda viejo no lo atrapaba y el módulo
+    # reventaba al importarse en el runner (sin audio). Sin audio se degrada, no se rompe.
     # sistema). Sin audio la detección por micrófono queda desactivada, pero el
     # módulo tiene que poder importarse igual.
     _SD_AVAILABLE = False

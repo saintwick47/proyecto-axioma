@@ -9,6 +9,31 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [v0.7.6] — 2026-10-27
 
+### Audio: importar sin servidor de sonido ya no revienta (2026-10-27)
+
+- **Síntoma**: el CI volvió a quedar rojo, ahora en los chequeos de importación de
+  `src.multimodal.audio_pipeline`, `src.multimodal.pipeline_core`, `config.multimodal_loader` y
+  `src.core.rafael_daemon`:
+
+  ```
+  PortAudioError: Error initializing PortAudio: 'PulseAudio_Initialize: Can't connect to server'
+  [PaErrorCode -9999]
+  ```
+
+- **Causa raíz**: `import sounddevice` **inicializa PortAudio en el import** y en un equipo sin
+  servidor de audio lanza `PortAudioError`. Esa clase **deriva de `Exception`, NO de `OSError`**,
+  así que los guardas `except (ImportError, OSError)` que se habían agregado en la pasada de
+  PortAudio opcional **no la atrapaban**: el módulo reventaba al importarse en el runner (sin
+  audio) y en cualquier servidor headless.
+- **Arreglo**: los 5 guardas de `sounddevice` (`vad_filter`, `wake_word`, `tts_engine`,
+  `ptt_axioma` ×2) pasan a `except Exception` **con el motivo escrito y logueado**; sin audio se
+  degrada (VAD/wake word/reproducción desactivados), no se rompe. `multimodal_loader` y
+  `preflight` ya usaban `except Exception`.
+- **Verificación**: se simuló el fallo del CI con un `MetaPathFinder` que lanza exactamente ese
+  `PortAudioError` al importar `sounddevice`; los 8 módulos afectados importan sin audio
+  (`src.multimodal.audio_pipeline`, `pipeline_core`, `rafael_daemon`, `vad_filter`, `wake_word`,
+  `tts_engine`, `ptt_axioma` y `config.multimodal_loader`). Suite **27/27**, gate **15/15 ✅**.
+
 ### `.env.example` al día: era la causa del CI rojo y de una instalación nueva fallida (2026-10-27)
 
 - **Síntoma**: el CI del público quedó **rojo** en `test_axioma_19_mi_hard.py` con

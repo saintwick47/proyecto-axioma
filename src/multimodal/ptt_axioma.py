@@ -25,8 +25,11 @@ import numpy as np
 
 try:
     import sounddevice as sd
-except (ImportError, OSError) as _exc:
-    # OSError: sounddevice está instalado pero falta PortAudio (librería del
+except Exception as _exc:  # noqa: BLE001 - PortAudioError deriva de Exception, NO de OSError
+    # 2026-10-27 (medido en CI): `import sounddevice` INICIALIZA PortAudio y en un equipo sin
+    # servidor de audio lanza `PortAudioError: PulseAudio_Initialize: Can't connect to server`
+    # (PaErrorCode -9999). Al no ser OSError, el guarda viejo no lo atrapaba y el módulo
+    # reventaba al importarse en el runner (sin audio). Sin audio se degrada, no se rompe.
     # sistema). El módulo tiene que poder importarse sin audio; main() avisa.
     sd = None
     logging.getLogger(__name__).debug(f"[PTT] sounddevice no disponible: {_exc}")
@@ -180,7 +183,7 @@ if __name__ == "__main__":
     # Verificar que sounddevice está instalado (y que PortAudio existe)
     try:
         import sounddevice  # noqa: F401 — sólo se comprueba que exista (PortAudio)
-    except (ImportError, OSError) as exc:
+    except Exception as exc:  # noqa: BLE001 - PortAudioError no es OSError
         print(f"❌ sounddevice no disponible ({exc}): instala sounddevice y PortAudio (libportaudio2)")
         sys.exit(1)
 
