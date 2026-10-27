@@ -186,13 +186,18 @@ comentario y etiquetas — esa calificación **entrena al sistema**
 
 ## 6. Solución de problemas
 
-| Problema | Solución |
-|---|---|
-| "Ollama no responde" | `ollama serve` debe estar corriendo; probá `curl http://127.0.0.1:11434/api/tags` |
-| Modelo no encontrado | `ollama pull qwen3:8b` (y los otros según la tarea) |
-| Poca RAM / OOM | El MemoryGuard evita cargar modelos que no caben; calibrá con `python -m tools.benchmark_calibration` |
-| Embeddings lentos | Es CPU: la primera carga de BGE-M3 tarda; después usa cache L1 |
-| El servidor web no abre | Verificá que el puerto esté libre; `--port` para cambiarlo |
+Los **cuatro fallos que ya aparecieron en instalaciones reales**, con su causa y su arreglo. Si el
+síntoma no está acá, el reporte de la suite (`logs/axioma_test_report_*.md`) dice qué chequeo falló.
+
+| Problema | Causa | Solución |
+|---|---|---|
+| **Windows, instalación frena en "Paso 6 de 6: arrancar"** con `error getting credentials - err: exec: "docker-credential-desktop": executable file not found in %PATH%` | Docker Desktop tiene `credsStore: desktop` en su config y el ayudante **no está en el PATH**; `docker compose up` intenta bajar `ollama/ollama` y muere ahí | **Desde v0.7.6 el lanzador reintenta solo** (usa un `DOCKER_CONFIG` temporal sin credenciales). Si usás una versión anterior: agregá la carpeta que contiene `docker-credential-desktop.exe` al PATH, o quitá la línea `"credsStore": "desktop"` de `%USERPROFILE%\.docker\config.json`, y volvé a correr el instalador |
+| Aparece `PortAudioError: ... 'PulseAudio_Initialize: Can't connect to server' [PaErrorCode -9999]` al importar módulos | El equipo **no tiene servidor de audio** (contenedor, servidor headless, runner de CI); `sounddevice` inicializa PortAudio **al importarse** | **Es esperable y no bloquea**: sin audio se desactivan voz/VAD/wake-word y el chat funciona igual. Si lo ves como error de importación, actualizá a **v0.7.6** (los guardas ahora atrapan esa excepción, que **no** es `OSError`) |
+| "Modelo no encontrado" o AXIOMA pide un modelo que no tenés | `.env` viejo (de una versión anterior) que fija modelos ya retirados (`qwen3:8b`, `qwen3-vl:4b`, `BAAI/bge-m3`) | Compará tu `.env` con **`.env.example`**. Los modelos actuales son **`qwen3.5:9b`** (chat + razonamiento + visión), **`qwen2.5-coder:7b`** (código) y **`codefuse-ai/F2LLM-v2-330M`** (embeddings). `ollama pull qwen3.5:9b` |
+| Embeddings lentos la primera vez | Es CPU: el modelo de embeddings (638 MB) se carga en memoria la primera vez y después usa cache | Normal. El modelo vive en `~/.cache/huggingface` (o `cache/huggingface` en el contenedor); si borraste esa caché, se vuelve a bajar |
+| "Ollama no responde" | El motor no está corriendo | `ollama serve`, o probá `curl http://127.0.0.1:11434/api/tags` |
+| Poca RAM / OOM | El MemoryGuard evita cargar modelos que no caben | Calibrá con `venv_axioma/bin/python -m tools.benchmark_calibration` |
+| El servidor web no abre | Puerto ocupado | `--port` para cambiarlo |
 
 ## 7. Tests y verificación
 
