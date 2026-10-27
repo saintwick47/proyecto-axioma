@@ -52,7 +52,10 @@ def test_sin_audio_el_preflight_no_sondea_dispositivos_y_explica_por_que(monkeyp
     sondeos = []
     try:
         import sounddevice
-    except (ImportError, OSError) as exc:
+    except Exception as exc:  # noqa: BLE001 - PortAudioError deriva de Exception, NO de OSError
+        # 2026-10-27: en un equipo sin servidor de audio el import lanza PortAudioError
+        # ('PulseAudio_Initialize: Can't connect to server'), que NO es OSError: el guarda
+        # viejo no lo atrapaba y el test fallaba en vez de saltearse (medido en CI).
         # Sin PortAudio (libportaudio2) sounddevice no se puede importar: sin
         # módulo no hay `query_devices` que espiar. Es el entorno del CI cuando
         # el apt-get de las librerías de audio no llega a instalarlas.
