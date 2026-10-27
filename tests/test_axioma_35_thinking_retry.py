@@ -64,7 +64,7 @@ def test_generate_reintenta_con_thinking_si_la_respuesta_viene_vacia(monkeypatch
 
     monkeypatch.setattr(cb, "_datos_de_generacion", _fake_datos)
 
-    r = cli.generate("cuantas horas?", max_tokens=100)
+    r = cli.generate("cuantas horas?", max_tokens=100, skip_model_swap=True)
 
     assert r.content == "3"
     assert len(payloads) == 2, "tiene que haber reintentado una vez"
@@ -87,7 +87,7 @@ def test_generate_no_reintenta_si_hay_respuesta(monkeypatch):
 
     monkeypatch.setattr(cb, "_datos_de_generacion", _fake_datos)
 
-    cli.generate("cuantas horas?", max_tokens=100)
+    cli.generate("cuantas horas?", max_tokens=100, skip_model_swap=True)
     assert len(llamadas) == 1, "con respuesta válida no se reintenta"
 
 
@@ -105,7 +105,7 @@ def test_generate_no_reintenta_si_el_modelo_no_razona(monkeypatch):
 
     monkeypatch.setattr(cb, "_datos_de_generacion", _fake_datos)
 
-    cli.generate("hola", max_tokens=50)
+    cli.generate("hola", max_tokens=50, skip_model_swap=True)
     assert len(payloads) == 1, "sin flag think en el payload no se reintenta"
     assert "think" not in payloads[0]
 

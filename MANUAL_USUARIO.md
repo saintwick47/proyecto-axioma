@@ -45,7 +45,7 @@ falta, el instalador mismo te lo dice.
 
 ## 4. Paso 2: bajar el instalador de AXIOMA
 
-La forma más simple es la página de **_Releases_** de este repositorio (la versión **v0.7.5**):
+La forma más simple es la página de **_Releases_** de este repositorio (la versión **v0.7.6**):
 
 - **Windows**: bajá **`AXIOMA-Setup.exe`** (es un solo archivo).
 - **Linux y macOS**: bajá **`axioma-instalar.sh`** (también un solo archivo).

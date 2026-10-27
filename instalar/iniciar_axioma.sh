@@ -121,7 +121,32 @@ cd "$RAIZ"
 # El código de salida se MIRA (como en el guion de Windows): sin esto, `set -e` cortaba el guion con el
 # error crudo de Docker y la persona no sabía que hacer. Medido el 2026-10-06: pasa cuando ya hay otro
 # AXIOMA andando (el nombre del contenedor está en uso) o cuando el motor de Docker no está sano.
-if ! docker compose ${PERFIL} up -d; then
+# ✅ 2026-10-27: mismo caso que en Windows (medido en una instalación real): si el ayudante de
+# credenciales de Docker está roto, `compose up` muere al bajar `ollama/ollama` con
+# "error getting credentials". El instalador ya lo esquiva al bajar la imagen de AXIOMA; acá se
+# reintenta UNA vez con un DOCKER_CONFIG temporal sin credsStore (imágenes públicas).
+# 2026-10-27: mismo caso que en Windows (medido en una instalación real): si el ayudante de
+# credenciales de Docker está roto, `compose up` muere al bajar `ollama/ollama` con
+# "error getting credentials". El instalador ya lo esquiva al bajar la imagen de AXIOMA; acá se
+# reintenta UNA vez con un DOCKER_CONFIG temporal sin credsStore (las imágenes son públicas).
+log_up=$(mktemp)
+up_ok=0
+if ! docker compose ${PERFIL} up -d >"$log_up" 2>&1; then
+  if grep -qiE "credential|error getting credentials" "$log_up"; then
+    aviso "Docker no encontró su ayudante de credenciales: reintento sin él (las imágenes son públicas)."
+    cfg_tmp=$(mktemp -d)
+    printf '{"auths":{}}' > "$cfg_tmp/config.json"
+    if DOCKER_CONFIG="$cfg_tmp" docker compose ${PERFIL} up -d >>"$log_up" 2>&1; then
+      up_ok=1
+    fi
+    rm -rf "$cfg_tmp"
+  fi
+else
+  up_ok=1
+fi
+cat "$log_up"
+rm -f "$log_up"
+if [ "$up_ok" -ne 1 ]; then
   mal "Docker no pudo encender AXIOMA (el motivo está en las líneas de arriba)."
   echo "     Lo más común: ya hay un AXIOMA andando (mirá con:  docker ps) o Docker no está sano."
   echo "     Para ver el detalle:  docker compose logs --tail 40 axioma"

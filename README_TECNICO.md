@@ -7,11 +7,11 @@
 
 **AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
 
-> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.5"` (último tag `v0.7.5`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
+> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.6"` (último tag `v0.7.6`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | 610 commits · `main` · último tag `v0.7.5` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 610 |
+| 🟢 En desarrollo activo | 610 commits · `main` · último tag `v0.7.6` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 610 |
 
 ---
 

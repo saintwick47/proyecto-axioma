@@ -241,11 +241,39 @@ if ($Ensayo) {
 }
 Push-Location $Raiz
 try {
+    # 2026-10-27 (MEDIDO en una instalación real en Windows, paso 6 de 6): Docker Desktop puede
+    # tener `credsStore: desktop` en su config y el ayudante `docker-credential-desktop` FUERA del
+    # PATH. El instalador ya esquiva eso al bajar la imagen de AXIOMA, pero `compose up` tambien
+    # intenta bajar `ollama/ollama` y moria con:
+    #   error getting credentials - err: exec: "docker-credential-desktop": executable file not found
+    # Estrategia: primer intento normal; si falla por credenciales se reintenta UNA vez con un
+    # DOCKER_CONFIG temporal sin credsStore (todas las imagenes del compose son publicas).
+    $salida = $null
     $encendido = $true
-    try { & docker compose --profile puente @perfilOllama up -d @servicios } catch { $encendido = $false }
+    try { $salida = & docker compose --profile puente @perfilOllama up -d @servicios 2>&1 } catch { $encendido = $false }
     if ($encendido) { $encendido = ($LASTEXITCODE -eq 0) }
+    if (-not $encendido -and (($salida | Out-String) -match "credential|error getting credentials")) {
+        aviso "Docker no encontro su ayudante de credenciales: reintento sin el (las imagenes son publicas)."
+        $cfgTmp = Join-Path ([System.IO.Path]::GetTempPath()) ("axioma-cfg-" + [guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Path $cfgTmp -Force | Out-Null
+        '{"auths":{}}' | Set-Content -Path (Join-Path $cfgTmp "config.json") -Encoding ascii
+        $cfgAntes = $env:DOCKER_CONFIG
+        try {
+            $env:DOCKER_CONFIG = $cfgTmp
+            $salida = & docker compose --profile puente @perfilOllama up -d @servicios 2>&1
+            $encendido = ($LASTEXITCODE -eq 0)
+        } catch { $encendido = $false } finally {
+            if ($null -eq $cfgAntes) {
+                Remove-Item Env:DOCKER_CONFIG -ErrorAction SilentlyContinue
+            } else {
+                $env:DOCKER_CONFIG = $cfgAntes
+            }
+            Remove-Item -Recurse -Force $cfgTmp -ErrorAction SilentlyContinue
+        }
+    }
+    if ($salida) { $salida | ForEach-Object { Write-Host $_ } }
     if (-not $encendido) {
-        mal "Docker no pudo encender AXIOMA (mirá los mensajes de arriba)."
+        mal "Docker no pudo encender AXIOMA (mira los mensajes de arriba)."
         exit 4
     }
 } finally { Pop-Location }

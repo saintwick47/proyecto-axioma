@@ -7,6 +7,53 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+## [v0.7.6] — 2026-10-27
+
+### `.env.example` al día: era la causa del CI rojo y de una instalación nueva fallida (2026-10-27)
+
+- **Síntoma**: el CI del público quedó **rojo** en `test_axioma_19_mi_hard.py` con
+  `modelos de settings declarados ❌ {'llm_default_model': 'qwen3:8b', 'llm_embed_model': 'BAAI/bge-m3'}`.
+- **Causa raíz**: al unificar el modelo de chat y cambiar los embeddings se actualizó **`.env`**
+  (privado, no se publica) pero **no `.env.example`** (versionado y **distribuido**). El CI copia
+  `.env.example` → `.env`, así que veía los modelos viejos; y **cualquier instalación nueva** habría
+  quedado configurada con modelos que ya no existen (`qwen3:8b`, `qwen3-vl:4b`, `BAAI/bge-m3`).
+- **Arreglo**: `.env.example` con `qwen3.5:9b` (chat **y** visión), `codefuse-ai/F2LLM-v2-330M` en
+  embeddings y los comentarios de inventario reescritos. Verificado reproduciendo el CI en la copia
+  pública (`mkdir docs logs`, `.env` desde la plantilla, `OLLAMA_HOST` muerto, auditor → suite → gate):
+  **27/27 y gate ✅**.
+- **Test hermético**: `test_axioma_35_thinking_retry.py` construía el cliente real y `generate()`
+  hacía *model swap* contra Ollama ⇒ fallaba **sin** Ollama (CI). Ahora pasa `skip_model_swap=True`:
+  **8/8 en 0,07 s** (antes 25 s y rojo en CI).
+
+
+### Arranque en Windows: reintento sin el ayudante de credenciales de Docker (2026-10-27)
+
+- **Fallo real, medido en una instalación de Windows** (`respuesta axioma.txt`, v0.7.5, equipo
+  de la usuaria): los pasos 1-5 terminan bien (Docker arranca, se baja la imagen de AXIOMA
+  desde GHCR, se crean los accesos directos) y el **paso 6 de 6 (arrancar) falla** con:
+
+  ```
+  error getting credentials - err: exec: "docker-credential-desktop": executable file not found in %PATH%
+  ```
+
+  Es Docker Desktop con `credsStore: desktop` en su `config.json` y el ayudante **fuera del
+  PATH**. El instalador ya esquiva eso al bajar **su** imagen (`DOCKER_CONFIG` temporal), pero
+  `docker compose up` también intenta bajar `ollama/ollama` y ahí volvía a tropezar.
+- **Arreglo**: `iniciar_axioma.ps1` y `iniciar_axioma.sh` reintentan **una vez** con un
+  `DOCKER_CONFIG` temporal sin `credsStore` cuando la salida de `compose up` contiene
+  `credential`/`error getting credentials` (todas las imágenes del compose son públicas). Se
+  restaura el `DOCKER_CONFIG` previo y se borra el temporal.
+- **Verificación**: en Linux se simuló el fallo con un `docker` falso que emite exactamente ese
+  error y sólo funciona si `DOCKER_CONFIG` apunta a una config sin credenciales: el primer
+  intento falla, el reintento enciende (código 0). `bash -n` limpio.
+  ⚠️ El `.ps1` **no se pudo ejecutar acá** (no hay `pwsh` en este equipo): revisado a mano
+  (funciones `aviso`/`mal` existen, llaves y comillas balanceadas) y queda pendiente de la
+  prueba real en Windows.
+- **Ojo con el alcance**: el instalador de un solo archivo baja el **tarball del tag publicado**
+  (`v0.7.5`), así que este arreglo **no llega** a quien instala con el `.exe` hasta que se
+  publique una versión nueva.
+
+
 ### Modelo de chat: `qwen3.5:9b` unifica chat, razonamiento y visión (2026-10-27)
 
 - **Un solo modelo en vez de dos.** `qwen3.5:9b` (familia `qwen35`, 6,6 GB: 5,63 de modelo +
