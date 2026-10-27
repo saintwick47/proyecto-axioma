@@ -288,6 +288,17 @@ class OllamaClientBase:
     # sin razonamiento. El fix de `ISSUE-099` había cubierto solo el chat.
     # ═══════════════════════════════════════════════════════════════
     @staticmethod
+    def _respuesta_fallida(data: Dict[str, Any]) -> bool:
+        """True si la respuesta NO sirve: vacía (o sólo espacios).
+
+        ✅ 2026-10-27: es la señal medible de "el razonamiento se comió el
+        presupuesto". Con `chat_disable_thinking` activo y `num_predict` chico,
+        Ollama devuelve `response=""`, `done_reason="length"` (reproducido:
+        qwen3.5:9b con 200 tokens ⇒ 200 de thinking y respuesta vacía).
+        """
+        return not (data.get("response") or "").strip()
+
+    @staticmethod
     def _think_flag(model: str) -> Dict[str, Any]:
         """`{"think": False}` para modelos con razonamiento, si está configurado.
 
@@ -503,6 +514,28 @@ class OllamaClientBase:
                 # poder cortarlo; sin token es el `session.post()` de siempre.
                 data = _datos_de_generacion(session, payload, effective_timeout,
                                             token_cancelacion_actual())
+
+                # ✅ 2026-10-27: "thinking SÓLO si falla". Si el primer intento vuelve
+                # vacío (el razonamiento consumió todo `num_predict`), se reintenta UNA
+                # vez con thinking habilitado y el doble de presupuesto. Sólo aplica a
+                # modelos con razonamiento y cuando el flag base era `think: False`.
+                if (self._respuesta_fallida(data) and payload.get("think") is False
+                        and not stream):
+                    payload_thinking = dict(payload)
+                    payload_thinking["think"] = True
+                    opciones = dict(payload.get("options") or {})
+                    opciones["num_predict"] = int(effective_max_tokens * 2)
+                    payload_thinking["options"] = opciones
+                    _log_event(
+                        "OLLAMA_CLIENT",
+                        "Respuesta vacía con thinking desactivado: reintento con thinking",
+                        level="WARNING",
+                        extra={"model": self.model, "task_type": task_type,
+                               "num_predict_original": effective_max_tokens,
+                               "num_predict_reintento": opciones["num_predict"]},
+                    )
+                    data = _datos_de_generacion(session, payload_thinking, effective_timeout,
+                                                token_cancelacion_actual())
                 self.circuit_breaker.record_success()
                 ollama_response = OllamaResponse(
                     content=data.get("response", "") or "", model=data.get("model", self.model) or self.model,
@@ -576,9 +609,10 @@ class OllamaClientBase:
         """
         start_time = time.time()
         embed_model = model or settings.llm_embed_model
+        from src.memory.embedding_model_singleton import EMBED_MODEL_NAME as _EMBED_LOCAL_MODEL
 
         # ✅ v0.5.2: Redirigir BGE-M3 al singleton local
-        if "bge-m3" in embed_model.lower():
+        if embed_model == _EMBED_LOCAL_MODEL or "bge-m3" in embed_model.lower():
             try:
                 from src.memory.embedding_model_singleton import get_embedding_model
                 singleton = get_embedding_model()

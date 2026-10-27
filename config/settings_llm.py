@@ -42,13 +42,14 @@ class SettingsLLM(BaseModel):
     # qwen2.5-coder:7b — venció a qwen3:8b y deepseek-r1:8b en calidad de
     # código (Docstrings/Types/Quality; el ranking "Overall"/Exec-Pass del
     # reporte no es confiable, ver nota más abajo).
-    llm_default_model: str = "qwen3:8b"
+    llm_default_model: str = "qwen3.5:9b"
     llm_code_model: str = "qwen2.5-coder:7b"
-    # ✅ FIX: gemma4:e4b desinstalado (nunca funcionó bien, muy pesado) —
-    # default actualizado a qwen3-vl:4b, candidato instalado en evaluación.
-    llm_vision_model: str = "qwen3-vl:4b"
+    # ✅ 2026-10-27: MEDIDO — qwen3.5:9b es multimodal NATIVO (6,6 GB, familia qwen35):
+    # chat y visión son el MISMO modelo y se elimina qwen3-vl:4b (3,3 GB). Velocidad
+    # igual a qwen3:8b (6,4 vs 6,5 tok/s) y visión mejor (describe formas y colores).
+    llm_vision_model: str = "qwen3.5:9b"
     llm_vision_fallback_model: str = ""  # Sin fallback — un solo VLM activo a la vez
-    llm_embed_model: str = "BAAI/bge-m3"
+    llm_embed_model: str = "codefuse-ai/F2LLM-v2-330M"
     # ✅ FIX: deepseek-r1:8b descartado (benchmark_code_results.md). A probar:
     # qwen2.5-coder:7b — distinto de llm_default_model (resuelve la falta de
     # resiliencia para el rol chat), aunque queda igual a llm_code_model (si
@@ -206,9 +207,8 @@ class SettingsLLM(BaseModel):
     # ✅ FIX: lista actualizada. qwen2.5-coder:7b reemplaza a qwen3:8b en código
     # (benchmark). deepseek-r1:8b descartado como fallback — ver llm_fallback_1.
     required_models_on_startup: List[str] = Field(default_factory=lambda: [
-        "qwen3:8b",           # Chat/default (ver llm_default_model) — también fallback provisorio
+            "qwen3.5:9b",         # Chat + razonamiento + VISIÓN (multimodal nativo)
         "qwen2.5-coder:7b",   # Código (ver llm_code_model)
-        "qwen3-vl:4b",        # Visión (ver llm_vision_model)
-        "BAAI/bge-m3",
+        "codefuse-ai/F2LLM-v2-330M",   # embeddings (antes BAAI/bge-m3)
     ])
     startup_behavior_on_missing_model: Literal["warn", "error", "continue"] = "warn"

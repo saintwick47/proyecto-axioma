@@ -30,6 +30,9 @@ except ImportError:  # pragma: no cover
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SECTION = "18. Auditor — regresiones de detectores y política R3"
 
+from config.settings import settings as _settings  # noqa: E402
+_DEFAULT = _settings.llm_default_model  # ✅ 2026-10-27: el modelo de chat ya no es fijo
+
 
 def _mk_project(tmp_path: Path) -> Path:
     (tmp_path / "src" / "memory").mkdir(parents=True, exist_ok=True)
@@ -511,8 +514,8 @@ class TestConfigModelMapping:
             "code_review": "qwen2.5-coder:7b",
             "code_correction": "qwen2.5-coder:7b",
             "code_explanation": "qwen2.5-coder:7b",
-            "general_chat": "qwen3:8b",
-            "complex_reasoning": "qwen3:8b",     # ← antes devolvía el coder
+            "general_chat": _DEFAULT,
+            "complex_reasoning": _DEFAULT,     # ← antes devolvía el coder
         }
         for task, modelo in esperado.items():
             got = c.get_model_for_task(task).name

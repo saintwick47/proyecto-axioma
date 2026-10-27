@@ -317,6 +317,26 @@ class OllamaClient(OllamaClientBase):
             response = session.post("/api/chat", json=payload, timeout=effective_timeout)
             response.raise_for_status()
             data = response.json()
+
+            # ✅ 2026-10-27: "thinking SÓLO si falla" (igual que en `generate`). Si el
+            # razonamiento consumió todo `num_predict`, Ollama devuelve contenido vacío;
+            # se reintenta UNA vez con thinking y el doble de presupuesto. Sólo para
+            # modelos con razonamiento y cuando el flag base era `think: False`.
+            if (not ((data.get("message") or {}).get("content") or "").strip()
+                    and payload.get("think") is False):
+                payload_thinking = dict(payload)
+                payload_thinking["think"] = True
+                opciones = dict(payload.get("options") or {})
+                opciones["num_predict"] = int(opciones.get("num_predict", 2048) or 2048) * 2
+                payload_thinking["options"] = opciones
+                _log_event("OLLAMA_CLIENT",
+                           "Chat vacío con thinking desactivado: reintento con thinking",
+                           level="WARNING",
+                           extra={"model": self.model, "task_type": task_type,
+                                  "num_predict_reintento": opciones["num_predict"]})
+                response = session.post("/api/chat", json=payload_thinking, timeout=effective_timeout)
+                response.raise_for_status()
+                data = response.json()
             self.circuit_breaker.record_success()
 
             # ✅ NUEVO v0.2.0: Extraer tool_calls y message crudo

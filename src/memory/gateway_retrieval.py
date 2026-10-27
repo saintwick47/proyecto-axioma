@@ -27,6 +27,7 @@ import time
 from typing import Optional, List, Dict, Any
 
 from config.settings import settings
+from src.memory.embedding_model_singleton import EMBED_MODEL_NAME as _EMBED_MODEL_NAME
 from config.paths import Paths
 from src.domain.types import TaskType
 from src.utils.degradation import log_degraded
@@ -451,7 +452,7 @@ class MemoryGatewayRetrievalMixin:
                     model_fn=lambda ts: (
                         model.embed_batch(ts) if model is not None else None
                     ),
-                    model_name="BAAI/bge-m3",
+                    model_name=_EMBED_MODEL_NAME,
                     use_cache=True,
                 )
             return model.embed_batch(texts)
@@ -515,7 +516,7 @@ class MemoryGatewayRetrievalMixin:
                             _orig.get_embedding_model().embed(t)
                             if _orig.get_embedding_model() is not None else None
                         ),
-                        model_name="BAAI/bge-m3",
+                        model_name=_EMBED_MODEL_NAME,
                         use_cache=True,
                     )
                 except Exception as _d2e:

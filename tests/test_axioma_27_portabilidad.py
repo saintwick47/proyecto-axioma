@@ -16,7 +16,6 @@ _sin_compose = pytest.mark.skipif(
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-
 def test_la_raiz_del_proyecto_es_la_carpeta_del_archivo():
     """B1: el punto de entrada tiene que usar SU carpeta, no la del autor.
 
@@ -29,7 +28,6 @@ def test_la_raiz_del_proyecto_es_la_carpeta_del_archivo():
     assert Path(main.PROJECT_ROOT).resolve() == Path(main.__file__).resolve().parent, \
         main.PROJECT_ROOT
     assert Path(main.PROJECT_ROOT).is_dir()
-
 
 @pytest.mark.skipif(not (PROJECT_ROOT / "tools" / "documentador").is_dir(),
                     reason="el documentador queda en el repositorio privado: no lo publica "
@@ -48,7 +46,6 @@ def test_el_documentador_usa_la_raiz_del_proyecto():
     finally:
         sys.path.remove(str(carpeta))
     assert Path(raiz_doc).resolve() == carpeta.resolve().parents[1], raiz_doc
-
 
 def test_la_configuracion_del_usuario_se_carga_sin_importar_la_carpeta_de_trabajo():
     """`.env` relativo al CWD ⇒ la configuración del usuario no se cargaba y no avisaba.
@@ -237,11 +234,12 @@ def test_sin_ollama_no_puede_responder_y_dice_como_instalarlo(monkeypatch):
 
 
 def test_si_falta_un_modelo_obligatorio_lo_bloquea_y_dice_el_comando(monkeypatch):
+    from config.settings import settings  # noqa: PLC0415
     pre = _revisar(monkeypatch, [])
     faltan = {r.clave for r in pre.faltantes()}
     assert {"modelo_chat", "modelo_codigo"} <= faltan, faltan
     chat = next(r for r in pre.faltantes() if r.clave == "modelo_chat")
-    assert "ollama pull qwen3:8b" in chat.remedio, chat.remedio
+    assert f"ollama pull {settings.llm_default_model}" in chat.remedio, chat.remedio
 
 
 def test_los_modelos_opcionales_que_faltan_no_bloquean(monkeypatch):
@@ -252,7 +250,9 @@ def test_los_modelos_opcionales_que_faltan_no_bloquean(monkeypatch):
     pre = _revisar(monkeypatch, obligatorios)
     assert pre.puede_responder(), pre.veredicto()
     avisos = {r.clave for r in pre.avisos()}
-    assert "modelo_codigo_respaldo" in avisos and "modelo_vision" in avisos, avisos
+    vision_separada = cat.por_rol.get("vision") != cat.por_rol.get("chat")  # ✅ 27/10: unificado
+    assert "modelo_codigo_respaldo" in avisos, avisos
+    assert vision_separada == ("modelo_vision" in avisos), avisos
     assert pre.faltantes() == []
 
 

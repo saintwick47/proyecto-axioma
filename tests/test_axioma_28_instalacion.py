@@ -448,15 +448,17 @@ def test_una_placa_grande_carga_los_modelos_y_lo_dice_por_rol(monkeypatch):
     assert "código" in gpu.detalle, gpu.detalle
 
 def test_una_placa_justa_carga_unos_modelos_y_no_otros(monkeypatch):
-    """Con 7 GB de VRAM (presupuesto 6,16 GB) entra la visión (3,3) y NO el chat (6,67)."""
+    """Con 7 GB de VRAM entra el coder (4,68) y NO el chat/visión unificado (7,5)."""
     from config.model_catalog import cargar_catalogo
     from src.core import preflight as pf
     catalogo = cargar_catalogo()
     pre = _pre_con_placa(monkeypatch, _hw_con_placa(7.0))
     gpu = next(r for r in pre.requisitos if r.clave == "gpu")
     assert gpu.estado == pf.OK
-    assert catalogo.por_rol["vision"] in gpu.datos["modelos_en_placa"], gpu.datos
+    assert catalogo.por_rol["codigo"] in gpu.datos["modelos_en_placa"], gpu.datos
     assert catalogo.por_rol["chat"] not in gpu.datos["modelos_en_placa"], gpu.datos
+    if catalogo.por_rol["vision"] != catalogo.por_rol["chat"]:
+        assert catalogo.por_rol["vision"] in gpu.datos["modelos_en_placa"], gpu.datos
     chat = next(r for r in pre.requisitos if r.clave == "modelo_chat")
     assert chat.datos.get("en_placa") is False and "no entra en la placa" in chat.detalle
 
@@ -906,7 +908,6 @@ def test_la_pantalla_ofrece_el_chequeo_de_modelo():
     seccion = inspect.getsource(pantalla._seccion_chequeo_de_modelo)
     assert "evaluar_modelo_en_la_pc" in seccion and "Revisar" in seccion, seccion
 
-
 def test_el_lanzador_usa_el_grupo_de_audio_del_equipo(tmp_path):
     """Medido el 2026-10-07: el compose tenía 996 fijo, y el grupo `audio` NO es el mismo en todas las
     distribuciones (Debian/Ubuntu 29 · Fedora 63 · Arch 996). Con el número fijo, la voz no ve los
@@ -916,7 +917,6 @@ def test_el_lanzador_usa_el_grupo_de_audio_del_equipo(tmp_path):
     assert salida.returncode == 0, (salida.returncode, salida.stdout)
     assert "grupo audio 29" in salida.stdout, salida.stdout
     assert "grupo audio 996" not in salida.stdout, "usó el valor fijo en vez del del equipo"
-
 
 @_sin_compose
 def test_el_compose_no_tiene_uid_ni_gid_de_audio_fijos():
@@ -933,7 +933,6 @@ def test_el_compose_no_tiene_uid_ni_gid_de_audio_fijos():
         fuente = (PROJECT_ROOT / guion).read_text(encoding="utf-8")
         for calculo in ("AXIOMA_UID=\"$(id -u)\"", "getent group audio", "export AXIOMA_AUDIO_GID"):
             assert calculo in fuente, f"{guion} no calcula {calculo}"
-
 
 def test_los_instaladores_estan_completos():
     """Absorbe al viejo `test_los_instaladores_de_windows_preparan_env_y_carpetas` (R13: se fusiona por tema)."""

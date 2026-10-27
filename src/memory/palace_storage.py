@@ -28,7 +28,9 @@ from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)
 lancedb = None  # type: ignore[assignment]
-EMBED_DIMENSION = 1024
+from src.memory.embedding_model_singleton import (  # noqa: E402  (única fuente)
+    EMBED_DIMENSION, EMBED_MODEL_NAME,
+)
 
 
 def _fallback_embedding_model():  # type: ignore[misc]

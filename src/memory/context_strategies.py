@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from src.memory.embedding_model_singleton import get_embedding_model
+from src.memory.embedding_model_singleton import get_embedding_model, EMBED_MODEL_NAME
 from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)
@@ -462,7 +462,7 @@ class RelevanceSelector(BaseSelector):
             query_embedding = self._optimizer.get_embedding(
                 text=query,
                 model_fn=model_fn,
-                model_name="BAAI/bge-m3",   # ✅ plan_memory: mismo namespace que
+                model_name=EMBED_MODEL_NAME,   # ✅ plan_memory: mismo namespace que
                 use_cache=True,             # Palace/add_message → cache compartido
             )
 
@@ -476,7 +476,7 @@ class RelevanceSelector(BaseSelector):
                 msg_embedding = self._optimizer.get_embedding(
                     text=content,
                     model_fn=model_fn,
-                    model_name="BAAI/bge-m3",
+                    model_name=EMBED_MODEL_NAME,
                     use_cache=True,
                 )
 

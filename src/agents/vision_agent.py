@@ -205,6 +205,16 @@ class _OllamaVisionClient:
             "stream":  False,
         }
 
+        # ✅ 2026-10-27: con la visión y el chat unificados en qwen3.5:9b (modelo CON
+        # razonamiento), sin `think: false` el "thinking" se come `num_predict` y el VLM
+        # devuelve la respuesta VACÍA (`RuntimeError: respondió vacío`, medido). Se aplica
+        # la misma regla que el cliente de texto (`OllamaClientBase._think_flag`).
+        try:
+            from src.llm.client_base import OllamaClientBase
+            payload.update(OllamaClientBase._think_flag(self.model))
+        except Exception as e:  # noqa: BLE001 — nunca debe romper la visión
+            logger.debug(f"[VISION_CLIENT] no se pudo aplicar _think_flag: {e}")
+
         # ✅ v0.6.9p: tope de tokens de salida — evita generaciones
         # desbocadas que colgaban hasta el timeout (caso contraste bajo).
         if num_predict:

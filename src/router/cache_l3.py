@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════
-# AXIOMA v0.6.3 — Caché Semántico L3 (LanceDB + BAAI/bge-m3)
+# AXIOMA v0.6.3 — Caché Semántico L3 (LanceDB + modelo de embeddings local)
 # ═══════════════════════════════════════════════════════════════
 # Ruta: /ruta/a/axioma/src/router/cache_l3.py
 # Autor: SaintWick
@@ -61,7 +61,7 @@ else:
 
 class SemanticCacheL3:
     """
-    Caché semántico L3 basado en LanceDB + BAAI/bge-m3.
+    Caché semántico L3 basado en LanceDB + el modelo de embeddings local.
     v0.6.3: Migración desde ChromaDB. API pública idéntica.
     """
 

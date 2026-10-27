@@ -220,7 +220,7 @@ python main.py --rac stop | pause | resume
 #   Settings nuevos (config/settings.py): vision_num_predict ·
 #     vision_preprocess_enabled · vision_ocr_enabled · vision_ocr_min_conf.
 ════════════════════════════════════════════════════════════════════════════════
-2. 🧪 SUITE INTEGRAL DE TESTS (tests/test_axioma_*.py · 26 archivos · pytest · reporte logs/)
+2. 🧪 SUITE INTEGRAL DE TESTS (tests/test_axioma_*.py · 27 archivos · pytest · reporte logs/)
 ════════════════════════════════════════════════════════════════════════════════
 ── 2.1 EJECUTAR TODA LA SUITE ──────────────────────────────────────────────────
 python -m pytest tests/

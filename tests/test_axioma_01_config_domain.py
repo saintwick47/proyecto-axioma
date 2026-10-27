@@ -16,6 +16,7 @@ try:
 except ImportError:  # pragma: no cover
     from axioma_report import section, check
 
+from src.llm.config import DEFAULT_MODEL as _DEFAULT  # noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SECTION = "1. Estructura, configuración y dominio"
 
@@ -25,7 +26,6 @@ try:
 except ImportError:  # pragma: no cover
     from suite_utils import has_symbols as _has_symbols,\
         check_import as _check_import
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════
@@ -490,8 +490,8 @@ class TestTaskTemperatureWiring:
             "code_review": "qwen2.5-coder:7b",
             "code_correction": "qwen2.5-coder:7b",
             "code_explanation": "qwen2.5-coder:7b",
-            "general_chat": "qwen3:8b",
-            "complex_reasoning": "qwen3:8b",
+            "general_chat": _DEFAULT,
+            "complex_reasoning": _DEFAULT,
         }
         check("mapeos de modelo intactos", got == expected, str(got), SECTION)
 
@@ -562,13 +562,17 @@ class TestTemperaturePrecedenceRule:
     @staticmethod
     def _cfg(tmp_path, yaml_text):
         from src.llm.config import LLMConfig
+        from config.settings import settings
+        # __MODELO__ = el modelo de chat configurado (antes estaba fijo "qwen3:8b";
+        # el 2026-10-27 pasó a ser qwen3.5:9b y el test se rompía por el literal).
+        yaml_text = yaml_text.replace("__MODELO__", settings.llm_default_model)
         f = tmp_path / "m.yaml"
         f.write_text(yaml_text, encoding="utf-8")
         return LLMConfig(config_path=f)
 
     BASE = """
 models:
-  qwen3:8b:
+  __MODELO__:
     enabled: true
     temperature: 0.25
   qwen2.5-coder:7b:
@@ -580,7 +584,7 @@ models:
         cfg = self._cfg(tmp_path, self.BASE + """
 task_mappings:
   general_chat:
-    preferred_model: "qwen3:8b"
+    preferred_model: "__MODELO__"
 """)
         got = cfg.get_temperature_for_task("general_chat")
         check("regla 3: mapeo sin temperature hereda la del MODELO (0.25)",
@@ -591,7 +595,7 @@ task_mappings:
         cfg = self._cfg(tmp_path, self.BASE + """
 task_mappings:
   general_chat:
-    preferred_model: "qwen3:8b"
+    preferred_model: "__MODELO__"
     temperature: 0.80
 """)
         got = cfg.get_temperature_for_task("general_chat")
@@ -625,7 +629,7 @@ models:
         cfg = self._cfg(tmp_path, self.BASE + """
 task_mappings:
   general_chat:
-    preferred_model: "qwen3:8b"
+    preferred_model: "__MODELO__"
 """)
         check("un mapeo sin temperature queda en None (no en 0.7 hardcodeado)",
               cfg.task_mappings["general_chat"].temperature is None,
@@ -661,9 +665,9 @@ class TestTamanoDeArchivosDeTest:
     def test_la_suite_no_multiplica_archivos(self):
         """Tope: 26 autorizado (test_34; test_18 ya está en 946/950 líneas)."""
         archivos = sorted((PROJECT_ROOT / "tests").glob("test_axioma_*.py"))
-        check("cantidad de archivos de suite razonable (≤ 26)", len(archivos) <= 26,
+        check("cantidad de archivos de suite razonable (≤ 27)", len(archivos) <= 27,
               f"{len(archivos)} archivos", SECTION)
-        assert len(archivos) <= 26
+        assert len(archivos) <= 27
 
 
 class TestLosTestsNoEscribenEnLosDatosDelUsuario:

@@ -292,7 +292,7 @@ def _vision_e2e_disponible() -> bool:
         import urllib.request
         from config.settings import settings
         host = getattr(settings, "ollama_host", "http://127.0.0.1:11434")
-        model = getattr(settings, "llm_vision_model", "qwen3-vl:4b")
+        model = getattr(settings, "llm_vision_model", "qwen3.5:9b")
         base = model.split(":")[0]
         with urllib.request.urlopen(f"{host}/api/tags", timeout=3) as resp:
             data = json.loads(resp.read().decode("utf-8"))

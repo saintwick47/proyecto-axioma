@@ -373,7 +373,7 @@ class TestPlanMemory:
               emb2 == [0.0, 1.0], str(emb2), SECTION)
 
     def test_fase0_cache_namespace_bge_m3(self, monkeypatch):
-        """Fase 0: el scoring usa el namespace 'BAAI/bge-m3' (comparte cache con Palace)."""
+        """Fase 0: el scoring usa el namespace del modelo de embeddings (cache con Palace)."""
         import src.memory.context_strategies as cs
         from src.memory.context_strategies import (
             RelevanceSelector, SelectorConfig, TokenEstimator, RecencySelector,
@@ -402,8 +402,9 @@ class TestPlanMemory:
         rs._score_messages_by_relevance(
             [{"content": "hola", "metadata": {}}], "query", expected_source_type=None,
         )
-        check("Fase0: namespace unificado BAAI/bge-m3",
-              len(opt.names) >= 2 and all(n == "BAAI/bge-m3" for n in opt.names),
+        from src.memory.embedding_model_singleton import EMBED_MODEL_NAME
+        check(f"Fase0: namespace unificado {EMBED_MODEL_NAME}",
+              len(opt.names) >= 2 and all(n == EMBED_MODEL_NAME for n in opt.names),
               str(opt.names), SECTION)
 
     def test_fase1_source_type_propaga_capas(self):
@@ -597,7 +598,8 @@ class TestPlanMemory:
         try:
             class FakeEmbed:
                 def embed(self, text):  # noqa: ARG002  (constante → similitud 1.0)
-                    return [0.5] * 1024
+                    from src.memory.embedding_model_singleton import EMBED_DIMENSION
+                    return [0.5] * EMBED_DIMENSION
 
             monkeypatch.setattr(gw_mod, "get_embedding_model", lambda: FakeEmbed())
 

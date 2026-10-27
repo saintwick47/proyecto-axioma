@@ -132,7 +132,14 @@ def _probar_modelos(cliente: Any, catalogo: Any, instalados: List[str],
     # ✅ 2026-10-10: se usan los modelos que el USUARIO configuró (no los nombres fijos del catálogo):
     # antes, si alguien elegía otro modelo en su `.env`, el preflight le seguía pidiendo `qwen3:8b`.
     from config.model_catalog import modelos_efectivos
+    vistos: set = set()
     for rol, modelo in modelos_efectivos(catalogo):
+        # ✅ 2026-10-27: chat y visión pueden ser el MISMO modelo multimodal
+        # (qwen3.5:9b). Sin esto, el preflight mostraba dos requisitos iguales y el
+        # instalador pedía `ollama pull` del mismo modelo dos veces.
+        if modelo.nombre in vistos:
+            continue
+        vistos.add(modelo.nombre)
         nombre = modelo.nombre
         if modelo.tipo == "piper":              # la voz se verifica por ARCHIVO, no en Ollama
             archivo = Path(modelo.archivo or "")

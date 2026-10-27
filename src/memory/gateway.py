@@ -63,6 +63,7 @@ from .palace_storage import (  # noqa: E402, F401 — re-export: API pública in
     _PALACE_LANCE_AVAILABLE,
     get_embedding_model,
     EMBED_DIMENSION,
+    EMBED_MODEL_NAME as _EMBED_MODEL_NAME,
 )
 
 try:
@@ -263,7 +264,7 @@ class MemoryGateway(MemoryGatewayRetrievalMixin, MemoryGatewayOps):
                                     get_embedding_model().embed(t)
                                     if get_embedding_model() is not None else None
                                 ),
-                                model_name="BAAI/bge-m3",
+                                model_name=_EMBED_MODEL_NAME,
                                 use_cache=True,
                             )
                         _sem_meta = {

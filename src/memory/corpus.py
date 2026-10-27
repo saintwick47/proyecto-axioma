@@ -6,7 +6,7 @@
 # deduplicación por hash y búsqueda híbrida (vectorial + BM25) que
 # devuelve CITAS por fragmento.
 #
-# - Sin dependencias nuevas (sqlite + bge-m3 ya disponibles).
+# - Sin dependencias nuevas (sqlite + el modelo de embeddings ya disponible).
 # - La ingesta de embeddings tarda en CPU (background); la CONSULTA es
 #   rápida (~0.3-1 s: 1 embedding + cosine + BM25).
 # - CLI:  python -m src.memory.corpus --index CARPETA | --query "..." | --list | --delete RUTA
@@ -114,7 +114,7 @@ class CorpusLibrary:
                  embed_fn: Optional[Callable[[str], List[float]]] = None):
         self.db = Path(db_path or _DEFAULT_DB)
         self.db.parent.mkdir(parents=True, exist_ok=True)
-        self.embed_fn = embed_fn  # inyectable (tests) — default bge-m3
+        self.embed_fn = embed_fn  # inyectable (tests) — default: singleton de embeddings
         self._conn = sqlite3.connect(str(self.db))
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS docs (

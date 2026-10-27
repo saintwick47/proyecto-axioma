@@ -187,21 +187,36 @@ class LLMConfig:
             timeout=45,
             priority=1,
         ),
-        VISION_MODEL: ModelConfig(
-            name=VISION_MODEL,
-            task_types=["vision", "image_analysis", "ocr"],
-            temperature=0.5,
-            timeout=90,
-            priority=1,
-        ),
-        "BAAI/bge-m3": ModelConfig(
-            name="BAAI/bge-m3",
+        "codefuse-ai/F2LLM-v2-330M": ModelConfig(
+            name="codefuse-ai/F2LLM-v2-330M",
             task_types=["embeddings", "semantic_search"],
             temperature=0.0,
             timeout=10,
             priority=1,
         ),
     }
+
+    # ✅ 2026-10-27: chat y visión pueden ser el MISMO modelo multimodal (qwen3.5:9b).
+    # En un dict literal con la MISMA clave Python conserva sólo la última entrada: el
+    # modelo perdía las `task_types` de chat (o las de visión) y el ruteo se rompía.
+    # Si coinciden, se FUSIONAN las capacidades en una sola entrada.
+    if VISION_MODEL == DEFAULT_MODEL:
+        _base = DEFAULT_MODELS[DEFAULT_MODEL]
+        DEFAULT_MODELS[DEFAULT_MODEL] = ModelConfig(
+            name=_base.name,
+            task_types=sorted(set(_base.task_types) | {"vision", "image_analysis", "ocr"}),
+            temperature=_base.temperature,
+            timeout=max(_base.timeout, 90),
+            priority=_base.priority,
+        )
+    else:
+        DEFAULT_MODELS[VISION_MODEL] = ModelConfig(
+            name=VISION_MODEL,
+            task_types=["vision", "image_analysis", "ocr"],
+            temperature=0.5,
+            timeout=90,
+            priority=1,
+        )
 
     def __init__(self, config_path: Optional[Path] = None):
         """

@@ -55,22 +55,25 @@ hardware:
 # `config/models.yaml` o en el `.env`, la prueba de coherencia lo detecta y hay que
 # actualizar acá (así el preflight no miente con tamaños de otro modelo).
 por_rol:
-  chat: "qwen3:8b"
+  chat: "qwen3.5:9b"
   codigo: "qwen2.5-coder:7b"
   codigo_respaldo: "huihui_ai/qwen2.5-coder-abliterate:7b"
-  vision: "qwen3-vl:4b"
+  vision: "qwen3.5:9b"
   voz: "piper:es_AR-daniela-high"
 
 modelos:
-  "qwen3:8b":
-    roles: [chat]
+  "qwen3.5:9b":
+    roles: [chat, vision]
     obligatorio: true
     tipo: ollama
-    disco_gb: 4.87
-    ram_gb: 6.67
-    para: "conversar y razonar (modelo por defecto)"
+    # MEDIDO 2026-10-27 en este equipo (12 núcleos, sin GPU dedicada): 6,6 GB en disco,
+    # 7,5 GB residentes con ctx 4096, 6,4 tok/s. Multimodal nativo: cubre chat,
+    # razonamiento y visión, así que reemplaza a qwen3:8b + qwen3-vl:4b.
+    disco_gb: 6.60
+    ram_gb: 7.50
+    para: "conversar, razonar y leer imágenes (multimodal nativo)"
     si_falta: "AXIOMA no puede responder nada"
-    instalar: "ollama pull qwen3:8b"
+    instalar: "ollama pull qwen3.5:9b"
 
   "qwen2.5-coder:7b":
     roles: [codigo]
@@ -97,15 +100,6 @@ modelos:
     si_falta: "ante una negativa del de código se avisa en vez de reintentar"
     instalar: "ollama pull huihui_ai/qwen2.5-coder-abliterate:7b"
 
-  "qwen3-vl:4b":
-    roles: [vision]
-    obligatorio: false
-    tipo: ollama
-    disco_gb: 3.30
-    ram_gb: 3.30
-    para: "leer imágenes (medido: 0 % en tareas de código)"
-    si_falta: "no se pueden analizar imágenes"
-    instalar: "ollama pull qwen3-vl:4b"
 
   "piper:es_AR-daniela-high":
     roles: [voz]

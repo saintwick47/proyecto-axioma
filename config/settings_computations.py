@@ -179,7 +179,7 @@ class SettingsComputations:
             - timeout: Timeout en segundos (leído de settings)
             - is_fallback: False (siempre principal, no hay segundo modelo)
         """
-        principal = getattr(self, "llm_vision_model", "qwen3-vl:4b")
+        principal = getattr(self, "llm_vision_model", "qwen3.5:9b")
         # ✅ v0.1.6: FIX CRÍTICO — getattr(self, "nombre_attr", default)
         # ✅ v0.1.6b: Default actualizado a 150s (resolución original ~111s)
         timeout_principal = getattr(self, "ollama_timeout_vision", 150)

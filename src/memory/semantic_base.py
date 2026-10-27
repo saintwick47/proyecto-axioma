@@ -5,7 +5,7 @@
 # Ruta: /ruta/a/axioma/src/memory/semantic_base.py
 # Autor: SaintWick
 # ✅ v0.5.2: Eliminado cascade Ollama → MiniLM → Hash.
-#            Ahora usa BGE-M3 singleton (dim 1024 consistente).
+#            Ahora usa el singleton (dim 896 consistente: F2LLM-v2-330M).
 #            Eliminada clase EmbeddingModelPool (reemplazada por singleton).
 # ✅ v0.6.3: MIGRACIÓN COMPLETA ChromaDB → LanceDB.
 #            - _init_chroma() → _init_lance()
@@ -46,9 +46,10 @@ except (ImportError, OSError) as _exc:
     logging.getLogger(__name__).debug(f"[MemoryBase] lancedb no disponible: {_exc}")
 
 try:
-    from src.memory.embedding_model_singleton import EMBED_DIMENSION
-except ImportError:
-    EMBED_DIMENSION = 1024
+    from src.memory.embedding_model_singleton import EMBED_DIMENSION, EMBED_MODEL_NAME
+except ImportError:  # pragma: no cover — el singleton siempre está
+    EMBED_DIMENSION = 896
+    EMBED_MODEL_NAME = "codefuse-ai/F2LLM-v2-330M"
 
 # ✅ v0.6.3: Schema LanceDB para memoria semántica
 if _LANCE_AVAILABLE and LanceModel is not None and Vector is not None:
@@ -264,13 +265,13 @@ class SemanticMemoryBase:
         Razón: Incompatibilidad de dimensiones + duplicación de RAM.
 
         Prioridad:
-        1. Cache de embeddings (EmbeddingCache, dim 1024)
-        2. BGE-M3 local via singleton (dim 1024, sin HTTP)
+        1. Cache de embeddings (EmbeddingCache, dim 896)
+        2. Modelo local via singleton (dim 896, sin HTTP)
         3. Hash MD5 (dim 16, fallback no semántico)
         """
         start = time.time()
 
-        cached = self._embedding_cache.get(text, model_name="BAAI/bge-m3")
+        cached = self._embedding_cache.get(text, model_name=EMBED_MODEL_NAME)
         if cached is not None:
             duration = time.time() - start
             _log_memory("get_embedding", "semantic", duration=duration, success=True)
@@ -283,7 +284,7 @@ class SemanticMemoryBase:
             embedding = model.embed(text)
 
             if embedding is not None:
-                self._embedding_cache.set(text, embedding, model_name="BAAI/bge-m3")
+                self._embedding_cache.set(text, embedding, model_name=EMBED_MODEL_NAME)
                 duration = time.time() - start
                 _log_memory("get_embedding", "semantic", duration=duration, success=True)
                 return embedding

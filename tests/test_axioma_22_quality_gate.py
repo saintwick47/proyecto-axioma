@@ -10,6 +10,7 @@ except ImportError:  # pragma: no cover
 
 
 # ════════════════════════════════════════════════════════════════# CONTENIDO FUSIONADO (ver ISSUE-057): este archivo absorbió otros por tema# ════════════════════════════════════════════════════════════════
+from config.settings import settings  # noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -921,7 +922,7 @@ def test_el_chequeo_del_entorno_dice_la_verdad(monkeypatch):
 
     monkeypatch.setattr(cliente.OllamaClient, "health_check", lambda self: True)
     monkeypatch.setattr(cliente.OllamaClient, "list_models",
-                        lambda self: [{"name": "qwen3:8b"}])
+                        lambda self: [{"name": settings.llm_default_model}])
     sano = _Consola()
     assert cli.cmd_check(sano) == 0, "con Ollama y el modelo de chat, el entorno está listo"
 

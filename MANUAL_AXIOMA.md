@@ -197,7 +197,7 @@ comentario y etiquetas — esa calificación **entrena al sistema**
 ## 7. Tests y verificación
 
 ```bash
-venv_axioma/bin/python tools/run_all_tests.py --timeout 150   # suite completa (26 archivos, 1191 tests) + reporte
+venv_axioma/bin/python tools/run_all_tests.py --timeout 150   # suite completa (27 archivos, 1206 tests) + reporte
 venv_axioma/bin/python tools/quality_gate.py                  # gate de calidad (15 condiciones)
 python -m pytest tests/            # pytest directo (suite del proyecto)
 AXIOMA_VISION_E2E=1 python -m pytest tests/test_axioma_11_vision_imagenes.py -q   # visión real (requiere Ollama, ~7 min)

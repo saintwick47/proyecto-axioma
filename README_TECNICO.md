@@ -283,7 +283,7 @@ otros proyectos que puedan estar adentro del árbol de trabajo y no tengan nada 
 | Funciones (incl. métodos) | **≈ 4.471** |
 | Archivos de test | **26** `test_axioma_*.py` en `tests/` (la suite del proyecto) |
 
-> **2026-10-25:** suite en verde con **26 archivos** `test_axioma_*.py` (**1191 tests**,
+> **2026-10-27:** suite en verde con **27 archivos** `test_axioma_*.py` (**1206 tests**,
 SCORE AXIOMA **100/100**, MEDIUM 0) y **gate de calidad** en CI. Los archivos de
 test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líneas
 (regla R13 del proyecto: ≤950 líneas por archivo de tests). Se sumaron el canal de imágenes (visión +

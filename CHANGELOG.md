@@ -7,6 +7,125 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Modelo de chat: `qwen3.5:9b` unifica chat, razonamiento y visión (2026-10-27)
+
+- **Un solo modelo en vez de dos.** `qwen3.5:9b` (familia `qwen35`, 6,6 GB: 5,63 de modelo +
+  0,92 de proyector) es **multimodal nativo**, así que reemplaza a `qwen3:8b` (5,2 GB) **y**
+  a `qwen3-vl:4b` (3,3 GB): **se ahorra un modelo y 1,9 GB de disco**, y un modelo menos
+  residente en RAM.
+- **MEDIDO antes de decidir** (misma máquina, 12 núcleos, sin GPU dedicada; batería de 7
+  tareas reales de AXIOMA con `think: false`, que es el camino real del cliente):
+  - **Velocidad**: 6,5 tok/s (`qwen3:8b`) vs **6,4 tok/s** (empate).
+  - **Batería**: 6/7 ambos (JSON estricto, tool-call, revisión de código, español, resumen).
+  - **Visión**: `qwen3-vl:4b` lee el texto y cuenta las formas pero **no menciona los
+    colores**; `qwen3.5:9b` describe "círculo rojo y cuadrado azul".
+  - **Aritmética sin thinking**: `qwen3:8b` acierta (3), `qwen3.5:9b` responde 5.
+    **Con thinking los dos aciertan** (671-760 tokens: caro en latencia).
+- **"Thinking SÓLO si falla"**: si la primera respuesta vuelve **vacía** (el razonamiento
+  consumió todo `num_predict`: reproducido, 200 tokens de thinking y `response=""`), el
+  cliente reintenta **una vez** con `think: true` y el doble de presupuesto, en `generate()`
+  y en `chat()`. Una respuesta no vacía pero **equivocada** no se detecta: para eso haría
+  falta un validador por tarea.
+- **Unificación sin perder capacidades**: cuando `llm_default_model == llm_vision_model`, el
+  diccionario de modelos fusiona las `task_types` de chat y de visión (antes, con la misma
+  clave, Python conservaba sólo la última entrada y el ruteo se rompía).
+- **Preflight**: deduplica por modelo; ya no muestra dos requisitos iguales ni pide dos veces
+  el `ollama pull` del mismo modelo.
+- **Config**: `settings_llm.py` (default y visión → `qwen3.5:9b`), `models.yaml` (entrada
+  única, fuera `qwen3-vl:4b`), `model_catalog.yaml` (roles chat y visión al modelo nuevo,
+  con los datos medidos), `.env` actualizado.
+- **Tests**: nuevo `tests/test_axioma_35_thinking_retry.py` (8 tests del reintento y de
+  `_think_flag`; R13: los candidatos estaban en 946-949 de 950 líneas). Los tests con
+  modelos literales pasan a leer `settings.llm_default_model`, y el tope de archivos de
+  suite sube a 27.
+- **Bug real descubierto al borrar los modelos viejos**: el camino de VISIÓN
+  (`VisionAgent` / `describe_generic_image`) hace su propio POST a Ollama y **no mandaba
+  `think: false`**. Con el modelo unificado (que razona), el "thinking" se comía
+  `num_predict` y la visión devolvía **vacío** (`RuntimeError: el VLM respondió vacío`).
+  Ahora aplica la misma regla que el cliente de texto y responde bien (medido: lee
+  "ERROR 42", círculo rojo y cuadrado azul).
+- **Limpieza**: se borraron `qwen3:8b` (5,2 GB) y `qwen3-vl:4b` (3,3 GB) del almacén de
+  Ollama; quedan `qwen3.5:9b` (chat+visión), `qwen2.5-coder:7b` y su respaldo
+  `huihui_ai/...-abliterate:7b`. También se corrigieron dos *fallbacks* literales que
+  seguían nombrando `qwen3-vl:4b` (`settings_computations.py`, `test_11`).
+- **Verificación**: suite **27/27 · 1206 tests**, gate **15/15 ✅**, y punta a punta real:
+  chat por el cliente (`2+2` → "4") y visión por `describe_generic_image` (lee "ERROR 42",
+  círculo rojo y cuadrado azul) con el mismo modelo.
+
+
+### Modelo de embeddings: `bge-m3` → `F2LLM-v2-330M` (2026-10-27)
+
+- **Cambio de modelo, medido antes de decidir.** Banco propio: 16 consultas **en español**
+  sobre el código de AXIOMA, mismo procedimiento para los dos modelos. Resultado
+  (`bge-m3` → `F2LLM-v2-330M`, 60 archivos): **MRR@5 0.849 → 0.828**, **hit@3 0.875 → 0.875**
+  (empate), **P@3 0.292 → 0.292** (empate). La calidad es equivalente; con 16 consultas la
+  diferencia de MRR no es concluyente.
+- **Donde sí gana, y es contundente**: **RAM en reposo 2.047 MB → 1.020 MB (−50 %)**,
+  RAM pico indexando 3.237 → 1.770 MB, indexar 200 archivos 1.172 s → 448 s (**2,6×**),
+  consulta 0.66 s → 0.19 s, **contexto 8.192 → 40.960 tokens**, **disco 4,3 GB → 638 MB**.
+- **Se probó primero cuantizar el modelo actual y NO sirve**: en PyTorch la cuantización
+  dinámica no reduce la huella en reposo y en CPU empeora (bf16 3.768 MB, **int8 6.361 MB**
+  medidos). Por eso se cambia de modelo en vez de cuantizar. Descartado también el GGUF
+  Q8_0: requiere **CrispEmbed**, un motor C++ de terceros (el modelo oficial corre con
+  `sentence-transformers`, que es el camino que AXIOMA ya usa).
+- **Código**: `EMBED_MODEL_NAME`/`EMBED_DIMENSION` (896) en
+  `src/memory/embedding_model_singleton.py` con guardia de dimensión al cargar;
+  `palace_storage` deja de duplicar la constante; los namespaces de caché
+  (`gateway`, `gateway_retrieval`, `context_strategies`, `semantic_base`) usan la constante
+  en vez del literal; el atajo local del cliente ya no depende del texto "bge-m3";
+  `config/models.yaml` y `config/settings_llm.py` declaran el modelo nuevo.
+- **Migración de datos**: las dos tablas LanceDB tenían esquema de 1024 → se recrearon.
+  `data/memory/lancedb` tenía **0 filas** (sin pérdida) y `data/semantic_cache_l3_lance`
+  **18 filas de caché** (descartables).
+- **Limpieza**: eliminado `BAAI/bge-m3` de la caché del host (4,3 GB) **y** de la caché del
+  contenedor (`cache/huggingface`, otros 4,3 GB), y el modelo nuevo quedó **sembrado** en
+  esa caché (con su blob compartida) para que el contenedor no lo descargue: carga
+  verificado con `HF_HUB_OFFLINE=1`. **No se tocó ningún modelo de chat/código/visión**
+  (los 4 de Ollama siguen igual: `qwen3:8b`, `qwen2.5-coder:7b`, `qwen3-vl:4b`,
+  `huihui_ai/qwen2.5-coder-abliterate:7b`).
+- **Verificación**: suite **26/26 · 1198 tests**, gate **15/15 ✅**, auditor **118 (0/0/0) ·
+  deuda 68**, y punta a punta real: guardar y recuperar en `Palace` con vectores de 896
+  devuelve el documento correcto primero.
+
+### Dependencias: 124 → 6 advisories conocidos (2026-10-26/27)
+
+- **Se actualizaron los paquetes que concentraban los advisories** (medido contra OSV,
+  consulta batch sobre los 188 pins de `requirements.txt`). Antes: **22 paquetes /
+  124 advisories** (7 CRITICAL, 58 HIGH). Ahora: **4 paquetes / 6 advisories**, ninguna
+  CRITICAL conocida.
+- **Lo que queda**: `setuptools` 81.0.0 (3), `torch` 2.11.0+cpu (1),
+  `opentelemetry-api` 1.41.1 (1), `dnspython` 2.8.0 (1). `torch` es la descarga grande
+  del índice CPU; los otros tres no tienen fix publicado al 2026-10-27.
+- **Lotes verificados por separado**, cada uno con `pip check` + suite completa + gate:
+  1. `pillow` **12.3.0 → 13.0.0** (major; el que procesa las imágenes del usuario).
+     `fpdf2` lo requiere y la suite de visión pasa; API usada: `Image.open`, `.convert`,
+     `.resize`, `Image.LANCZOS`, `.paste`, `ImageOps.autocontrast`, `.save`.
+  2. `pypdf` **6.16.2 → 6.21.2** y `certifi` **2026.07.22 → 2026.10.23** (este último era
+     el único CRITICAL de la lista).
+  3. `aiohttp` **3.13.5 → 3.14.5**, `python-multipart` **0.0.26 → 0.0.32**, `yarl`
+     **1.23.0 → 1.25.1**.
+  4. `nicegui` **3.11.0 → 3.18.0** + `starlette` **1.0.0 → 1.10.0** (van acoplados);
+     arrastró `anyio`, `idna`, `multidict`, `python-engineio`, `python-socketio`,
+     `typing-extensions`.
+  5. `cryptography` **48.0.0 → 50.0.2** y `transformers` **5.8.0 → 5.21.0** (transitivos:
+     `transformers` lo exige `sentence-transformers`; AXIOMA no importa ninguno de los dos
+     directamente). Arrastró `huggingface_hub` **1.14.0 → 2.3.0**, `tokenizers`,
+     `safetensors`, `hf-xet`, `click`, y agregó `httpcore2`/`httpx2`/`truststore`.
+  6. **2026-10-27** — `sentence-transformers` **5.4.1 → 6.2.0** (major; es la librería que
+     carga `bge-m3`, probado explícitamente: embebe y da dims 1024), `oauthlib` **3.3.1 →
+     4.0.0**, `urllib3` **2.7.0 → 2.8.0**, `setuptools` **70.2.0 → 81.0.0**, `filelock`
+     **3.29.0 → 4.2.4**, `fsspec` **2026.4.0 → 2026.9.0**, `lxml` **6.1.0 → 6.1.3**,
+     `lxml_html_clean` **0.4.4 → 0.4.6**, `msgpack` **1.1.2 → 1.2.4**,
+     `pydantic-settings` **2.14.0 → 2.16.1**.
+- **Riesgo controlado por el entorno nuevo**: todo se hizo en `venv_axioma/`, así que el
+  entorno del proyecto cervecero (`venv/`, con `PIL 12.3.0`) **no se tocó**.
+- **Pins sincronizados** en `requirements.txt` y `requirements-ci.txt`; `test_27`
+  (consistencia entre los dos archivos) en verde. **Paridad verificada 1:1** contra el
+  entorno: 188 declarados, 188 instalados, 0 diferencias, y
+  `pip install --dry-run -r requirements.txt` no tiene nada que instalar.
+- Verificación: suite **26/26 · 1198 tests**, gate **15/15 ✅**, auditor **118 (0/0/0) ·
+  deuda 68 · ratchet sin regresión**, `pip check` limpio en cada lote.
+
 ### Entorno propio de AXIOMA: `venv_axioma/` (2026-10-26)
 
 - **Se separaron los entornos.** AXIOMA usa **`venv_axioma/`**, creado limpio con

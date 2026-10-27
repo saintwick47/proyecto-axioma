@@ -4,7 +4,7 @@
 # ═══════════════════════════════════════════════════════════════
 # Ruta: /ruta/a/axioma/src/memory/embedding_model_singleton.py
 # Autor: SaintWick
-# Propósito: UNA SOLA instancia de BAAI/bge-m3 compartida por:
+# Propósito: UNA SOLA instancia del modelo de embeddings compartida por:
 #            - cache_l3.py (Router)
 #            - semantic_base.py (Memoria)
 #            - semantic.py (Memoria)
@@ -26,8 +26,13 @@ if TYPE_CHECKING:   # ✅ Fase 0: sólo para el tipo — en ejecución no import
 logger = logging.getLogger(__name__)
 
 # Modelo y dimensión únicos para todo el sistema
-EMBED_MODEL_NAME = "BAAI/bge-m3"
-EMBED_DIMENSION = 1024
+# ✅ 2026-10-27: F2LLM-v2-330M (Qwen3, 896 dims) reemplaza a BAAI/bge-m3 (1024).
+# MEDIDO en consultas en español sobre el propio código: MRR@5 0.83-0.85 (empate con
+# bge-m3), RAM pico 1.770 MB vs 3.237 MB (-45 %), índice 3x más rápido, contexto 40k
+# vs 8k y 638 MB en disco vs 4,3 GB. Cuantizar bge-m3 en PyTorch NO bajaba la RAM
+# (int8 subía a 6,3 GB): por eso se cambia de modelo en vez de cuantizar.
+EMBED_MODEL_NAME = "codefuse-ai/F2LLM-v2-330M"
+EMBED_DIMENSION = 896
 
 # ✅ Fase 0 (2026-10-02, MEDIDO): la sonda de disponibilidad NO importa la
 # biblioteca. `import sentence_transformers` arrastra torch + transformers +
@@ -41,11 +46,11 @@ _ST_AVAILABLE = importlib.util.find_spec("sentence_transformers") is not None
 
 class EmbeddingModelSingleton:
     """
-    Singleton que mantiene UNA SOLA instancia de BAAI/bge-m3.
+    Singleton que mantiene UNA SOLA instancia del modelo de embeddings.
 
     Garantiza:
-    - Una sola carga en RAM (~2.2GB)
-    - Dimensión consistente (1024) en todo el sistema
+    - Una sola carga en RAM (~1,8GB)
+    - Dimensión consistente (896) en todo el sistema
     - Sin dependencia HTTP/Ollama para embeddings
     - Descarga automática por inactividad (opcional)
     """
@@ -101,10 +106,20 @@ class EmbeddingModelSingleton:
                 # un peaje fijo de arranque para todos los procesos.
                 from sentence_transformers import SentenceTransformer
                 self._model = SentenceTransformer(EMBED_MODEL_NAME)
+                # Guardia: si algún día se cambia el modelo sin tocar EMBED_DIMENSION,
+                # los vectores viejos y los esquemas de LanceDB quedarían inconsistentes.
+                _fn_dim = getattr(self._model, "get_embedding_dimension", None) \
+                    or self._model.get_sentence_embedding_dimension
+                _dim_real = _fn_dim()
+                if _dim_real != EMBED_DIMENSION:
+                    logger.error(
+                        f"[EmbedSingleton] DIMENSIÓN INCONSISTENTE: el modelo {EMBED_MODEL_NAME} "
+                        f"da {_dim_real} dims y EMBED_DIMENSION dice {EMBED_DIMENSION}. "
+                        f"Reindexá las tablas vectoriales.")
                 self._loaded = True
                 self._last_access = time.time()
                 duration = time.time() - start
-                logger.info(f"[EmbedSingleton] Cargado en {duration:.1f}s (~2.2GB RAM)")
+                logger.info(f"[EmbedSingleton] Cargado en {duration:.1f}s (~1.8GB RAM)")
                 return True
             except Exception as e:
                 logger.error(f"[EmbedSingleton] Error cargando modelo: {e}")
@@ -114,7 +129,7 @@ class EmbeddingModelSingleton:
         """Descarga el modelo para liberar RAM."""
         with self._load_lock:
             if self._model is not None:
-                logger.info("[EmbedSingleton] Descargando modelo (~2.2GB RAM liberada)")
+                logger.info("[EmbedSingleton] Descargando modelo (~1.8GB RAM liberada)")
                 del self._model
                 self._model = None
                 self._loaded = False
@@ -122,7 +137,7 @@ class EmbeddingModelSingleton:
                 gc.collect()
 
     def embed(self, text: str) -> Optional[List[float]]:
-        """Genera embedding para un texto (dim 1024)."""
+        """Genera embedding para un texto (dim 896)."""
         if not self._loaded:
             if not self.load():
                 return None
@@ -142,7 +157,7 @@ class EmbeddingModelSingleton:
             return None
 
     def embed_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
-        """Genera embeddings para batch de textos (dim 1024 c/u)."""
+        """Genera embeddings para batch de textos (dim 896 c/u)."""
         if not self._loaded:
             if not self.load():
                 return None

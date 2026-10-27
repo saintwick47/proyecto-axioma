@@ -13,20 +13,20 @@
 # ✅ v0.6.7: MIGRACIÓN COMPLETA — huihui_ai/qwen2.5-abliterate:7b,
 #            axioma-code:latest, gemma4:e4b, qwen2.5:3b eliminados.
 #            Modelos activos: qwen3:8b (chat), qwen2.5-coder:7b (código),
-#            qwen3-vl:4b (visión), BAAI/bge-m3 (embeddings).
+#            qwen3-vl:4b (visión), codefuse-ai/F2LLM-v2-330M (embeddings).
 # ═══════════════════════════════════════════════════════════════
 
 models:
   # ─────────────────────────────────────────────────────────────
   # MODELO PRINCIPAL (Chat general)
   # ─────────────────────────────────────────────────────────────
-  qwen3:8b:
+  qwen3.5:9b:
     enabled: true
-    type: "default"
+    type: "default"          # chat + razonamiento + visión (multimodal nativo)
     priority: 1
     timeouts:
-      standard: 45
-      first_load: 65
+      standard: 60
+      first_load: 90
 
   # ─────────────────────────────────────────────────────────────
   # MODELO DE CÓDIGO — qwen2.5-coder:7b
@@ -68,22 +68,17 @@ models:
   # ─────────────────────────────────────────────────────────────
   # MODELO EMBEDDINGS
   # ─────────────────────────────────────────────────────────────
-  BAAI/bge-m3:
+  codefuse-ai/F2LLM-v2-330M:
     enabled: true
     type: "embed"
     priority: 1
 
   # ─────────────────────────────────────────────────────────────
-  # MODELO VISIÓN — qwen3-vl:4b (VLM 4B multimodal)
-  # Único modelo de visión activo (llm_vision_fallback_model = "")
+  # VISIÓN — la cubre qwen3.5:9b (multimodal nativo), sin modelo aparte
+  # ✅ 2026-10-27: se eliminó `qwen3-vl:4b` (3,3 GB). `llm_vision_model` apunta al
+  # mismo modelo de chat y `VisionAgent` manda la imagen por el campo `images` de
+  # Ollama, que el multimodal acepta: un solo modelo atiende chat y visión.
   # ─────────────────────────────────────────────────────────────
-  qwen3-vl:4b:
-    enabled: true
-    type: "vision"
-    priority: 1
-    timeouts:
-      standard: 150  # settings.ollama_timeout_vision = 150s (CPU, 4K nativo)
-    description: "VLM 4B multimodal 3.3GB, único modelo de visión activo (gemma4:e4b eliminado)"
 
 # ───────────────────────────────────────────────────────────────
 # MAPEO DE TAREAS A MODELOS

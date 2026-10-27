@@ -5,6 +5,9 @@ from types import SimpleNamespace
 from pathlib import Path
 import pytest
 
+from config.settings import settings as _s  # noqa: E402
+_MODELO = _s.llm_default_model  # ✅ 2026-10-27: ya no es fijo
+
 
 # ════════════════════════════════════════════════════════════════# CONTENIDO FUSIONADO (ver ISSUE-057): este archivo absorbió otros por tema# ════════════════════════════════════════════════════════════════
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -40,7 +43,6 @@ def _modals():
     """Módulo donde vive el diálogo (extraído de modals.py, esquema 50/50)."""
     import src.interfaces.components.mi_hard_dialog as mi_hard_mod
     return mi_hard_mod
-
 
 class TestMiHardSections:
     """El formateo es una función pura → testeable sin cliente NiceGUI."""
@@ -706,8 +708,8 @@ class TestTemperaturePrecedenceIsEnforced:
         from src.llm.config import LLMConfig
         f = tmp_path / "m.yaml"
         f.write_text(_yaml.safe_dump({
-            "models": {"qwen3:8b": {"enabled": True, "temperature": 0.33}},
-            "task_mappings": {"complex_reasoning": {"preferred_model": "qwen3:8b"}},
+            "models": {_MODELO: {"enabled": True, "temperature": 0.33}},
+            "task_mappings": {"complex_reasoning": {"preferred_model": _MODELO}},
         }), encoding="utf-8")
         cfg = LLMConfig(config_path=f)
         got = cfg.get_temperature_for_task("complex_reasoning")
