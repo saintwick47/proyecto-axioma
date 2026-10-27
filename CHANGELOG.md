@@ -9,6 +9,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [v0.7.6] — 2026-10-27
 
+### Dependencias: 6 → 0 advisories conocidos (2026-10-27)
+
+- Se cerraron los cuatro paquetes que quedaban con advisories, todos con fix disponible según OSV:
+  `torch` **2.11.0+cpu → 2.14.1+cpu** (del índice CPU de PyTorch, 196 MB), `setuptools`
+  **81.0.0 → 84.2.1**, `opentelemetry-api`/`sdk`/`proto`/`exporter-*`/`semantic-conventions`
+  **1.41.1 → 1.45.1** (familia completa, versiones coherentes) y `dnspython` **2.8.0 → 2.9.0**.
+- **`torchaudio` se queda en 2.11.0+cpu**: no hay build para 2.14 en cp314 y AXIOMA **no lo usa**
+  (sólo lo lista `tools/system_check.py`). Verificado que importa y que `Resample` funciona junto a
+  torch 2.14.
+- **Medición**: OSV sobre los **188 pins** de `requirements.txt` → **0 paquetes con advisories**
+  (antes 4 paquetes / 6 advisories). `pip check` limpio, `pip install --dry-run -r requirements.txt`
+  sin nada que instalar, suite **27/27**, gate **15/15 ✅**, auditor **118 (0/0/0) · deuda 68**.
+- Embeddings verificados con torch 2.14: `F2LLM-v2-330M` sigue dando **896 dims**.
+
 ### Audio: importar sin servidor de sonido ya no revienta (2026-10-27)
 
 - **Síntoma**: el CI volvió a quedar rojo, ahora en los chequeos de importación de

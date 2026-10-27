@@ -241,7 +241,7 @@ annotated-doc==0.0.4
 # ═══════════════════════════════════════════════════════════════
 # === PACKAGING ===
 # ═══════════════════════════════════════════════════════════════
-setuptools==81.0.0
+setuptools==84.2.1
 wheel==0.47.0
 build==1.5.0
 pyproject_hooks==1.2.0
@@ -276,7 +276,7 @@ greenlet==3.5.1
 zipp==3.23.1
 importlib_metadata==8.7.1
 importlib_resources==7.1.0
-dnspython==2.8.0
+dnspython==2.9.0
 # ✅ v0.7.5 (ISSUE-098/C7): linter de nombres indefinidos — el test
 # `TestLinterDeNombresIndefinidos` lo usa (0,2 s) y habría cazado el NameError
 # que rompió una corrida real (ISSUE-096). Se saltea si no está instalado.
