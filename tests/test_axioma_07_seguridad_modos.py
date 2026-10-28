@@ -457,3 +457,50 @@ class TestEventBus:
             check("ToolExecutor publica TOOL_CALLED", seen == ["fs_read"], str(seen), SECTION)
         finally:
             disposer()
+
+# ════════════════════════════════════════════════════════════════════════════
+# 7B. El aislado de STRICT NO puede llenar el disco (2026-10-28, medido)
+# ════════════════════════════════════════════════════════════════════════════
+# MEDIDO: `terminal_exec` desde la raíz del repo copiaba el proyecto ENTERO (venv de 2,8 GB
+# incluido) a /tmp en CADA comando → 7,4 GB y el tmpfs de /tmp lleno con uno solo. Estos
+# tests fijan el tope (`max_copy_bytes`) y que no queden directorios `axioma_sandbox_*`.
+
+class TestSandboxNoLlenaElDisco:
+    def test_el_tamano_del_arbol_se_corta_en_el_limite(self, tmp_path):
+        from src.tools_mcp.sandbox_execution import _tamano_del_arbol
+        (tmp_path / "grande.bin").write_bytes(b"x" * 5000)
+        assert _tamano_del_arbol(tmp_path, 1024) > 1024, "tiene que cortar al pasar el límite"
+        assert _tamano_del_arbol(tmp_path, 10_000) == 5000
+
+    def test_el_tamano_ignora_venv_data_y_cache(self, tmp_path):
+        from src.tools_mcp.sandbox_execution import _tamano_del_arbol
+        for pesado in ("venv_axioma", "data", "cache", "logs", ".git"):
+            (tmp_path / pesado).mkdir()
+            (tmp_path / pesado / "gordo.bin").write_bytes(b"x" * 100_000)
+        (tmp_path / "chico.py").write_text("print(1)\n")
+        # Sin excluidos serían >400 KB; con exclusiones, sólo el archivo chico.
+        assert _tamano_del_arbol(tmp_path, 10**9) < 1000
+
+    def test_un_cwd_grande_no_se_copia_y_no_deja_basura(self, tmp_path):
+        from src.tools_mcp.sandbox import SandboxConfig, SandboxExecutor, SandboxMode
+        import tempfile
+        antes = set(Path(tempfile.gettempdir()).glob("axioma_sandbox_*"))
+        (tmp_path / "archivo_grande.bin").write_bytes(b"x" * 4096)
+        cfg = SandboxConfig(mode=SandboxMode.STRICT, max_copy_bytes=1024, timeout_seconds=20)
+        r = SandboxExecutor(cfg).execute_command(["echo", "hola"], cwd=tmp_path)
+        despues = set(Path(tempfile.gettempdir()).glob("axioma_sandbox_*"))
+        assert despues == antes, f"quedaron directorios de sandbox: {despues - antes}"
+        assert r.returncode == 0 and "hola" in (r.stdout or ""), (
+            f"el comando tiene que correr igual en el cwd real: rc={r.returncode} err={r.error}")
+
+    def test_un_cwd_chico_si_se_copia_y_se_borra(self, tmp_path):
+        from src.tools_mcp.sandbox import SandboxConfig, SandboxExecutor, SandboxMode
+        import tempfile
+        antes = set(Path(tempfile.gettempdir()).glob("axioma_sandbox_*"))
+        cfg = SandboxConfig(mode=SandboxMode.STRICT, max_copy_bytes=1_000_000, timeout_seconds=20)
+        r = SandboxExecutor(cfg).execute_command(["echo", "ok"], cwd=tmp_path)
+        despues = set(Path(tempfile.gettempdir()).glob("axioma_sandbox_*"))
+        assert r.returncode == 0
+        assert despues == antes, f"el temporal tiene que borrarse al terminar: {despues - antes}"
+
+

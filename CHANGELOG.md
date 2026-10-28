@@ -9,6 +9,25 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [v0.7.7] — 2026-10-28
 
+### `terminal_exec` llenaba el disco: copiaba el proyecto entero en `/tmp` (2026-10-28)
+
+- **Medido en vivo**: un solo `terminal_exec` desde la raíz del repo dejó `/tmp` (tmpfs de
+  **7,4 GB**) **al 100 %** con un directorio `axioma_sandbox_*` de **7,4 GB**. El equipo quedó sin
+  espacio (incluso `true` fallaba con `ENOSPC`).
+- **Causa raíz**: en modo `STRICT` el sandbox hace `shutil.copytree(cwd, /tmp/...)` para aislar, **sin
+  tope de tamaño y sin excluir nada**: copiaba el repo completo, `venv_axioma` de 2,8 GB incluido, en
+  **cada** comando. Además, al no copiarse tampoco resolvía bien el `cwd` (el proceso quedaba en el
+  temporal vacío).
+- **Arreglo**: `SandboxConfig.max_copy_bytes` (**32 MB** por defecto) + exclusión de árboles pesados
+  (`venv*`, `.git`, `data`, `logs`, `cache`, `models`, `node_modules`, `__pycache__`, `dist`,
+  `build`, `*.safetensors|*.gguf|*.onnx|*.pyc`). Si el árbol supera el tope **no se copia** y el
+  comando corre en el **cwd real** (con sus límites de CPU/memoria intactos), avisando en el log; y
+  ese `cwd` se resuelve a **absoluto**, que era el otro error.
+- **Verificación**: `pwd` desde la raíz devuelve el repo (no el temporal) y `ls config/models.yaml`
+  funciona; `/tmp` se queda en **22 MB** antes y después. 4 tests nuevos en
+  `test_axioma_07_seguridad_modos.py` (tope, exclusiones, cwd grande sin copia y sin basura, cwd
+  chico copiado y borrado): **27 passed**. Suite **27/27**.
+
 ### `config/models.yaml` apuntaba a un modelo borrado: el router caía al de código (2026-10-28)
 
 - **Síntoma**: AXIOMA "no razonaba bien" y las respuestas de chat general salían con el estilo del

@@ -147,6 +147,11 @@ class SandboxConfig:
     blocked_env_vars: List[str] = field(default_factory=_default_blocked_env_vars)
     work_dir: Optional[Path] = None
     mode: SandboxMode = SandboxMode.STRICT
+    # ✅ 2026-10-28 (MEDIDO): en STRICT se COPIA `cwd` a `/tmp` para aislar. Sin tope, un
+    # `terminal_exec` desde la raíz del repo copió el proyecto entero (venv incluido: 7,4 GB)
+    # y llenó `/tmp` (tmpfs de 7,4 GB) con UN comando. Con tope, si el árbol supera este
+    # tamaño no se copia y se ejecuta en el cwd real (se avisa en el log).
+    max_copy_bytes: int = 32 * 1024 * 1024
     enable_network: bool = False
     enable_file_write: bool = False
 

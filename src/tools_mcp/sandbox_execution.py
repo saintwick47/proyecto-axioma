@@ -154,6 +154,32 @@ def _log_sandbox_event(
         logging.getLogger(__name__).debug(f"[D2 sandbox.py:172] excepción degradada (intencional): {_d2e}")
 
 
+# ✅ 2026-10-28: qué NO se copia al aislado de STRICT (nunca hace falta para un comando y
+# puede ser gigante: entornos virtuales, datos, cachés, .git, modelos).
+_EXCLUIR_DE_LA_COPIA = (
+    "venv", "venv_axioma", ".venv", "env", ".git", "data", "logs", "cache", "models",
+    "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build",
+)
+_SUFIJOS_EXCLUIDOS = (".safetensors", ".gguf", ".onnx", ".pyc")
+
+
+def _tamano_del_arbol(raiz: Path, limite: int) -> int:
+    """Tamaño del árbol, cortando apenas supera `limite` (no recorre gigantes enteros)."""
+    total = 0
+    for dirpath, dirnames, filenames in os.walk(raiz):
+        dirnames[:] = [d for d in dirnames if d not in _EXCLUIR_DE_LA_COPIA]
+        for nombre in filenames:
+            if nombre.endswith(_SUFIJOS_EXCLUIDOS):
+                continue
+            try:
+                total += (Path(dirpath) / nombre).lstat().st_size
+            except OSError:
+                continue
+            if total > limite:
+                return total
+    return total
+
+
 # ============================================================================
 # SANDBOX RESULT — Resultado estructurado de ejecución
 # ============================================================================
@@ -348,32 +374,40 @@ class SandboxExecutionMixin:
         if self.config.mode == SandboxMode.STRICT:
             # Crear directorio temporal aislado
             temp_dir = tempfile.mkdtemp(prefix="axioma_sandbox_")
-            # ✅ FIX (hallazgo agente filesystem v1.6.0): antes STRICT
-            # descartaba el `cwd` recibido y dejaba temp_dir vacío — un
-            # script que hace un import relativo a un módulo hermano (ej.
-            # PromotionGate._analyze_external() corriendo el .py propuesto
-            # junto al resto del workspace) fallaba con ModuleNotFoundError
-            # por el cwd equivocado, no por un error real del código
-            # (falso negativo). Copiar el CONTENIDO de cwd al temp_dir
-            # (en vez de ejecutar directo sobre cwd) mantiene el
-            # aislamiento real de STRICT intacto — el proceso solo ve y
-            # puede tocar una COPIA efímera que se borra al final (ver
-            # cleanup más abajo), nunca el cwd original — y no toca para
-            # nada los límites de recursos (cpu/mem/nproc/nofile), que
-            # siguen aplicándose exactamente igual más abajo. Fallback
-            # silencioso a temp_dir vacío si la copia falla (permisos,
-            # symlinks raros, etc.) — mismo comportamiento que había antes.
+            # ✅ FIX (hallazgo agente filesystem v1.6.0): antes STRICT descartaba el `cwd` y
+            # dejaba temp_dir vacío — un script con import relativo a un módulo hermano (ej.
+            # PromotionGate._analyze_external()) fallaba con ModuleNotFoundError. Copiar el
+            # contenido de cwd al temp_dir mantiene el aislamiento: el proceso sólo ve una copia
+            # efímera que se borra al final.
+            # ✅ 2026-10-28 (MEDIDO): sin tope, eso copiaba el repo ENTERO (venv de 2,8 GB
+            # incluido) a /tmp en CADA comando: 7,4 GB y el tmpfs de /tmp lleno con un solo
+            # `terminal_exec` desde la raíz. Ahora se excluyen los árboles pesados y, si igual
+            # supera `max_copy_bytes`, se ejecuta en el cwd REAL (como RELAXED) en vez de llenar
+            # el disco; ahí `work_dir` NO se pisa con el temporal.
+            trabajo = Path(temp_dir)
             if cwd is not None:
                 try:
                     src = Path(cwd)
                     if src.is_dir():
-                        shutil.copytree(src, temp_dir, dirs_exist_ok=True)
+                        tamano = _tamano_del_arbol(src, self.config.max_copy_bytes)
+                        if tamano <= self.config.max_copy_bytes:
+                            shutil.copytree(
+                                src, temp_dir, dirs_exist_ok=True,
+                                ignore=shutil.ignore_patterns(*_EXCLUIR_DE_LA_COPIA),
+                            )
+                        else:
+                            logger.warning(
+                                f"[Sandbox] cwd={src} supera "
+                                f"{self.config.max_copy_bytes // (1024 * 1024)} MB: NO se copia al "
+                                f"aislado; se ejecuta ahí. Subí `max_copy_bytes` si hace falta."
+                            )
+                            trabajo = src.resolve()
                 except Exception as e:
                     logger.warning(
                         f"[Sandbox] No se pudo copiar cwd={cwd} a temp_dir "
                         f"aislado, sigue con temp_dir vacío: {e}"
                     )
-            work_dir = Path(temp_dir)
+            work_dir = trabajo
 
         try:
             # Ejecutar con límites
