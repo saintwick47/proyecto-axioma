@@ -12,8 +12,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# ✅ 2026-10-28 (BILLING): los jobs corren SÓLO en el repositorio PÚBLICO.
+# Los privados consumen minutos de Actions y la cuenta llegó a "recent account payments have
+# failed or your spending limit needs to be increased" ⇒ el job no arranca y el privado queda
+# ROJO sin que el código tenga nada. El público corre gratis y es el mismo árbol (se publica
+# desde acá), así que la verificación sigue existiendo. Si se arregla el billing y se quiere CI
+# en el privado, borrar la condición `if:` de cada job.
 jobs:
   test:
+    if: github.repository == 'saintwick47/proyecto-axioma'
     # ✅ 2026-10-07: UNA sola versión, la que se usa de verdad (**3.14**). Antes había una matriz de
     # transición (3.12 + 3.14, con `continue-on-error` en 3.14 para comparar sin rojo falso).
     # Decisión del usuario: la imagen también pasa a 3.14, así que probar 3.12 era cuidar un entorno
@@ -200,6 +207,7 @@ jobs:
   # corrida quedó ROJA y SIN NINGÚN trabajo (`total_count: 0`, y la corrida se llamaba por el archivo
   # `.github/workflows/ci.yml` en vez de por su nombre). Se usan dos pasos con `shell` literal.
   instaladores-windows:
+    if: github.repository == 'saintwick47/proyecto-axioma'
     name: instaladores de Windows (PowerShell 5.1 y 7)
     runs-on: windows-latest
     steps:
@@ -256,6 +264,7 @@ jobs:
   # GB), crear el acceso directo del menú, y que el navegador se abra con la pantalla de configuración.
   # ══════════════════════════════════════════════════════════════════════════════════════════════
   instaladores-linux:
+    if: github.repository == 'saintwick47/proyecto-axioma'
     name: instaladores de Linux (ejecutados de verdad)
     runs-on: ubuntu-latest
     steps:
@@ -356,7 +365,7 @@ jobs:
   # la suite ADENTRO de la imagen; si eso falla, el job se corta y no se sube nada.
   publicar-imagen:
     name: publicar imagen en GHCR
-    if: startsWith(github.ref, 'refs/tags/v') && github.event.repository.private == false
+    if: github.repository == 'saintwick47/proyecto-axioma' && startsWith(github.ref, 'refs/tags/v') && github.event.repository.private == false
     needs: [test]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -408,7 +417,7 @@ jobs:
   # Se construye en Windows porque PyInstaller **no compila cruzado** desde Linux.
   instaladores-release:
     name: instaladores de un solo archivo (Release)
-    if: startsWith(github.ref, 'refs/tags/v') && github.event.repository.private == false
+    if: github.repository == 'saintwick47/proyecto-axioma' && startsWith(github.ref, 'refs/tags/v') && github.event.repository.private == false
     needs: [test]
     runs-on: windows-latest
     timeout-minutes: 30
