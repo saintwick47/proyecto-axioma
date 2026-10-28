@@ -18,6 +18,7 @@
 # ═══════════════════════════════════════════════════════════════
 import logging
 import asyncio
+import os
 import time
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel, Field
@@ -342,6 +343,12 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
         )
 
 # ═══════════════════════════════════════════════════════════════
+# ✅ 2026-10-28 (AUDITORÍA, MEDIDO): `/v1/upload_file` aceptó un archivo de **70 MB** sin
+# autenticación en modo expuesto (200, success:true): se podía llenar disco y memoria. Ahora hay
+# tope (25 MB por defecto, `AXIOMA_UPLOAD_MAX_MB`) y se escribe por trozos, sin cargar todo en RAM.
+MAX_UPLOAD_BYTES = int(os.environ.get("AXIOMA_UPLOAD_MAX_MB", "25")) * 1024 * 1024
+
+
 # ENDPOINT: /upload_file (File Upload Handler)
 # ═══════════════════════════════════════════════════════════════
 @router.post("/upload_file", response_model=FileUploadResponse)
@@ -408,11 +415,26 @@ async def upload_file_endpoint(
             raise ValueError(
                 f"file_id inválido: {file_id!r} — debe quedar dentro de {upload_dir}"
             )
-        # Guardar archivo
-        content = await file.read()
+        # Guardar archivo por trozos, con tope (no se carga todo en memoria).
+        file_size = 0
         with open(file_path, "wb") as f:
-            f.write(content)
-        file_size = len(content)
+            while True:
+                trozo = await file.read(1024 * 1024)
+                if not trozo:
+                    break
+                file_size += len(trozo)
+                if file_size > MAX_UPLOAD_BYTES:
+                    f.close()
+                    file_path.unlink(missing_ok=True)
+                    _log_web_event("API", "POST /api/v1/upload_file - TOO_LARGE",
+                                   extra={"limite_bytes": MAX_UPLOAD_BYTES})
+                    return FileUploadResponse(
+                        success=False, file_id="", file_name=raw_name or "unknown",
+                        file_type=file_ext, file_size=0, file_path="", message="",
+                        error=(f"El archivo supera el máximo permitido de "
+                               f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB."),
+                    )
+                f.write(trozo)
         duration = time.time() - start_time
         _log_web_event("API", f"POST /api/v1/upload_file - SUCCESS - {duration:.2f}ms",
                        extra={"file_id": file_id, "file_size": file_size, "file_type": file_ext})

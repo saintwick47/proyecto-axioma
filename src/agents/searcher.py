@@ -193,6 +193,46 @@ def _filtrar_fuentes_no_citables(
 # ============================================================================
 # CLASE PRINCIPAL
 # ============================================================================
+def _destino_publico(url: str) -> str | None:
+    """Devuelve la URL si su host resuelve SÓLO a IPs públicas; si no, None.
+
+    ✅ 2026-10-28: cortafuegos de SSRF para el fetch de resultados de búsqueda. Resuelve el
+    nombre y rechaza loopback, privadas, link-local (169.254/fe80, incluida la IP de metadatos
+    de nube), reservadas, multicast y no especificadas. Se aplica también a cada redirección.
+    """
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    try:
+        partes = urlparse(url)
+    except ValueError as e:
+        logger.debug(f"[Searcher] URL mal formada, se descarta: {url[:80]} ({e})")
+        return None
+    if partes.scheme not in ("http", "https") or not partes.hostname:
+        return None
+    host = partes.hostname.lower()
+    if host in {"localhost", "localhost.localdomain"} or host.endswith((".local", ".internal")):
+        return None
+    try:
+        infos = socket.getaddrinfo(host, partes.port or (443 if partes.scheme == "https" else 80),
+                                   proto=socket.IPPROTO_TCP)
+    except OSError as e:
+        logger.debug(f"[Searcher] no se pudo resolver el host, se descarta: {host} ({e})")
+        return None
+    if not infos:
+        return None
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return None
+        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+                or ip.is_multicast or ip.is_unspecified):
+            return None
+    return url
+
+
 class SearcherAgent(BaseAgent, Searchable):
     """
     Agente especializado en búsqueda web con APIs reales.
@@ -550,9 +590,31 @@ REGLAS ESTRICTAS:
         """
         try:
             import httpx
-            resp = httpx.get(url, timeout=6.0, follow_redirects=True)
-            resp.raise_for_status()
-            raw = resp.text
+            # ✅ 2026-10-28 (AUDITORÍA, MEDIDO): antes era `httpx.get(url, follow_redirects=True)`
+            # sin validar el host: leyó `http://127.0.0.1:8765/` y `http://localhost:8765/` (SSRF),
+            # y una redirección podía llevar a servicios internos. Ahora se valida el destino y
+            # CADA salto de redirección; sólo se siguen hasta 5 y siempre a hosts públicos.
+            destino = _destino_publico(url)
+            if not destino:
+                logger.warning(f"[Searcher] URL no permitida (host interno/privado): {url[:80]}")
+                return ""
+            with httpx.Client(timeout=6.0, follow_redirects=False) as cliente:
+                for _ in range(6):
+                    resp = cliente.get(destino)
+                    if resp.is_redirect and resp.headers.get("location"):
+                        siguiente = str(httpx.URL(destino).join(resp.headers["location"]))
+                        if not _destino_publico(siguiente):
+                            logger.warning(
+                                f"[Searcher] redirección a host interno bloqueada: {siguiente[:80]}")
+                            return ""
+                        destino = siguiente
+                        continue
+                    resp.raise_for_status()
+                    raw = resp.text
+                    break
+                else:
+                    logger.warning("[Searcher] demasiadas redirecciones; se corta")
+                    return ""
         except Exception as e:
             log_degraded(logger, e, "src/agents/searcher.py:_fetch_page_content")
             return ""
@@ -584,6 +646,16 @@ REGLAS ESTRICTAS:
             log_degraded(logger, e, "src/agents/searcher.py:_fetch_page_content")
             return ""
         text = " ".join(" ".join(extractor.parts).split())
+        # ✅ 2026-10-28 (AUDITORÍA): el gate anti-injection sólo miraba el input directo; el texto
+        # que baja de la web entraba al contexto del LLM sin revisar (prompt injection indirecta).
+        # Si la página trae instrucciones dirigidas al modelo, no se usa como fuente.
+        try:
+            from src.agents.validator import ValidatorAgent
+            if ValidatorAgent.match_injection(text):
+                logger.warning(f"[Searcher] contenido con inyección descartado: {url[:80]}")
+                return ""
+        except Exception as e:  # noqa: BLE001 — si el validador falla, se sigue sin el chequeo
+            log_degraded(logger, e, "src/agents/searcher.py:gate de contenido web")
         return text[:max_chars]
 
     def _build_raw_context(self, search_results: List[Dict[str, Any]]) -> str:

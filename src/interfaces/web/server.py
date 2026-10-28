@@ -192,6 +192,58 @@ def build_api_app():
                             status_code=403)
             return await call_next(request)
 
+        # ✅ 2026-10-28 (AUDITORÍA, MEDIDO): con la web expuesta, el token sólo protegía
+        # `/v1/preflight/claves` y `/v1/preflight/modelos`. Desde la LAN, SIN token, respondían 200:
+        # `GET /v1/sessions`, `/v1/sessions/{id}`, `/v1/traces`, `/v1/stats`, `POST /v1/chat`,
+        # `DELETE /v1/sessions/{id}`, `POST /v1/rac` y `POST /v1/preflight/instalar` (¡descargaba y
+        # levantaba contenedores!). Este middleware exige el token en TODA la API cuando el server
+        # NO está ligado a loopback. Acepta el header `X-AXIOMA-Token`, la cookie `axioma_token`
+        # (la deja la página de acceso) o `?token=` la primera vez.
+        @app.get("/login", include_in_schema=False)
+        async def _pagina_de_acceso(token: str = ""):
+            """Página mínima para pegar el código de acceso (sólo cuando está expuesta)."""
+            from fastapi.responses import HTMLResponse
+            cuerpo = f"""<!doctype html><meta charset="utf-8"><title>AXIOMA — acceso</title>
+<body style="font-family:system-ui;max-width:34rem;margin:4rem auto;padding:0 1rem">
+<h2>AXIOMA — acceso</h2>
+<p>Pegá el código de <code>data/.web_token</code> (o el que hayas puesto en AXIOMA_WEB_TOKEN).</p>
+<form method="get" action="/"><input name="token" value="{token}" autofocus
+ style="width:100%;padding:.6rem;font:inherit"><button style="margin-top:1rem;padding:.6rem 1rem">
+Entrar</button></form></body>"""
+            return HTMLResponse(cuerpo)
+
+        @app.middleware("http")
+        async def _exigir_token_si_expuesto(request, call_next):
+            from .routes_preflight import TOKEN_HEADER, _bind_es_local, _token_esperado
+            import hmac
+            if _bind_es_local():
+                return await call_next(request)
+            ruta = request.url.path
+            if ruta.startswith(("/v1/health", "/health", "/static", "/_nicegui", "/login",
+                                "/favicon", "/docs", "/openapi.json")):
+                return await call_next(request)
+            esperado = _token_esperado()
+            recibido = (request.headers.get(TOKEN_HEADER, "")
+                        or request.cookies.get("axioma_token", "")
+                        or request.query_params.get("token", ""))
+            if not esperado:
+                _log_web_event("SERVER", f"sin token configurado y expuesto: {ruta} rechazada",
+                               level="WARNING")
+                return JSONResponse(
+                    {"detail": "AXIOMA está expuesta y no tiene token: reiniciá para que lo genere "
+                               "o usá «python main.py --rotar-token»."}, status_code=403)
+            if not hmac.compare_digest(recibido.encode("utf-8"), esperado.encode("utf-8")):
+                _log_web_event("SERVER", f"petición sin token desde la red: {ruta}", level="WARNING")
+                return JSONResponse(
+                    {"detail": f"Token requerido. Mandá el header {TOKEN_HEADER}, la cookie "
+                               "`axioma_token` o abrí la interfaz con ?token=<código> "
+                               "(el código está en data/.web_token)."}, status_code=401)
+            respuesta = await call_next(request)
+            if request.cookies.get("axioma_token") != esperado:
+                respuesta.set_cookie("axioma_token", esperado, httponly=True,
+                                     samesite="strict", path="/")
+            return respuesta
+
         # Contador REAL de requests: `/api/v1/stats` devolvía total_requests,
         # avg_latency_ms y uptime_seconds en 0 (stub) mientras `router_metrics`
         # era real. Coste: unos ints por request.

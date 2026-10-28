@@ -7,6 +7,32 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Seguridad: el token cubre toda la API, SSRF, tope de subida y gate anti-injection (2026-10-28)
+
+Auditoría externa sobre el commit `5fc56d1` (los puntos de `terminal_exec` y el `11434` ya estaban
+corregidos en `53b511d`/`e37b282`; verificado con sus mismos casos).
+
+- **El token sólo protegía 2 rutas** (grave): con la web en `0.0.0.0` y sin token, desde la LAN
+  respondían 200 `GET /v1/sessions`, `/v1/traces`, `/v1/stats`, `POST /v1/chat`, `/v1/rac`,
+  `DELETE /v1/sessions/{id}` y `POST /v1/preflight/instalar` (¡descargaba y levantaba contenedores!).
+  Ahora un **middleware exige token en toda la API** cuando el bind no es loopback, acepta el header
+  `X-AXIOMA-Token`, la cookie `axioma_token` o `?token=` la primera vez, y hay página `/login`.
+  Sólo quedan públicos `/v1/health`, `/login`, estáticos y docs.
+- **SSRF en el buscador**: `_fetch_page_content` hacía `httpx.get(url, follow_redirects=True)` sin
+  validar el host (leyó `127.0.0.1` y `localhost`). Ahora se resuelve el nombre y se rechazan
+  loopback/privadas/link-local (incluida `169.254.169.254`), reservadas, multicast; se siguen hasta 5
+  redirecciones **validando cada salto**.
+- **Subida sin tope**: `/v1/upload_file` aceptó 70 MB. Ahora hay tope (`AXIOMA_UPLOAD_MAX_MB`, 25 MB) y
+  se escribe por trozos, sin cargar todo en RAM; si se pasa, se borra el parcial y se avisa.
+- **Gate anti-injection**: dejaba pasar variantes en español ("ignora **todas** las instrucciones",
+  "olvidá todo", "actuá como… sin filtros", "repetí textualmente…"), leetspeak (`1gn0r3`), letras
+  separadas, caracteres de ancho cero y base64. Ahora **normaliza** (invisibles, acentos, minúsculas,
+  leetspeak), busca también en forma **compacta** y decodifica base64; y el **texto que baja de la web
+  pasa por el mismo gate** (antes iba al LLM sin revisar).
+- **Verificación**: 9 variantes de ataque detectadas y 0 falsos positivos en 3 frases normales; SSRF
+  bloqueado en 7 destinos internos; subida de 4 KB con tope de 1 KB rechazada; token cubriendo las 7
+  rutas medidas. Suite **27/27** con 15 tests nuevos.
+
 ### Seguridad: `terminal_exec` pasa de blocklist evadible a allowlist + guardia de rutas (2026-10-28)
 
 - **Medido con la blocklist anterior** (auditoría): se ejecutaba código con `env id`, `timeout 5 id`,

@@ -171,7 +171,28 @@ VEREDICTO: APROBADO o RECHAZADO"""
         re.compile(r"ignora\s+(las\s+)?(instrucciones|reglas)", re.IGNORECASE),
         re.compile(r"prompt\s+del\s+sistema", re.IGNORECASE),
         re.compile(r"desobedece\s+(las\s+)?(instrucciones|reglas)", re.IGNORECASE),
+        # ✅ 2026-10-28 (AUDITORÍA): variantes en español que se escapaban.
+        re.compile(r"ignora\s+(todas\s+)?(las\s+)?(instrucciones|reglas|indicaciones)", re.IGNORECASE),
+        re.compile(r"olvid[aá]\s+(todo|todas|lo\s+anterior)", re.IGNORECASE),
+        re.compile(r"act[uú][aá]\s+como\s+.*sin\s+(filtros|restricciones)", re.IGNORECASE),
+        re.compile(r"repet[ií]\s+textualmente\s+(las\s+)?instrucciones", re.IGNORECASE),
+        re.compile(r"(revel[aá]|mostr[aá])\s+(el|tu|tus)\s+(prompt|instrucciones)", re.IGNORECASE),
+        re.compile(r"sin\s+filtros\s+ni\s+restricciones", re.IGNORECASE),
     ]
+    # Formas COMPACTAS (sin espacios ni signos, con leetspeak normalizado): cubren "i g n o r e",
+    # "1gn0r3" y palabras partidas por un carácter de ancho cero.
+    _INJECTION_COMPACTAS = (
+        "ignoreallpreviousinstructions", "ignorepreviousinstructions", "youarenow",
+        "systemprompt", "disregardtheabove", "olvidatodaslasinstrucciones",
+        "olvidatodolo", "ignoralasinstrucciones", "ignoratodaslasinstrucciones",
+        "actuacomounasistentesinfiltros", "repetitextualmentelasinstrucciones",
+        "revelaelprompt", "mostratusinstrucciones", "promptdelsistema",
+        "desobedece lasinstrucciones".replace(" ", ""),
+    )
+    # Invisibles y leetspeak que se normalizan ANTES de buscar.
+    _INVISIBLES = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u200e\u200f\u2060\ufeff"), None)
+    _LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t",
+                           "@": "a", "$": "s"})
 
     @classmethod
     def match_injection(cls, text: str) -> Optional[re.Match]:
@@ -179,11 +200,42 @@ VEREDICTO: APROBADO o RECHAZADO"""
 
         ✅ PLAN v2.0 (Fase 3): usado por el gate _screen_input del dispatcher.
         """
+        normal = cls._normalizar(text)
+        compacto = cls._compacto(normal)
         for pattern in cls._INJECTION_PATTERNS:
-            m = pattern.search(text)
+            m = pattern.search(normal)
             if m:
                 return m
+        for frase in cls._INJECTION_COMPACTAS:
+            if frase in compacto:
+                return re.search(r"^", normal) or re.search(r"^", text)
+        # Base64: decodificar candidatos largos y revisar UNA vez (sin recursión).
+        for blob in re.findall(r"[A-Za-z0-9+/]{40,}={0,2}", text):
+            try:
+                import base64
+                decodificado = base64.b64decode(blob + "=" * (-len(blob) % 4)).decode("utf-8", "ignore")
+            except Exception:  # noqa: BLE001 — un blob que no es base64 se ignora
+                continue
+            if any(p.search(cls._normalizar(decodificado)) for p in cls._INJECTION_PATTERNS) or \
+                    any(f in cls._compacto(cls._normalizar(decodificado))
+                        for f in cls._INJECTION_COMPACTAS):
+                return re.search(r"^", normal) or re.search(r"^", text)
         return None
+
+    @classmethod
+    def _normalizar(cls, text: str) -> str:
+        """Quita invisibles, acentos, mayúsculas y normaliza leetspeak; colapsa espacios."""
+        import unicodedata
+        limpio = text.translate(cls._INVISIBLES)
+        limpio = unicodedata.normalize("NFKD", limpio)
+        limpio = "".join(c for c in limpio if not unicodedata.combining(c)).lower()
+        limpio = limpio.translate(cls._LEET)
+        return re.sub(r"\s+", " ", limpio).strip()
+
+    @classmethod
+    def _compacto(cls, text: str) -> str:
+        """Sólo alfanumérico: detecta letras separadas ("i g n o r e") y palabras partidas."""
+        return "".join(c for c in text if c.isalnum())
 
     def __init__(
         self,
