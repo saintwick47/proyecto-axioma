@@ -7,11 +7,11 @@
 
 **AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
 
-> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.6"` (último tag `v0.7.6`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
+> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.7"` (último tag `v0.7.7`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | 610 commits · `main` · último tag `v0.7.6` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 610 |
+| 🟢 En desarrollo activo | 610 commits · `main` · último tag `v0.7.7` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 610 |
 
 ---
 
@@ -49,7 +49,7 @@ Dispatcher ───────────────────────
 - **Dispatcher** (`src/core/`): orquestador central, compuesto por 4 mixins (`dispatcher_handlers`, `dispatcher_operations`, `dispatcher_process`, `dispatcher_distributed`). Clasifica intención, consulta caché multicapa, enruta al agente adecuado, valida y retroalimenta.
 - **Agentes** (`src/agents/`): `CoderAgent` genera código con contrato verificable (`CodeContract` + `CodeValidator` en 3 capas) y ciclo de reparación ante fallos; `SearcherAgent` (Tavily→Serper→DDG) y `ResearcherAgent` (clima/hora/noticias/finanzas); `AnalystAgent` (documentos/datos); `ValidatorAgent` (CoT forzado + auditoría CWE Top-25); `VisionAgent` (VLM); `SystemAgent` (control del SO); subpaquete `loop/` con el ciclo observe-think-act-reflect.
 - **Enrutamiento** (`src/router/`): `IntentClassifier` + `SmartRouter` + caché L1 (RAM LRU) / L2 (SQLite) / L3 (semántica LanceDB).
-- **Memoria** (`src/memory/`): `MemoryGateway` unifica ShortTerm (RAM), LongTerm (SQLite `data/axioma.db`), Semantic (LanceDB, embeddings `BAAI/bge-m3`) y KnowledgeGraph (SQLite).
+- **Memoria** (`src/memory/`): `MemoryGateway` unifica ShortTerm (RAM), LongTerm (SQLite `data/axioma.db`), Semantic (LanceDB, embeddings `codefuse-ai/F2LLM-v2-330M`, 896 dims`) y KnowledgeGraph (SQLite).
 - **Multimodal** (`src/multimodal/`): voz full-duplex (wake word → VAD → STT `faster-whisper` → TTS `edge-tts`/`piper`) y visión (captura de pantalla multi-backend + cámara). **PortAudio es opcional**: sin la librería del sistema los módulos **se importan igual** (quedan sin dispositivo de audio) y los tests de voz se saltean; antes reventaban con `OSError: PortAudio library not found`.
 - **Ejecución segura** (`src/tools_mcp/`): `Sandbox` (límites Unix, blacklist, redacción de secretos), `PermissionGateway`, `PromotionGate` (veredictos para operaciones destructivas) y protocolo **MCP** (JSON-RPC 2.0).
 - **Seguridad por modos**: `RuntimeMode` (standard/minimal/safe_mode/code_mode) filtra el toolset por sesión en `ToolExecutor` y `ToolRegistry.list_for_mode()`; sandbox **fail-closed** (`SandboxUnavailableError` si STRICT no puede confinar); `PermissionMode.DENY` con reglas "NUNCA tocar" para `.git/**`, `.env*`, `config/**` y `data/**`; `src/**` siempre pide confirmación.
@@ -68,14 +68,15 @@ declarado.
 
 | Rol | Modelo | Disco | RAM en uso | ¿Obligatorio? | Para qué |
 |---|---|---|---|---|---|
-| Chat general (default) | `qwen3:8b` | 4,87 GB | 6,67 GB | **sí** | conversar y razonar |
+| Chat + razonamiento + **visión** | `qwen3.5:9b` | 6,60 GB | 7,50 GB | **sí** | conversar, razonar y **leer imágenes**: multimodal nativo, un solo modelo para los tres roles |
 | Código | `qwen2.5-coder:7b` | 4,68 GB | 5,80 GB | **sí** | generar, revisar y corregir código |
 | Respaldo de código | `huihui_ai/qwen2.5-coder-abliterate:7b` | 4,68 GB | 5,80 GB | no | cuando el de código se **niega** en prosa ante pedidos legítimos de laboratorio (en código común rinde menos: por eso es respaldo) |
-| Visión (VLM) | `qwen3-vl:4b` | 3,30 GB | 3,30 GB | no | leer imágenes; medido: **0 %** en tareas de código |
 | Voz (TTS) | `piper:es_AR-daniela-high` | 0,11 GB | 0,10 GB | no | hablar sin internet (`data/piper/es_AR-daniela-high.onnx`); si falta, cae a `edge-tts` |
-| Embeddings | `BAAI/bge-m3` (sentence-transformers) | — | — | sí | memoria semántica (LanceDB); no es de Ollama, se baja sola la primera vez |
+| Embeddings | `codefuse-ai/F2LLM-v2-330M` (sentence-transformers) | 0,64 GB | ~1,0 GB | sí | memoria semántica (LanceDB), **896 dims**; no es de Ollama, se baja sola la primera vez |
 
-**Total medido en disco**: 17,6 GB con todo (los dos obligatorios son 9,6 GB); el contenedor suma 5,58 GB.
+**Total medido en disco**: ~16,7 GB con todo (los dos obligatorios son ~11,3 GB); el contenedor suma 5,58 GB.
+Desde v0.7.6 **no hay un modelo aparte de visión**: `qwen3.5:9b` es multimodal nativo, así que chat y visión
+comparten el mismo modelo (antes eran `qwen3:8b` + `qwen3-vl:4b`, 1,9 GB más en disco).
 Con eso se entiende el «~15 GB libres» del manual: alcanza para la aplicación + los obligatorios.
 
 **¿Entra en tu PC?** No hace falta calcularlo a mano: `python -m src.core.preflight` dice qué falta y por
@@ -86,7 +87,7 @@ que también evalúa un modelo **que no esté en el catálogo**.
 
 **Comandos del chat:**
 - `/plan <consulta compleja>` — pipeline multi-paso opt-in: rol principal (coder/researcher) + validador final, cap `settings.plan_max_steps=2`. Auto-opcional con `plan_pipeline_enabled=true` (default OFF). Detalles en `COMANDOS_AXIOMA.txt` §1.1.
-- 🖼️ **Adjuntar imágenes al chat**: PNG/JPG/WebP/GIF/BMP → `qwen3-vl:4b` bajo demanda; OCR híbrido con **Tesseract local** al pedir leer/transcribir texto y **preprocesado adaptativo** (autocontraste/upscale). Ver *🖼️ Imágenes en el chat* más abajo.
+- 🖼️ **Adjuntar imágenes al chat**: PNG/JPG/WebP/GIF/BMP → `qwen3.5:9b` (el mismo modelo del chat, multimodal nativo); OCR híbrido con **Tesseract local** al pedir leer/transcribir texto y **preprocesado adaptativo** (autocontraste/upscale). Ver *🖼️ Imágenes en el chat* más abajo.
 - 📎 **Fuentes/citas**: respuestas grounded (fs_search/folder-analysis) muestran el bloque *📎 Fuentes* en la Web y la lista en el CLI.
 - 🧮 **Calculadora**: tool MCP determinística y segura (AST, sin `eval()`) en el agent loop.
 - Consultas de archivos grounded (sin LLM, <1 s): *"usá fs_search para buscar qué archivos de X hablan de Y"* / *"qué archivos mencionan Z"* / *"usá fs_list para listar la carpeta X"* → grep local con `sources`; validador con extracción tolerante a markdown y streaming de tokens opt-in vía `stream_chat_tokens`.
@@ -102,7 +103,7 @@ Adjuntás una imagen con 📎, escribís tu pregunta (o nada → la describe) y 
 3. **Preprocesado** (`vision_preprocess.py`): análisis CV (desviación estándar de grises) → contraste bajo = autocontraste; imagen <400 px = upscale 2×; la original queda como fallback del reintento.
 4. **VLM** (`vision_agent.describe_generic_image`): prompt **neutro** (sin el sesgo de screenshot del VisionAgent de Jarvis), tope `vision_num_predict` (evita generaciones colgadas) y **unload de RAM** tras usar (best-effort).
 
-**Medido en vivo (qwen3-vl:4b, CPU):** identifica colores, formas geométricas, conteo de objetos (hasta ≥5), números, escenas simples y **no alucina** con ruido aleatorio; OCR de texto grande/limpio exacto. **Límites:** texto muy chico o embebido → inestable en el VLM (mitigado por Tesseract); fotos reales complejas/rostros → acotados por el hardware (modelo 4B); cada imagen cuesta ~45-55 s en CPU (incluye recarga, que desaloja `qwen3:8b` de Ollama).
+**Medido en vivo (`qwen3.5:9b`, CPU):** transcribe texto, distingue formas geométricas y **colores**, cuenta objetos y no alucina con ruido aleatorio; OCR de texto grande/limpio exacto. **Ventaja del modelo unificado:** la imagen usa el **mismo** modelo que el chat, así que **no desaloja** otro de RAM (con `qwen3-vl:4b` había que descargar el de chat y recargarlo). **Límites:** texto muy chico o embebido → inestable en el VLM (mitigado por Tesseract); fotos reales complejas/rostros → acotados por el hardware.
 
 ```bash
 python tools/vision_battery.py                      # batería diagnóstica 13 casos → logs/vision_battery_*.md

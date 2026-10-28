@@ -46,7 +46,7 @@ Los comandos de abajo son para el proyecto en el equipo. Con contenedor, mirá l
 ════════════════════════════════════════════════════════════════════════════════
 No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CLIC.
 
-  DESDE EL RELEASE (v0.7.6, sin descargar el proyecto; la imagen se baja YA COMPILADA de GHCR):
+  DESDE EL RELEASE (v0.7.7, sin descargar el proyecto; la imagen se baja YA COMPILADA de GHCR):
     Windows   → doble clic en AXIOMA-Setup.exe
     Linux/macOS → bash axioma-instalar.sh
   Los dos dejan el acceso directo y encienden AXIOMA. El ZIP del proyecto sigue siendo la alternativa
@@ -112,7 +112,7 @@ Contenedor (Docker Compose):
   docker compose exec axioma python -m src.core.preflight --instalar        # baja lo que falta
   docker compose exec axioma python -m src.core.preflight --recomendar      # qué modelo TE conviene,
                                                                            # rol por rol y por qué
-  docker compose exec axioma python -m src.core.preflight --modelo qwen3:8b  # ¿va a andar ESE modelo?
+  docker compose exec axioma python -m src.core.preflight --modelo qwen3.5:9b  # ¿va a andar ESE modelo?
                                                                            # (sirve para uno que NO
                                                                            #  esté en el catálogo)
   docker compose exec axioma python -m src.core.preflight --instalar --todo # incluye opcionales
@@ -201,8 +201,8 @@ python main.py --rac stop | pause | resume
 #     chat puro va directo a 1 generación (B2).
 # v0.6.9p — canal de imágenes + fuentes + calculadora:
 #   🖼️ ADJUNTAR IMAGEN (Web): botón 📎 → PNG/JPG/WebP/GIF/BMP → responde
-#     qwen3-vl:4b bajo demanda (~45-55 s en CPU; desaloja qwen3:8b de Ollama
-#     y libera RAM al terminar). Instrucción vacía → la describe.
+#     qwen3.5:9b (el MISMO modelo del chat: multimodal nativo, sin recargar
+#     otro) y libera RAM al terminar. Instrucción vacía → la describe.
 #   - OCR HÍBRIDO: si pedís leer/transcribir ("¿qué dice?", "copiá el texto")
 #     se usa Tesseract LOCAL primero (dependencia de SISTEMA: sudo apt
 #     install tesseract-ocr tesseract-ocr-spa). Si confianza ≥
@@ -339,7 +339,7 @@ python tests/test_rafael_bridge.py        # Diagnóstico puente Widget ↔ Daemo
 ════════════════════════════════════════════════════════════════════════════════
 5. 🛡️ AUDITORÍA COMPLETA DEL PROYECTO — axioma_auditor.py (UNIFICADO)
 ════════════════════════════════════════════════════════════════════════════════
-Auditor unificado (v0.7.6 — 38 detectores; axioma_auditor.py es SHIM, la
+Auditor unificado (v0.7.7 — 38 detectores; axioma_auditor.py es SHIM, la
 lógica vive en tools/auditor/: aud_core · aud_detectors_infra ·
 aud_detectors_salud · aud_detectors_arquitectura · aud_main):
 

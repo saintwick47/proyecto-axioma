@@ -91,14 +91,31 @@ class SettingsComputations:
     def get_timeout_for_model(self, model_name: str, is_first: bool = False) -> int:
         """
         Obtiene timeout basado en el modelo.
-        ✅ v0.1.6: Detecta "gemma4" directamente además de "vl"/"vision".
+
+        ✅ 2026-10-28 (FIX): primero se compara con el modelo de visión CONFIGURADO. Desde v0.7.6
+        el VLM es `qwen3.5:9b` (multimodal nativo), que **no** contiene "vl" ni "vision" en el
+        nombre: la heurística de substrings le daba el timeout `standard` (60 s) en vez del de
+        visión, y una tarea de imagen podía cortarse por tiempo. Las heurísticas quedan como
+        respaldo para modelos que el usuario configure a mano.
         """
         model_lower = model_name.lower()
+        vision_cfg = str(getattr(self, "llm_vision_model", "") or "").strip().lower()
+        vision_fallback = str(getattr(self, "llm_vision_fallback_model", "") or "").strip().lower()
+        # ✅ 2026-10-28 (FIX): primera prioridad, el modelo CONFIGURADO de cada rol. Antes se
+        # decidía sólo por substrings del nombre y el modelo actual fallaba en las dos puntas:
+        # `qwen3.5:9b` (visión) no dice "vl"/"vision" y `codefuse-ai/F2LLM-v2-330M` (embeddings)
+        # contiene "code", así que recibía el timeout de CÓDIGO (420 s) en vez del de embeddings.
+        if model_lower and model_lower in {vision_cfg, vision_fallback}:
+            return self.get_timeout_for_scenario("vision", is_first)
+        embed_cfg = str(getattr(self, "llm_embed_model", "") or "").strip().lower()
+        if model_lower and model_lower == embed_cfg:
+            return self.get_timeout_for_scenario("embed", is_first)
+        # Respaldo por nombre, para modelos que el usuario configure a mano.
         if "gemma4" in model_lower or "vl" in model_lower or "vision" in model_lower:
             return self.get_timeout_for_scenario("vision", is_first)
         if "embed" in model_lower or "bge" in model_lower:
             return self.get_timeout_for_scenario("embed", is_first)
-        if "coder" in model_lower or "code" in model_lower:
+        if "coder" in model_lower or ("code" in model_lower and "codefuse" not in model_lower):
             return self.get_timeout_for_scenario("code")
         if is_first:
             return self.get_timeout_for_scenario("first_load")

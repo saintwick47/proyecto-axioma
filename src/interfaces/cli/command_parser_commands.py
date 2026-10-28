@@ -412,7 +412,7 @@ class CommandParserCommandsMixin:
             return CommandResult(
                 success=True,
                 output=f"ℹ️ Modelo activo: {current}\n"
-                       f"   Uso: /model <nombre>  (ej: /model qwen3:8b)",
+                       f"   Uso: /model <nombre>  (ej: /model qwen3.5:9b)",
             )
 
         model_name = args[0]

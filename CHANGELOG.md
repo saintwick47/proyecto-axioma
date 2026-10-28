@@ -7,6 +7,32 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+## [v0.7.7] — 2026-10-28
+
+### `config/models.yaml` apuntaba a un modelo borrado: el router caía al de código (2026-10-28)
+
+- **Síntoma**: AXIOMA "no razonaba bien" y las respuestas de chat general salían con el estilo del
+  modelo de código. `task_mappings.general_chat` y `task_mappings.complex_reasoning` seguían con
+  `preferred_model: "qwen3:8b"`, **eliminado en v0.7.6**: `get_model_for_task()` devolvía un modelo
+  inexistente, Ollama fallaba y el circuit breaker caía en `qwen2.5-coder:7b`.
+- **Causa de fondo**: nada validaba las **referencias** del YAML. El comentario de `models.yaml`
+  remitía a `tests/test_axioma_21_config_models_yaml.py`, un archivo **que nunca existió**.
+- **Arreglo**: las dos entradas pasan a `qwen3.5:9b` (coinciden con `settings.llm_default_model`) y
+  `tests/test_axioma_01_config_domain.py::test_models_yaml` ahora comprueba que **toda referencia**
+  de `task_mappings` sea un modelo declarado en `models.yaml` o configurado en `settings`.
+  **Verificado por mutación**: volviendo a poner `qwen3:8b` el archivo sale con
+  `❌ 1 check(s) FALLIDOS → exitstatus=1`; con el valor correcto, verde.
+- **Segundo bug del mismo cambio de modelos**: `get_timeout_for_model()` decidía por substrings.
+  `qwen3.5:9b` (visión) no dice "vl"/"vision" ⇒ recibía el timeout `standard` (60 s) en vez de 210 s;
+  y `codefuse-ai/F2LLM-v2-330M` (embeddings) **contiene "code"** ⇒ recibía el timeout de **código**
+  (420 s) en vez de 35 s. Ahora compara primero con el modelo configurado de cada rol.
+  Medido: visión **210 s**, chat 210 s, código 420 s, embeddings **35 s**, respaldo 420 s.
+- **Documentación de usuario puesta al día** (estaba describiendo modelos que ya no existen):
+  tabla de modelos del `README` (con los tamaños medidos y la nota de que visión y chat comparten
+  modelo), inventario de `MANUAL_AXIOMA`, ejemplo de preflight de `MANUAL_USUARIO`, ejemplos de
+  `COMANDOS_AXIOMA.txt` y la dimensión de embeddings (1024 → **896**). `docs/PLAN_CONTENEDORES.md`
+  queda marcado como **histórico** en su encabezado.
+
 ## [v0.7.6] — 2026-10-27
 
 ### Dependencias: 6 → 0 advisories conocidos (2026-10-27)

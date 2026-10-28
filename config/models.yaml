@@ -132,16 +132,20 @@ task_mappings:
   # ✅ v0.6.9v (ISSUE-028): antes decía `chat_general`, que NO es un valor de
   # TaskType → la entrada nunca matcheaba (el clasificador produce
   # `general_chat`) y editar este modelo no tenía efecto. Nombre canónico.
+  # ✅ 2026-10-28 (FIX): apuntaba a `qwen3:8b`, ELIMINADO en v0.7.6. El router devolvía un
+  # modelo inexistente y Ollama fallaba; caía al fallback (`qwen2.5-coder:7b`), un modelo de
+  # código respondiendo chat general. Ahora coincide con `settings.llm_default_model`.
   general_chat:
-    preferred_model: "qwen3:8b"
+    preferred_model: "qwen3.5:9b"
     temperature: 0.70
 
   # Etiqueta real que produce smart_router_core (no es un TaskType, pero el
   # router la emite y llega a get_model_for_task()).
   # temperature 0.10 = el valor que la vieja sección `task_temperatures`
   # declaraba como `reasoning` (etiqueta que NO existe: la real es ésta).
+  # ✅ 2026-10-28 (FIX): mismo caso que `general_chat` — apuntaba a `qwen3:8b` (eliminado).
   complex_reasoning:
-    preferred_model: "qwen3:8b"
+    preferred_model: "qwen3.5:9b"
     temperature: 0.10
 
   # ── SOLO TEMPERATURA (sin mapeo de modelo) ─────────────────────

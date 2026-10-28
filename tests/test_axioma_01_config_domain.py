@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════
-# Autor: SaintWick — AXIOMA, suite integral (archivo 1/6)
-# Sección 1: Estructura del proyecto, config/ y dominio (domain/)
+# Autor: SaintWick — AXIOMA, suite integral (1/6): estructura, config/ y dominio.
 # Cada check registra su resultado en logs/axioma_test_report_*.md
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
@@ -251,6 +250,14 @@ class TestConfigYaml:
             check("models.yaml parseable", isinstance(data, dict), f"{len(data)} claves raíz", SECTION)
             models = data.get("models") or data
             check("models.yaml contiene modelos", len(models) > 0, f"{len(models)} entradas", SECTION)
+            # ✅ 2026-10-28: `task_mappings` apuntaba a `qwen3:8b` (BORRADO) y nadie lo veía.
+            from config.settings import settings as _s
+            _vig = set(models) | {getattr(_s, a) for a in ("llm_default_model", "llm_code_model",
+                    "llm_vision_model", "llm_embed_model", "llm_fallback_1", "llm_code_model_fallback")
+                    if getattr(_s, a)}
+            _ref = {v for d in (data.get("task_mappings") or {}).values() if isinstance(d, dict)
+                    for k, v in d.items() if k in ("preferred_model", "primary", "fallback_model") and isinstance(v, str)}
+            check("task_mappings apunta a modelos vigentes", not (_ref - _vig), str(sorted(_ref - _vig)) or "OK", SECTION)
         except Exception as e:  # noqa: BLE001
             check("models.yaml", False, f"{type(e).__name__}: {e}", SECTION)
 
@@ -417,13 +424,9 @@ class TestPackageInits:
             _check_import(f"import {mod}", mod)
 
 
-# ═══════════════════════════════════════════════════════════════
-# 1F. models.yaml — TEMPERATURA POR TAREA (P0 del informe, v0.6.9v)
-# ═══════════════════════════════════════════════════════════════
-# La sección raíz `task_temperatures` NO tenía lector y TODAS las tareas corrían a 0.7.
-# Se movió a `task_mappings.<task>.temperature` y el loader acepta la forma "SOLO
-# temperatura" (sin claves de modelo), imposible antes porque `from_dict` default-eaba
-# `primary_model` a CODE_MODEL.
+# 1F. models.yaml — TEMPERATURA POR TAREA (P0, v0.6.9v): `task_temperatures` no tenía lector y todas
+# las tareas corrían a 0.7; se movió a `task_mappings.<task>.temperature` (más la forma "solo
+# temperatura", imposible antes porque `from_dict` default-eaba `primary_model` a CODE_MODEL).
 
 
 class TestTaskTemperatureWiring:
@@ -640,9 +643,8 @@ task_mappings:
 # ═══════════════════════════════════════════════════════════════
 # POLÍTICA DE TAMAÑO DE LOS TESTS (ISSUE-057 / R13)
 # ═══════════════════════════════════════════════════════════════
-# Los archivos de test se FUSIONAN por tema en vez de multiplicarse, y ninguno
-# debe superar las 950 líneas. Este test es la regla escrita: si un archivo
-# crece más, hay que fusionarlo (o dividir por tema) antes de seguir agregando.
+    # Los archivos de test se FUSIONAN por tema y ninguno supera las 950 líneas: si crece, hay que
+    # fusionarlo (o dividir por tema) antes de seguir agregando.
 class TestTamanoDeArchivosDeTest:
     LIMITE = 950
 
@@ -894,10 +896,8 @@ class TestGateNombraLosArchivosQueFallan:
     sale 0), y después nombraba el archivo pero no el check.
     """
 
-    # ✅ ISSUE-095: fixture con la ESTRUCTURA REAL del reporte: `> Corrida:` CIERRA
-    # el bloque de totales y la tabla del archivo siguiente abre con `# ▶ Corrida:`.
-    # El fixture anterior ponía `> Corrida:` ANTES de las filas ⇒ pasaba con un
-    # parser que en el reporte real nombraba al archivo equivocado.
+    # ✅ ISSUE-095: fixture con la ESTRUCTURA REAL: `> Corrida:` CIERRA los totales y la tabla
+    # siguiente abre con `# ▶ Corrida:`; el fixture viejo pasaba con un parser equivocado.
     TEXTO = (
         "| directorio docs/ | ❌ FAIL | falta |\n"
         "| otro check | ✅ PASS | ok |\n\n"

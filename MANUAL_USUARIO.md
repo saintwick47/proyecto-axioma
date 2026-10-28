@@ -45,7 +45,7 @@ falta, el instalador mismo te lo dice.
 
 ## 4. Paso 2: bajar el instalador de AXIOMA
 
-La forma más simple es la página de **_Releases_** de este repositorio (la versión **v0.7.6**):
+La forma más simple es la página de **_Releases_** de este repositorio (la versión **v0.7.7**):
 
 - **Windows**: bajá **`AXIOMA-Setup.exe`** (es un solo archivo).
 - **Linux y macOS**: bajá **`axioma-instalar.sh`** (también un solo archivo).
@@ -143,8 +143,8 @@ por punto, el estado de tu equipo:
 ✅ Intérprete de Python: 3.14.x con dependencias
 ✅ Motor de modelos (Ollama): responde
 ⚠️  Memoria RAM: 14,7 GB: AXIOMA funciona, con restricciones (16 GB es el nivel recomendado)
-❌ Modelo de chat: no está descargado: qwen3:8b (4,87 GB en disco)
-      → `ollama pull qwen3:8b` — sin esto AXIOMA no puede responder
+❌ Modelo de chat: no está descargado: qwen3.5:9b (6,60 GB en disco)
+      → `ollama pull qwen3.5:9b` — sin esto AXIOMA no puede responder
 ```
 
 Cada renglón te dice **qué significa** y **qué se pierde** si falta. Los ✅ están resueltos; los ⚠️ son

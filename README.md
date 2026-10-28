@@ -32,7 +32,7 @@ modelos.
 
 1. **Instalá Docker** desde [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
    y abrilo una vez para que arranque.
-2. **Bajá el instalador desde la página de _Releases_ de este repositorio** (versión **v0.7.6**):
+2. **Bajá el instalador desde la página de _Releases_ de este repositorio** (versión **v0.7.7**):
    - **Windows**: `AXIOMA-Setup.exe` — **doble clic** (necesita Docker Desktop con WSL 2).
    - **Linux y macOS**: `axioma-instalar.sh` — desde una consola, `bash axioma-instalar.sh`.
 3. **Ejecutalo y esperá**: comprueba Docker, **baja la imagen ya compilada desde GHCR** (GitHub Container
