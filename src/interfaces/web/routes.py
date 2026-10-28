@@ -351,119 +351,92 @@ MAX_UPLOAD_BYTES = int(os.environ.get("AXIOMA_UPLOAD_MAX_MB", "25")) * 1024 * 10
 
 # ENDPOINT: /upload_file (File Upload Handler)
 # ═══════════════════════════════════════════════════════════════
+async def _guardar_con_tope(archivo: UploadFile, destino: Path) -> tuple[int, bool]:
+    """Escribe el upload por trozos y corta si supera `MAX_UPLOAD_BYTES`.
+
+    Returns:
+        (bytes_escritos, excedido). Si excedió, borra el parcial y devuelve (0, True).
+    ✅ 2026-10-28 (AUDITORÍA): antes `await file.read()` cargaba todo en RAM y aceptó 70 MB.
+    """
+    escrito = 0
+    with open(destino, "wb") as f:
+        while True:
+            trozo = await archivo.read(1024 * 1024)
+            if not trozo:
+                break
+            escrito += len(trozo)
+            if escrito > MAX_UPLOAD_BYTES:
+                f.close()
+                destino.unlink(missing_ok=True)
+                return 0, True
+            f.write(trozo)
+    return escrito, False
+
+
+_EXTENSIONES_SUBIDA = {".jsonl", ".pdf", ".log", ".toon", ".txt", ".json", ".csv", ".py", ".md"}
+
+
+def _error_subida(nombre: str, ext: str, mensaje: str) -> FileUploadResponse:
+    """Respuesta de fallo uniforme para /upload_file."""
+    return FileUploadResponse(success=False, file_id="", file_name=nombre or "unknown",
+                              file_type=ext, file_size=0, file_path="", message="",
+                              error=mensaje)
+
+
+def _validar_subida(file) -> tuple[str, str, "FileUploadResponse | None"]:
+    """Valida extensión y basename; devuelve (ext, nombre_seguro, error_o_None)."""
+    nombre = (file.filename or "") if file else ""
+    ext = Path(nombre).suffix.lower()
+    if ext not in _EXTENSIONES_SUBIDA:
+        permitidas = ", ".join(sorted(_EXTENSIONES_SUBIDA))
+        return ext, "", _error_subida(nombre, ext, f"Extensión no soportada: {ext}. Permitidas: {permitidas}")
+    seguro = Path(nombre.replace("\\", "/")).name.strip()
+    if not seguro or seguro in {".", ".."}:
+        return ext, "", _error_subida(nombre, ext, f"Nombre de archivo inválido: {nombre!r}")
+    return ext, seguro, None
+
+
 @router.post("/upload_file", response_model=FileUploadResponse)
 async def upload_file_endpoint(
     file: UploadFile = File(...),
     session_id: Optional[str] = Form(None),
 ) -> FileUploadResponse:
-    """
-    Sube archivo para análisis posterior.
-    ✅ CORREGIDO: Compatible con NiceGUI file upload
-    Soporta: .jsonl, .pdf, .log, .toon, .txt, .json, .csv, .py, .md
-    Logging:
-    - Registra upload de archivo
-    - Tamaño y tipo de archivo
-    - Errores con traceback
-    """
+    """Sube un archivo para análisis (extensiones y tope controlados)."""
     start_time = time.time()
     _log_web_event("API", f"POST /api/v1/upload_file - session={session_id}",
                    extra={"filename": file.filename if file else "unknown"})
     try:
-        # Validar extensión
-        # ✅ NUEVO: Agregadas extensiones .py y .md
-        allowed_extensions = {".jsonl", ".pdf", ".log", ".toon", ".txt", ".json", ".csv", ".py", ".md"}
-        file_ext = Path(file.filename).suffix.lower() if file else ""
-        if file_ext not in allowed_extensions:
-            _log_web_event("API", "POST /api/v1/upload_file - INVALID_EXTENSION",
-                           extra={"extension": file_ext, "allowed": list(allowed_extensions)})
-            return FileUploadResponse(
-                success=False,
-                file_id="",
-                file_name=file.filename if file else "unknown",
-                file_type=file_ext,
-                file_size=0,
-                file_path="",
-                message="",
-                error=f"Extensión no soportada: {file_ext}. Permitidas: {', '.join(allowed_extensions)}",
-            )
-        # ✅ FIX AUD-PTH-007 (2026-10-25): el nombre lo manda el cliente. Se usa
-        # SÓLO el basename (un navegador puede mandar "C:\fakepath\x.pdf" o
-        # "../../etc/x.pdf") y se comprueba contención antes de escribir.
-        raw_name = (file.filename or "") if file else ""
-        safe_name = Path(raw_name.replace("\\", "/")).name.strip()
-        if not safe_name or safe_name in {".", ".."}:
-            _log_web_event("API", "POST /api/v1/upload_file - INVALID_NAME",
-                           extra={"filename": raw_name})
-            return FileUploadResponse(
-                success=False,
-                file_id="",
-                file_name=raw_name or "unknown",
-                file_type=file_ext,
-                file_size=0,
-                file_path="",
-                message="",
-                error=f"Nombre de archivo inválido: {raw_name!r}",
-            )
-        # Crear directorio de uploads si no existe
+        file_ext, safe_name, error = _validar_subida(file)
+        if error is not None:
+            _log_web_event("API", "POST /api/v1/upload_file - INVALIDO",
+                           extra={"filename": file.filename if file else "unknown"})
+            return error
         upload_dir = Paths.DATA / "uploads"
         upload_dir.mkdir(parents=True, exist_ok=True)
-        # Generar file_id único
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_id = f"{timestamp}_{safe_name.replace(' ', '_')}" if file else ""
+        file_id = f"{timestamp}_{safe_name.replace(' ', '_')}"
         file_path = upload_dir / file_id
         if not file_path.resolve().is_relative_to(upload_dir.resolve()):
-            raise ValueError(
-                f"file_id inválido: {file_id!r} — debe quedar dentro de {upload_dir}"
-            )
-        # Guardar archivo por trozos, con tope (no se carga todo en memoria).
-        file_size = 0
-        with open(file_path, "wb") as f:
-            while True:
-                trozo = await file.read(1024 * 1024)
-                if not trozo:
-                    break
-                file_size += len(trozo)
-                if file_size > MAX_UPLOAD_BYTES:
-                    f.close()
-                    file_path.unlink(missing_ok=True)
-                    _log_web_event("API", "POST /api/v1/upload_file - TOO_LARGE",
-                                   extra={"limite_bytes": MAX_UPLOAD_BYTES})
-                    return FileUploadResponse(
-                        success=False, file_id="", file_name=raw_name or "unknown",
-                        file_type=file_ext, file_size=0, file_path="", message="",
-                        error=(f"El archivo supera el máximo permitido de "
-                               f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB."),
-                    )
-                f.write(trozo)
+            raise ValueError(f"file_id inválido: {file_id!r} — debe quedar dentro de {upload_dir}")
+        file_size, excedido = await _guardar_con_tope(file, file_path)
+        if excedido:
+            _log_web_event("API", "POST /api/v1/upload_file - TOO_LARGE",
+                           extra={"limite_bytes": MAX_UPLOAD_BYTES})
+            return _error_subida(safe_name, file_ext,
+                                 f"El archivo supera el máximo permitido de "
+                                 f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
         duration = time.time() - start_time
         _log_web_event("API", f"POST /api/v1/upload_file - SUCCESS - {duration:.2f}ms",
                        extra={"file_id": file_id, "file_size": file_size, "file_type": file_ext})
         logger.info(f"File uploaded: {file_id} ({file_size} bytes, {file_ext})")
-        return FileUploadResponse(
-            success=True,
-            file_id=file_id,
-            file_name=file.filename if file else "unknown",
-            file_type=file_ext,
-            file_size=file_size,
-            file_path=str(file_path),
-            message=f"Archivo '{file.filename}' subido exitosamente ({file_size} bytes)",
-        )
+        return FileUploadResponse(success=True, file_id=file_id, file_name=safe_name,
+                                  file_type=file_ext, file_size=file_size,
+                                  file_path=str(file_path),
+                                  message=f"Archivo subido ({file_size} bytes)")
     except Exception as e:
-        duration = time.time() - start_time
-        _log_error(e, "routes.upload_file_endpoint", extra={"session_id": session_id, "duration": duration})
-        _log_web_event("API", f"POST /api/v1/upload_file - ERROR - {duration:.2f}ms",
-                       extra={"error": str(e)})
+        _log_error(e, "routes.upload_file_endpoint", extra={"session_id": session_id})
         logger.error(f"Upload error: {e}", exc_info=True)
-        return FileUploadResponse(
-            success=False,
-            file_id="",
-            file_name=file.filename if file else "unknown",
-            file_type="",
-            file_size=0,
-            file_path="",
-            message="",
-            error=f"Upload failed: {str(e)}",
-        )
+        return _error_subida(file.filename if file else "", "", f"Upload failed: {e}")
 
 # ═══════════════════════════════════════════════════════════════
 # ENDPOINT: /analyze_file (File Analysis Handler)
