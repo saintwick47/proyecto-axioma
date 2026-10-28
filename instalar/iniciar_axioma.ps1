@@ -274,16 +274,6 @@ try {
     if ($salida) { $salida | ForEach-Object { Write-Host $_ } }
     if (-not $encendido) {
         mal "Docker no pudo encender AXIOMA (mira los mensajes de arriba)."
-        # 2026-10-28: si el que falla es el ayudante de credenciales, decirlo con el arreglo exacto
-        # (medido en una instalacion real: `docker-credential-desktop` fuera del PATH).
-        if (($salida | Out-String) -match "credential") {
-            Write-Host "     Docker tiene el ayudante de credenciales roto (docker-credential-desktop no esta en el PATH)."
-            Write-Host "     Opcion 1: agregá la carpeta que lo contiene al PATH y reabrí la consola."
-            Write-Host "               Suele ser: C:\Program Files\Docker\Docker\resources\bin"
-            Write-Host '     Opcion 2: borrá la linea "credsStore" de %USERPROFILE%\.docker\config.json'
-            Write-Host "     Despues volvé a ejecutar INSTALAR_AXIOMA.bat."
-        }
-        Write-Host "     Para ver el detalle:  docker compose logs --tail 40 axioma-puente"
         exit 4
     }
 } finally { Pop-Location }
