@@ -136,3 +136,32 @@ def test_sin_repo_no_intenta_bajar_y_construye(tmp_path):
     assert not any(c.startswith("pull ") for c in llamadas), llamadas
     assert "Bajando la imagen" not in salida.stdout, salida.stdout
     assert "No pude bajarla" not in salida.stdout, salida.stdout
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Diagnóstico del instalador (2026-10-28, pedido tras un fallo real en Windows)
+# ════════════════════════════════════════════════════════════════════════════
+
+def test_el_diagnostico_se_escribe_y_no_filtra_claves(tmp_path, monkeypatch):
+    import sys
+    from pathlib import Path as _Path
+    sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "instalar"))
+    import axioma_setup
+
+    destino = tmp_path / "AXIOMA"
+    (destino / "logs").mkdir(parents=True)
+    (destino / ".env").write_text("CLAVE_DE_PRUEBA=valor-que-no-debe-salir\n", encoding="utf-8")
+    (destino / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+    falso = tmp_path / "bin"
+    falso.mkdir()
+    docker = falso / "docker"
+    docker.write_text("#!/bin/sh\necho \"falso $1 $2\"\n", encoding="utf-8")
+    docker.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{falso}:/usr/bin:/bin")
+
+    ruta = axioma_setup.escribir_diagnostico(destino)
+    assert ruta is not None and ruta.is_file(), "tiene que dejar el archivo"
+    texto = ruta.read_text(encoding="utf-8")
+    assert "== docker ==" in texto and "== contenedores (todos) ==" in texto
+    assert "CLAVE_DE_PRUEBA" in texto, "los NOMBRES de las claves sí van (sirven para saber qué falta)"
+    assert "valor-que-no-debe-salir" not in texto, "los VALORES de las claves nunca"

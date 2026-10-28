@@ -248,21 +248,35 @@ try {
     #   error getting credentials - err: exec: "docker-credential-desktop": executable file not found
     # Estrategia: primer intento normal; si falla por credenciales se reintenta UNA vez con un
     # DOCKER_CONFIG temporal sin credsStore (todas las imagenes del compose son publicas).
-    $salida = $null
+    # 2026-10-28 (MEDIDO en un Windows real): con `$ErrorActionPreference = "Stop"`, redirigir el
+    # stderr de un comando nativo (`2>&1`) lanza NativeCommandError ANTES de asignar la variable.
+    # Resultado: el texto de Docker se PERDIA (el usuario veia "no pudo encender" sin motivo) y el
+    # reintento por credenciales nunca disparaba porque el mensaje no llegaba a `$salida`.
+    # Se captura con "Continue" y se restaura al terminar.
+    $salida = ""
+    $codigo = 0
     $encendido = $true
-    try { $salida = & docker compose --profile puente @perfilOllama up -d @servicios 2>&1 } catch { $encendido = $false }
-    if ($encendido) { $encendido = ($LASTEXITCODE -eq 0) }
-    if (-not $encendido -and (($salida | Out-String) -match "credential|error getting credentials")) {
+    $eapAntes = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { $salida = (& docker compose --profile puente @perfilOllama up -d @servicios 2>&1 | Out-String) } catch { $encendido = $false }
+    $codigo = $LASTEXITCODE
+    $ErrorActionPreference = $eapAntes
+    if ($encendido) { $encendido = ($codigo -eq 0) }
+    if (-not $encendido -and ($salida -match "credential|error getting credentials")) {
         aviso "Docker no encontro su ayudante de credenciales: reintento sin el (las imagenes son publicas)."
         $cfgTmp = Join-Path ([System.IO.Path]::GetTempPath()) ("axioma-cfg-" + [guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Path $cfgTmp -Force | Out-Null
         '{"auths":{}}' | Set-Content -Path (Join-Path $cfgTmp "config.json") -Encoding ascii
         $cfgAntes = $env:DOCKER_CONFIG
+        $eapAntes2 = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
         try {
             $env:DOCKER_CONFIG = $cfgTmp
-            $salida = & docker compose --profile puente @perfilOllama up -d @servicios 2>&1
-            $encendido = ($LASTEXITCODE -eq 0)
+            $salida = (& docker compose --profile puente @perfilOllama up -d @servicios 2>&1 | Out-String)
+            $codigo = $LASTEXITCODE
+            $encendido = ($codigo -eq 0)
         } catch { $encendido = $false } finally {
+            $ErrorActionPreference = $eapAntes2
             if ($null -eq $cfgAntes) {
                 Remove-Item Env:DOCKER_CONFIG -ErrorAction SilentlyContinue
             } else {
@@ -271,7 +285,7 @@ try {
             Remove-Item -Recurse -Force $cfgTmp -ErrorAction SilentlyContinue
         }
     }
-    if ($salida) { $salida | ForEach-Object { Write-Host $_ } }
+    if ($salida) { Write-Host $salida }
     if (-not $encendido) {
         mal "Docker no pudo encender AXIOMA (mira los mensajes de arriba)."
         exit 4

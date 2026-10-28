@@ -171,7 +171,7 @@ def descargar(url: str, destino: Path) -> bool:
         return True
     except (urllib.error.URLError, OSError, TimeoutError) as e:
         mal(f"No pude descargar AXIOMA: {e}")
-        print("     Revisa tu conexion, o fija una version:  AXIOMA_VERSION=v0.7.5")
+        print("     Revisa tu conexion, o fija una version:  AXIOMA_VERSION=<etiqueta>")
         return False
 
 
@@ -247,6 +247,96 @@ def elegir_modo_de_acceso(ensayo: bool) -> str:
         if respuesta in ("1", "2", "3"):
             return respuesta
         print("  Escribí 1, 2 o 3 (o Enter para la 1).")
+
+
+def _correr(args: list, cwd: Path = None, timeout: int = 20) -> str:
+    """Ejecuta un comando de diagnóstico y devuelve su salida (nunca lanza)."""
+    try:
+        r = subprocess.run(args, cwd=str(cwd) if cwd else None, capture_output=True,
+                           text=True, timeout=timeout, errors="replace")
+        texto = (r.stdout or "") + (("\n[stderr]\n" + r.stderr) if r.stderr else "")
+        return texto.strip() or "(sin salida)"
+    except Exception as e:  # noqa: BLE001 — el diagnóstico no puede fallar por un comando
+        return f"(no se pudo ejecutar {' '.join(args)}: {type(e).__name__}: {e})"
+
+
+def escribir_diagnostico(destino: Path) -> "Path | None":
+    """Escribe un archivo con todo lo necesario para diagnosticar un arranque fallido.
+
+    ✅ 2026-10-28: versiones, estado de Docker/Compose, contenedores, puertos, PATH y los logs del
+    arranque. NUNCA incluye valores de claves: del `.env` sólo van los NOMBRES de las variables.
+    Devuelve la ruta del archivo, o None si no se pudo escribir.
+    """
+    try:
+        marca = time.strftime("%Y%m%d_%H%M%S")
+        carpeta = Path(destino) / "logs"
+        carpeta.mkdir(parents=True, exist_ok=True)
+        comp = Path(destino) / "docker-compose.yml"
+        partes = [
+            "AXIOMA — diagnostico de instalacion",
+            f"fecha: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"version del instalador: {REPO} · plataforma: {platform.platform()}",
+            f"python: {sys.version.split()[0]}",
+            f"carpeta: {destino}",
+            f"docker-compose.yml: {'SI' if comp.is_file() else 'NO'} · .env: {'SI' if (Path(destino)/'.env').is_file() else 'NO'}",
+            "",
+            "== claves presentes en .env (solo nombres) ==",
+        ]
+        env = Path(destino) / ".env"
+        if env.is_file():
+            nombres = [ln.split("=", 1)[0].strip() for ln in env.read_text(encoding="utf-8", errors="replace").splitlines()
+                       if "=" in ln and not ln.strip().startswith("#")]
+            partes.append(", ".join(nombres) or "(ninguna)")
+        else:
+            partes.append("(no hay .env)")
+        partes += [
+            "",
+            "== docker ==",
+            _correr(["docker", "version", "--format", "cliente {{.Client.Version}} · servidor {{.Server.Version}}"]),
+            "",
+            "== docker info (recortado) ==",
+            _correr(["docker", "info"])[:3000],
+            "",
+            "== docker compose ==",
+            _correr(["docker", "compose", "version"]),
+            "",
+            "== imagenes (axioma/ollama) ==",
+            _correr(["docker", "images", "--format", "{{.Repository}}:{{.Tag}} {{.Size}}"]),
+            "",
+            "== contenedores (todos) ==",
+            _correr(["docker", "ps", "-a", "--format", "{{.Names}} {{.Status}} {{.Image}}"]),
+            "",
+        ]
+        if comp.is_file():
+            partes += [
+                "== compose: servicios ==",
+                _correr(["docker", "compose", "-f", str(comp), "config", "--services"]),
+                "",
+                "== compose ps -a ==",
+                _correr(["docker", "compose", "-f", str(comp), "ps", "-a"]),
+                "",
+                "== logs axioma-puente (80) ==",
+                _correr(["docker", "compose", "-f", str(comp), "logs", "--tail", "80", "axioma-puente"], timeout=30),
+                "",
+                "== logs ollama (80) ==",
+                _correr(["docker", "compose", "-f", str(comp), "logs", "--tail", "80", "ollama"], timeout=30),
+                "",
+            ]
+        partes += [
+            "== ayudante de credenciales de Docker ==",
+            f"docker-credential-desktop: {shutil.which('docker-credential-desktop') or 'NO ENCONTRADO en PATH'}",
+            f"docker-credential-pass:    {shutil.which('docker-credential-pass') or 'no' }",
+            "entradas de PATH con docker:",
+            "\n".join(p for p in os.environ.get("PATH", "").split(os.pathsep) if "docker" in p.lower()) or "(ninguna)",
+            "",
+            "== puertos en uso (11434/8080) ==",
+            _correr(["netstat", "-ano"]) if platform.system() == "Windows" else _correr(["ss", "-ltn"]),
+        ]
+        ruta = carpeta / f"diagnostico_{marca}.txt"
+        ruta.write_text("\n".join(partes), encoding="utf-8")
+        return ruta
+    except Exception:  # noqa: BLE001 — el diagnóstico es best-effort, nunca rompe el instalador
+        return None
 
 
 def main() -> int:
@@ -349,10 +439,18 @@ def main() -> int:
         entorno.setdefault("AXIOMA_REPO", REPO)
         entorno.setdefault("AXIOMA_IMAGEN", "ghcr.io/" + REPO.lower())
     try:
-        return subprocess.run(orden, cwd=str(destino), env=entorno).returncode
+        codigo = subprocess.run(orden, cwd=str(destino), env=entorno).returncode
     except OSError as e:
         mal(f"No pude ejecutar el instalador: {e}")
-        return 4
+        codigo = 4
+    if codigo != 0:
+        # ✅ 2026-10-28 (pedido del usuario tras una instalación real fallida): junto con el error,
+        # dejar un diagnóstico en un archivo para no adivinar. No incluye valores de claves.
+        ruta = escribir_diagnostico(destino)
+        if ruta:
+            aviso(f"Diagnostico guardado en: {ruta}")
+            print("     Pasalo tal cual: tiene versiones, contenedores, puertos y los logs del arranque.")
+    return codigo
 
 
 if __name__ == "__main__":
