@@ -39,10 +39,15 @@ jobs:
       # (PyPI depende de torch sin +cpu) → conflicto de resolución en CI.
       # Torch/torchaudio se instalan del index CPU por separado, y el resto de
       # deps desde requirements-ci.txt (sin las 3 líneas conflictivas).
+      # ⚠️ 2026-10-28 (MEDIDO): el pin de torch tiene que coincidir con `requirements.txt`.
+      # Con torch 2.11.0+cpu y `setuptools==84.2.1` en requirements-ci, pip veía un conflicto
+      # (torch 2.11 declara `setuptools<82`) y RESOLVÍA torch 2.15.0 de PyPI, que en Linux arrastra
+      # CUDA: 2,5 GB de wheels `nvidia-*` + triton de 285 MB ⇒ el job murió por red a mitad de
+      # descarga. Con torch 2.14.1+cpu (el de requirements.txt) satisface `silero-vad` y no baja nada.
       - name: Instalar torch (index CPU)
         run: |
           python -m pip install --upgrade pip
-          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.11.0+cpu torchaudio==2.11.0+cpu
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1+cpu torchaudio==2.11.0+cpu
 
       - name: Instalar resto de dependencias
         run: |
