@@ -29,6 +29,9 @@ búsqueda web, archivos y memoria persistente por usuario.
    en **Windows** además **WSL 2**.
 2. **Bajar el instalador de la página de _Releases_** (versión **v0.7.7**, lo más simple):
    - **Windows**: `AXIOMA-Setup.exe` — doble clic (necesita Docker Desktop con WSL 2).
+     Para **desinstalar** y empezar de cero: `AXIOMA-Setup.exe --desinstalar` (o doble clic en
+     `instalar\DESINSTALAR_AXIOMA.bat`). Conserva tus datos en `%USERPROFILE%\axioma-datos-<fecha>`;
+     con `--todo` borra también datos y modelos descargados.
    - **Linux y macOS**: `axioma-instalar.sh` — `bash axioma-instalar.sh`.
 
    Baja la **imagen ya compilada desde GHCR** (GitHub Container Registry) y deja un acceso directo

@@ -7,6 +7,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Desinstalador: empezar de cero sin dejar basura (2026-10-28)
+
+- **Nuevo** `instalar/desinstalar_axioma.ps1` + `.sh` (y `DESINSTALAR_AXIOMA.bat` para doble clic), y
+  `AXIOMA-Setup.exe --desinstalar` en el instalador de un solo archivo.
+- **Qué hace**: apaga y borra los contenedores de AXIOMA (sin tocar otros), borra las imágenes
+  `axioma:local` y la de GHCR, y los accesos directos. Por defecto **conserva tus datos**: mueve
+  `data/`, `logs/` y `.env` a `~/axioma-datos-<fecha>` y borra la carpeta del proyecto.
+- **Con `-Todo` / `--todo`**: además borra esos datos y los volúmenes (los modelos descargados), para
+  una limpieza total.
+- **Modos seguros**: `-Ensayo`/`--dry-run` muestra qué haría sin tocar nada; `-Si`/`--si` evita la
+  pregunta; sin confirmación, cancela (código 3).
+- **Verificación**: 3 tests nuevos (ensayo, respaldo de datos y borrado de la carpeta con un `docker`
+  falso, y el aviso del `.exe` cuando no hay instalación).
+
 ### Seguridad: el token cubre toda la API, SSRF, tope de subida y gate anti-injection (2026-10-28)
 
 Auditoría externa sobre el commit `5fc56d1` (los puntos de `terminal_exec` y el `11434` ya estaban

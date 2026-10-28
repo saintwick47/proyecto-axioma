@@ -165,3 +165,66 @@ def test_el_diagnostico_se_escribe_y_no_filtra_claves(tmp_path, monkeypatch):
     assert "== docker ==" in texto and "== contenedores (todos) ==" in texto
     assert "CLAVE_DE_PRUEBA" in texto, "los NOMBRES de las claves sí van (sirven para saber qué falta)"
     assert "valor-que-no-debe-salir" not in texto, "los VALORES de las claves nunca"
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Desinstalador (2026-10-28, pedido del usuario: poder empezar de cero)
+# ════════════════════════════════════════════════════════════════════════════
+
+def _preparar_instalacion(tmp_path):
+    """Copia mínima del proyecto con el desinstalador y un docker falso que registra llamadas."""
+    import shutil
+    from pathlib import Path as _Path
+    raiz = _Path(__file__).resolve().parent.parent
+    destino = tmp_path / "AXIOMA"
+    (destino / "instalar").mkdir(parents=True)
+    shutil.copy(raiz / "instalar" / "desinstalar_axioma.sh", destino / "instalar" / "desinstalar_axioma.sh")
+    (destino / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+    (destino / "data").mkdir()
+    (destino / "data" / "axioma.db").write_text("datos del usuario", encoding="utf-8")
+    (destino / ".env").write_text("CLAVE=valor\n", encoding="utf-8")
+    return destino
+
+
+def test_el_desinstalador_tiene_ensayo_y_conserva_datos_por_defecto(tmp_path):
+    import subprocess
+    from pathlib import Path as _Path
+    raiz = _Path(__file__).resolve().parent.parent
+    guion = raiz / "instalar" / "desinstalar_axioma.sh"
+    r = subprocess.run(["bash", str(guion), "--dry-run"], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert "ensayo" in r.stdout and "TUS DATOS se conservan" in r.stdout
+
+
+def test_el_desinstalador_normal_respalda_datos_y_borra_la_carpeta(tmp_path, monkeypatch):
+    import subprocess
+    from pathlib import Path as _Path
+    destino = _preparar_instalacion(tmp_path)
+    falso = tmp_path / "bin"
+    falso.mkdir()
+    registro = tmp_path / "docker.log"
+    docker = falso / "docker"
+    docker.write_text(
+        "#!/bin/sh\necho \"$@\" >> \"$REGISTRO\"\n"
+        "if [ \"$1\" = \"info\" ]; then exit 1; fi\n"
+        "exit 0\n", encoding="utf-8")
+    docker.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{falso}:/usr/bin:/bin")
+    monkeypatch.setenv("REGISTRO", str(registro))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    r = subprocess.run(["bash", str(destino / "instalar" / "desinstalar_axioma.sh"), "--si"],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not destino.exists(), "la carpeta tiene que desaparecer"
+    respaldos = list(tmp_path.glob("axioma-datos-*"))
+    assert respaldos, "los datos tienen que quedar respaldados"
+    assert (respaldos[0] / "data" / "axioma.db").is_file(), "el .db del usuario se conserva"
+    assert (respaldos[0] / ".env").is_file(), "el .env se conserva"
+
+
+def test_el_exe_avisa_si_no_hay_instalacion_que_desinstalar(tmp_path):
+    import sys
+    from pathlib import Path as _Path
+    sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "instalar"))
+    import axioma_setup
+    assert axioma_setup.desinstalar(tmp_path / "no-existe", todo=False) == 0

@@ -48,6 +48,7 @@ No hace falta saber programar: el instalador y el lanzador se abren con DOBLE CL
 
   DESDE EL RELEASE (v0.7.7, sin descargar el proyecto; la imagen se baja YA COMPILADA de GHCR):
     Windows   → doble clic en AXIOMA-Setup.exe
+    Desinstalar (Windows) → AXIOMA-Setup.exe --desinstalar   (--todo borra también datos y modelos)
     Linux/macOS → bash axioma-instalar.sh
   Los dos dejan el acceso directo y encienden AXIOMA. El ZIP del proyecto sigue siendo la alternativa
   (abajo), para quien prefiera el código fuente.

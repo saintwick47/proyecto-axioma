@@ -339,6 +339,39 @@ def escribir_diagnostico(destino: Path) -> "Path | None":
         return None
 
 
+def desinstalar(destino: Path, todo: bool = False) -> int:
+    """Ejecuta el desinstalador del proyecto (lo deja limpio para empezar de cero).
+
+    ✅ 2026-10-28 (pedido del usuario): sin esto, si una instalación queda a medias no hay forma
+    sencilla de empezar de cero. Por defecto CONSERVA los datos (data/, logs/, .env); con `todo`
+    los borra junto con los modelos descargados.
+    """
+    paso("AXIOMA - desinstalación")
+    print(f"   Carpeta: {destino}")
+    if not destino.is_dir():
+        aviso(f"No hay una instalación de AXIOMA en {destino}.")
+        return 0
+    guion = destino / "instalar" / ("desinstalar_axioma.ps1" if ES_WINDOWS else "desinstalar_axioma.sh")
+    if not guion.is_file():
+        mal(f"No encontré el desinstalador del proyecto ({guion}).")
+        print("     Podés borrar la carpeta a mano y quitar los contenedores con:")
+        print("       docker compose -f <carpeta>\\docker-compose.yml down --remove-orphans")
+        return 4
+    if ES_WINDOWS:
+        orden = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(guion)]
+        if todo:
+            orden.append("-Todo")
+    else:
+        orden = ["bash", str(guion)]
+        if todo:
+            orden.append("--todo")
+    try:
+        return subprocess.run(orden, cwd=str(destino)).returncode
+    except OSError as e:
+        mal(f"No pude ejecutar el desinstalador: {e}")
+        return 4
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Instalador de AXIOMA de un solo archivo: comprueba Docker, descarga AXIOMA y lo instala.")
@@ -350,9 +383,16 @@ def main() -> int:
                         help="muestra qué haría, sin descargar ni tocar nada")
     parser.add_argument("--solo-descargar", action="store_true", dest="solo_descargar",
                         help="descarga y descomprime, y se detiene (para revisar)")
+    parser.add_argument("--desinstalar", action="store_true",
+                        help="quita contenedores, imágenes, accesos directos y la carpeta de AXIOMA")
+    parser.add_argument("--todo", action="store_true",
+                        help="con --desinstalar: borra TAMBIÉN tus datos y los modelos descargados")
     args = parser.parse_args()
 
     destino = Path(args.destino).expanduser().resolve()
+
+    if args.desinstalar:
+        return desinstalar(destino, todo=args.todo)
 
     # Un repositorio válido siempre es `dueno/nombre`: sin `/`, es la plantilla sin estampar.
     if "/" not in REPO:
