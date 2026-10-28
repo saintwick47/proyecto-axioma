@@ -503,4 +503,46 @@ class TestSandboxNoLlenaElDisco:
         assert r.returncode == 0
         assert despues == antes, f"el temporal tiene que borrarse al terminar: {despues - antes}"
 
+# ════════════════════════════════════════════════════════════════════════════
+# 7C. terminal_exec: allowlist + guardia de rutas (2026-10-28)
+# ════════════════════════════════════════════════════════════════════════════
+# MEDIDO con la blocklist vieja: `env id`, `timeout 5 id`, `nice id`, `setsid id`,
+# `nohup id`, `stdbuf -o0 id`, `awk 'BEGIN{system("id")}'` y `perl -e` ejecutaban código;
+# `cp`/`mv`/`tar` escribían en /tmp; `cat .env` y `../` leían secretos. Ahora: nombre exacto
+# permitido + rutas dentro del workspace + archivos sensibles prohibidos.
 
+class TestTerminalExecAllowlist:
+    BYPASSES = [
+        "env id", "timeout 5 id", "nice id", "setsid id", "nohup id", "stdbuf -o0 id",
+        "awk 'BEGIN{system(\"id\")}'", "perl -e 1", "find . -exec id ;",
+        "cp data/axioma.db /tmp/x", "mv data/axioma.db /tmp/x", "tar -cf /tmp/x.tar data",
+        "cat /etc/passwd", "cat .env", "cat ../.env", "cat data/.web_token",
+    ]
+
+    def test_los_bypasses_conocidos_quedan_bloqueados(self):
+        from src.tools_mcp.tool_registry import SecureTerminalTool
+        t = SecureTerminalTool()
+        for cmd in self.BYPASSES:
+            r = t._run(command=cmd, cwd=".", timeout=5)
+            assert not getattr(r, "success", False), f"se ejecutó: {cmd}"
+
+    def test_lo_legitimo_sigue_funcionando(self):
+        from src.tools_mcp.tool_registry import SecureTerminalTool
+        t = SecureTerminalTool()
+        for cmd in ("ls", "pwd", "cat README.md"):
+            r = t._run(command=cmd, cwd=".", timeout=10)
+            assert getattr(r, "success", False), (
+                f"comando legítimo bloqueado: {cmd} -> {getattr(r, 'error', '')}")
+
+    def test_los_comandos_del_system_agent_pasan_la_validacion(self):
+        from src.tools_mcp.tool_registry import SecureTerminalTool
+        t = SecureTerminalTool()
+        for cmd in ("pkill -f firefox", "pactl set-sink-volume @DEFAULT_SINK@ 50%",
+                    "wl-paste", "wl-copy texto", "grep medalla config/models.yaml"):
+            assert t._validar_comando(cmd.split(), cwd=".") is None, f"bloqueado: {cmd}"
+
+    def test_una_ruta_fuera_del_workspace_se_rechaza(self):
+        from src.tools_mcp.tool_registry import SecureTerminalTool
+        t = SecureTerminalTool()
+        motivo = t._validar_comando(["cat", "/etc/shadow"], cwd=".")
+        assert motivo and "fuera del workspace" in motivo

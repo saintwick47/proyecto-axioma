@@ -45,6 +45,8 @@ services:
     # `0.0.0.0:8080`). Para exponerlo A PROPÓSITO: AXIOMA_WEB_HOST=0.0.0.0 (y sabé lo que implica).
     command: ["python", "main.py", "--web", "--host", "${AXIOMA_WEB_HOST:-127.0.0.1}",
               "--port", "8080", "--no-browser"]
+    # ✅ 2026-10-28: que un proceso del contenedor no pueda ganar privilegios (setuid, etc.).
+    security_opt: ["no-new-privileges:true"]
     env_file:
       - path: .env
         required: false          # si no existe, arranca con los valores por defecto
@@ -201,8 +203,16 @@ services:
     container_name: axioma-ollama
     profiles: ["ollama-local"]
     restart: unless-stopped
+    # ✅ 2026-10-28 (MEDIDO: `ss -ltn` mostraba `0.0.0.0:11434`): antes el motor quedaba publicado
+    # en TODAS las interfaces y sin autenticación, así que cualquier equipo de la red local podía
+    # listar/descargar/usar modelos. Ahora se publica SÓLO en loopback: el contenedor de AXIOMA usa
+    # `network_mode: host`, así que lo sigue viendo en 127.0.0.1:11434. Para exponerlo a propósito:
+    # cambiar a "11434:11434" sabiendo lo que implica.
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
+    # Endurecimiento: el motor no necesita capabilities extra ni escalar privilegios.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     volumes:
       # Los modelos quedan en un volumen propio: no se vuelven a bajar en cada arranque.
       - ollama_models:/root/.ollama

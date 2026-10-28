@@ -125,6 +125,63 @@ class SecureTerminalTool(BaseTool):
         "docker", "kubectl", "podman", "containerd",
     ]
 
+    # ✅ 2026-10-28 (MEDIDO): la blocklist sola NO alcanzaba. Se podía ejecutar `id` con
+    # `env id`, `timeout 5 id`, `nice id`, `setsid id`, `nohup id`, `stdbuf -o0 id` y
+    # `awk 'BEGIN{system("id")}'`; escribir fuera del workspace (`cp`, `mv`, `tar` a /tmp);
+    # leer secretos (`cat .env`, `../`) y ejecutar código (`perl -e`). Ahora hay ALLOWLIST
+    # por nombre exacto + guardia de rutas. Se permiten wrappers NO (relanzan otro comando).
+    _COMANDOS_PERMITIDOS = frozenset({
+        "ls", "cat", "head", "tail", "grep", "rg", "wc", "sort", "uniq", "cut", "tr",
+        "diff", "cmp", "file", "stat", "du", "df", "pwd", "echo", "printf", "date",
+        "which", "type", "basename", "dirname", "realpath", "readlink", "tree", "find",
+        "ps", "free", "uname", "whoami", "hostname",
+        # Los que usa el SystemAgent de verdad (medido en src/agents/system_agent.py).
+        "pkill", "pactl", "wl-paste", "wl-copy",
+    })
+    # Relanzan otro comando o ejecutan código: bloqueados aunque alguien los agregue arriba.
+    _LANZADORES = frozenset({
+        "env", "timeout", "nice", "nohup", "setsid", "stdbuf", "xargs", "exec",
+        "command", "builtin", "sh", "bash", "zsh", "dash", "perl", "ruby", "php", "lua",
+        "sudo", "su", "doas", "pkexec",
+    })
+    # Banderas que convierten un comando permitido en ejecutor o escritor.
+    _BANDERAS_PROHIBIDAS = ("-exec", "-execdir", "-delete", "-ok", "-fprint", "-fls",
+                            "-o-", "--output", "-output")
+    # Nunca se leen aunque estén dentro del workspace.
+    _ARCHIVOS_SENSIBLES = (".env", "web_token", ".pem", ".key", "id_rsa", "id_ed25519",
+                           ".netrc", ".git-credentials")
+
+    def _validar_comando(self, args_list: list, cwd: str = ".") -> str | None:
+        """Devuelve el motivo del rechazo, o None si el comando y sus rutas están permitidos."""
+        nombre = Path(args_list[0]).name
+        if nombre in self._LANZADORES:
+            return (f"'{nombre}' relanza otro comando y esquiva la lista blanca "
+                    f"(permitidos: {', '.join(sorted(self._COMANDOS_PERMITIDOS))})")
+        if nombre not in self._COMANDOS_PERMITIDOS:
+            return (f"comando no permitido: '{nombre}'. Permitidos: "
+                    f"{', '.join(sorted(self._COMANDOS_PERMITIDOS))}")
+        for argumento in args_list[1:]:
+            if any(argumento.startswith(b) for b in self._BANDERAS_PROHIBIDAS):
+                return f"bandera no permitida: '{argumento}' (ejecuta o escribe archivos)"
+            if any(s in argumento.lower() for s in self._ARCHIVOS_SENSIBLES):
+                return f"archivo sensible: '{argumento}' no se puede leer con terminal_exec"
+            parece_ruta = argumento.startswith(("/", "./", "../", "~")) or (
+                "/" in argumento and not argumento.startswith("-"))
+            if not parece_ruta:
+                continue
+            try:
+                from config.paths import Paths
+                raiz = Path(Paths.ROOT).resolve()
+                base = Path(cwd) if cwd else raiz
+                destino = Path(argumento).expanduser()
+                destino = (destino if destino.is_absolute() else (base / destino))
+                resuelto = destino.resolve()
+            except Exception as e:  # noqa: BLE001 — si no se puede resolver, se rechaza
+                return f"no se pudo resolver la ruta '{argumento}': {type(e).__name__}"
+            if resuelto != raiz and raiz not in resuelto.parents:
+                return f"ruta fuera del workspace: '{argumento}' (sólo {raiz})"
+        return None
+
     schema = ToolSchema(
         name="terminal_exec",
         description=description,
@@ -186,6 +243,16 @@ class SecureTerminalTool(BaseTool):
                     latency_ms=(time.perf_counter() - t0) * 1000,
                     metadata={"blocked": True, "pattern": blocked},
                 )
+
+        # ✅ 2026-10-28: allowlist + guardia de rutas (la blocklist sola era evadible).
+        motivo = self._validar_comando(args_list, cwd=cwd)
+        if motivo:
+            return ToolResult.fail(
+                error=f"Comando no permitido: {motivo}",
+                tool_name=self.name,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                metadata={"blocked": True, "reason": motivo},
+            )
 
         # ── Modo 1: SandboxExecutor disponible (RECOMENDADO) ─────────────
         if SANDBOX_AVAILABLE and SandboxExecutor is not None:

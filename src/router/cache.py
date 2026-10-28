@@ -224,18 +224,14 @@ class RouterCache:
         elif enable_l2 and not _L2_AVAILABLE:
             logger.debug("RouterCache: L2 SQLite solicitado pero módulo no disponible")
 
-        # ✅ v0.6.3: L3 inyectado desde cache_l3.py (BGE-M3 local + LanceDB)
-        self._l3: Optional[SemanticCacheL3] = None
-        if enable_l3 and _LANCE_AVAILABLE and _ST_AVAILABLE:
-            self._l3 = SemanticCacheL3(
-                similarity_threshold=l3_similarity_threshold,
-                ttl_seconds=l3_ttl_seconds,
-                max_entries=l3_max_entries,
-            )
-        elif enable_l3 and not _LANCE_AVAILABLE:
-            logger.warning("[RouterCache] L3 solicitado pero lancedb no disponible")
-        elif enable_l3 and not _ST_AVAILABLE:
-            logger.warning("[RouterCache] L3 solicitado pero sentence-transformers no disponible")
+        # ✅ 2026-10-28 (MEDIDO): la L3 semántica NO se construye, a propósito.
+        # Antes se instanciaba `SemanticCacheL3` (que abre LanceDB y crea la tabla
+        # `router_decisions_l3`), pero NINGÚN camino llamaba a `.get()` ni a `.set()`: la tabla
+        # quedaba siempre en 0 filas y era código muerto. Además clasificar una consulta cuesta
+        # **1 ms** (caché L1/L2 + keywords + embeddings, medido), así que conectarla ahorraría
+        # milisegundos. Si algún día se quiere una caché semántica de ruteo: primero cablearla en
+        # `get()`/`set()`, MEDIR el ahorro y recién entonces construirla. No dejarla instanciada.
+        self._l3 = None
 
         # Estadísticas
         self._stats = {

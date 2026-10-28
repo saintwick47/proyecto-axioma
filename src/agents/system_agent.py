@@ -898,9 +898,13 @@ class SystemAgent(BaseAgent):
         # de xclip (X11, no lee/escribe el clipboard de Wayland de forma confiable).
         # ✅ v1.3.0: list_files tampoco pasa por acá — ver fs_list en execute().
         # ✅ v1.6.0: open_app tampoco pasa por acá — ver sys_open_app en execute().
+        # ✅ 2026-10-28: `target` va SIEMPRE entre comillas. Con `pkill -f {target}` sin comillas,
+        # un target como "app -KILL 1" llegaba a pkill como bandera/patrón extra (podía matar otros
+        # procesos) y en `pactl` metía argumentos de más. `shlex.quote` no agrega comillas cuando no
+        # hacen falta (ej. `firefox`, `50%`), así que el caso normal queda igual.
         commands = {
-            "close_app":       f"pkill -f {target}",
-            "set_volume":      f"pactl set-sink-volume @DEFAULT_SINK@ {target}%",
+            "close_app":       f"pkill -f {shlex.quote(target)}",
+            "set_volume":      f"pactl set-sink-volume @DEFAULT_SINK@ {shlex.quote(str(target) + '%')}",
             "read_clipboard":  "wl-paste",
             "write_clipboard": f"wl-copy {shlex.quote(target)}",
         }

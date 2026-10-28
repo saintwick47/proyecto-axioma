@@ -7,6 +7,24 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Seguridad: `terminal_exec` pasa de blocklist evadible a allowlist + guardia de rutas (2026-10-28)
+
+- **Medido con la blocklist anterior** (auditoría): se ejecutaba código con `env id`, `timeout 5 id`,
+  `nice id`, `setsid id`, `nohup id`, `stdbuf -o0 id`, `awk 'BEGIN{system("id")}'` y `perl -e`; se
+  escribía fuera del workspace (`cp`/`mv`/`tar` a `/tmp`); se leían secretos (`cat .env`, `../`) y
+  `find -exec` ejecutaba comandos.
+- **Arreglo**: **allowlist por nombre exacto** (utilidades de lectura + los que usa de verdad el
+  `SystemAgent`: `pkill`, `pactl`, `wl-paste`, `wl-copy`) **más** una guardia de argumentos que
+  rechaza rutas fuera del workspace, archivos sensibles (`.env*`, `*.pem`, `*.key`, `.web_token`,
+  `id_rsa*`) y banderas que ejecutan/escriben (`-exec`, `-delete`, `-fprint`, `-output`). Los
+  lanzadores (`env`, `timeout`, `nice`, `nohup`, `setsid`, `stdbuf`, `xargs`, intérpretes) están
+  bloqueados aunque alguien los agregue a la allowlist.
+- **Verificado**: 16 bypasses conocidos quedan bloqueados; `ls`, `pwd`, `cat README.md` y los
+  comandos del `SystemAgent` siguen funcionando (4 tests nuevos en `test_07`). Suite **27/27**.
+- **Contenedores**: `ollama` deja de publicar `0.0.0.0:11434` (era accesible sin auth desde la red
+  local) y pasa a **`127.0.0.1:11434`**, con `cap_drop: [ALL]` y `no-new-privileges`; el servicio
+  `axioma` también lleva `no-new-privileges`. `docker compose config` válido.
+
 ### Memoria: el embedder se descarga solo cuando está inactivo y falta RAM (2026-10-28)
 
 - **Medido antes**: el modelo de embeddings `F2LLM-v2-330M` ocupa **1033 MB de RSS** y se cargaba
