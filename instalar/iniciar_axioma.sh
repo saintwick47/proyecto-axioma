@@ -144,10 +144,17 @@ if ! docker compose ${PERFIL} up -d >"$log_up" 2>&1; then
 else
   up_ok=1
 fi
+if grep -qiE "credential" "$log_up" 2>/dev/null; then
+  grep -i "credential" "$log_up" | head -1
+fi
 cat "$log_up"
 rm -f "$log_up"
 if [ "$up_ok" -ne 1 ]; then
   mal "Docker no pudo encender AXIOMA (el motivo está en las líneas de arriba)."
+  if grep -qiE "credential" "$log_up" 2>/dev/null; then
+    echo "     El ayudante de credenciales de Docker esta roto: quitá la clave credsStore de"
+    echo "     ~/.docker/config.json (o instalá docker-credential-pass) y volvé a intentar."
+  fi
   echo "     Lo más común: ya hay un AXIOMA andando (mirá con:  docker ps) o Docker no está sano."
   echo "     Para ver el detalle:  docker compose logs --tail 40 axioma"
   exit 4
