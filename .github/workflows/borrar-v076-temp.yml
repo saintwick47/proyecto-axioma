@@ -1,0 +1,37 @@
+name: Borrar v0.7.6 (temporal)
+on:
+  push:
+    branches: [chore/borrar-v076]
+permissions:
+  contents: write
+  packages: write
+jobs:
+  borrar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Borrar release, tag e imagen de v0.7.6
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PKG: proyecto-axioma
+        run: |
+          set -uo pipefail
+          rel=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$REPO/releases/tags/v0.7.6")
+          rid=$(echo "$rel" | jq -r '.id // empty')
+          if [ -n "$rid" ]; then
+            c=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$REPO/releases/$rid")
+            echo "::notice::release v0.7.6 borrado -> HTTP $c"
+          else
+            echo "::notice::no habia release v0.7.6"
+          fi
+          c=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$REPO/git/refs/tags/v0.7.6")
+          echo "::notice::tag v0.7.6 borrado -> HTTP $c"
+          vers=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/user/packages/container/$PKG/versions?per_page=100")
+          echo "$vers" | jq -r '.[] | "\(.id) \((.metadata.container.tags // [])|join(","))"' | while read -r id tags; do
+            case "$tags" in
+              *v0.7.6*) case "$tags" in *latest*|*v0.7.7*) echo "::notice::conservar $id ($tags)"; continue;; esac
+                        c=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/user/packages/container/$PKG/versions/$id")
+                        echo "::notice::imagen $id ($tags) borrada -> HTTP $c";;
+              *) : ;;
+            esac
+          done
