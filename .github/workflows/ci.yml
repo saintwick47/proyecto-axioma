@@ -74,18 +74,21 @@ jobs:
           sudo apt-get install -y libportaudio2 libsndfile1 portaudio19-dev \
             || echo "::warning::no se pudieron instalar las librerías de audio; los tests de voz se saltean"
 
-      # Cache del modelo de embeddings (bge-m3) para no descargarlo en cada run.
-      # ✅ v0.7.3: con matrix, la clave lleva la versión de Python para que los dos
-      # jobs no compitan al guardar la misma clave; `restore-keys` permite que uno
-      # reaproveche la caché del otro (los pesos del modelo son idénticos).
+      # Cache del modelo de embeddings para no descargarlo en cada run.
+      # ✅ 2026-10-28: la clave lleva el MODELO (no sólo OS+Python). Antes era
+      # `hf-<os>-py<ver>` y seguía restaurando la caché vieja de `bge-m3` (2,5 GB,
+      # 4,3 GB descomprimido): desde el cambio a `codefuse-ai/F2LLM-v2-330M` (638 MB)
+      # era peso muerto y el `tar` de la restauración fallaba en el runner
+      # ("Wrote only 9216 of 10240 bytes" = se quedó sin espacio). Con el modelo en la
+      # clave, la caché vieja NO se restaura y expira sola (7 días sin uso).
+      # ⚠️ Si se vuelve a cambiar el modelo de embeddings, cambiar `f2llm-v2-330m`.
       - name: Cache HuggingFace
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-${{ runner.os }}-py${{ matrix.python-version }}
+          key: hf-${{ runner.os }}-py${{ matrix.python-version }}-f2llm-v2-330m
           restore-keys: |
-            hf-${{ runner.os }}-py
-            hf-${{ runner.os }}
+            hf-${{ runner.os }}-py${{ matrix.python-version }}-f2llm-v2-330m
 
       # ✅ v0.6.9v (P0 del informe): el `.env` no está en el repo (gitignored) y
       # algunos detectores del auditor comparan `.env` vs `.env.example`
@@ -440,14 +443,20 @@ jobs:
       # Que el .exe ARRANQUE es lo único que PyInstaller puede romper (faltó un módulo, un dato…).
       # `--help` sale 0 siempre; `--dry-run` puede salir 4 si el runner no tiene Docker andando, y
       # las dos son respuestas correctas: lo que no puede pasar es que no arranque.
+      # ⚠️ 2026-10-28 (MEDIDO en este repo): el paso imprimía el OK pero GitHub lo marcaba ROJO
+      # cuando `--dry-run` devolvía 4, porque GitHub cierra el paso con el ÚLTIMO `$LASTEXITCODE`
+      # (Docker instalado pero sin responder ⇒ 4 ⇒ "Process completed with exit code"). Se guarda el
+      # código, se valida 0 o 4 y se sale con `exit 0` EXPLÍCITO.
       - name: Verificar que el .exe arranca
         shell: pwsh
         run: |
           .\dist\AXIOMA-Setup.exe --help
           if ($LASTEXITCODE -ne 0) { throw "el .exe no arranca (--help salio $LASTEXITCODE)" }
           .\dist\AXIOMA-Setup.exe --dry-run
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 4) { throw "salida inesperada: $LASTEXITCODE" }
-          Write-Host "OK: el .exe arranca y explica lo que haria"
+          $codigo = $LASTEXITCODE
+          if ($codigo -ne 0 -and $codigo -ne 4) { throw "salida inesperada: $codigo" }
+          Write-Host "OK: el .exe arranca y explica lo que haria (dry-run salio $codigo; 0 y 4 son validos)"
+          exit 0
 
       - name: Publicar el Release con los dos instaladores
         shell: bash
