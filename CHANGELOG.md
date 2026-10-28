@@ -7,6 +7,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Memoria: el embedder se descarga solo cuando está inactivo y falta RAM (2026-10-28)
+
+- **Medido antes**: el modelo de embeddings `F2LLM-v2-330M` ocupa **1033 MB de RSS** y se cargaba
+  la primera vez que se usaba, quedándose en RAM **para siempre** aunque AXIOMA sólo chateara.
+  Recargarlo cuesta **2,4 s** (medido, con los pesos en caché del sistema).
+- **Decisión**: descargarlo **sólo** si pasaron `AXIOMA_EMBED_IDLE_UNLOAD_S` (**900 s** por defecto,
+  `0` desactiva) **y** la RAM del equipo supera `AXIOMA_EMBED_UNLOAD_RAM_RATIO` (**0.80**). Con RAM
+  de sobra no se toca: nadie paga la recarga por nada.
+- **Medición del ahorro real**: `unload()` devuelve **478 MB** de los 1033 (RSS 1033 → 555 MB). El
+  resto son las **librerías compartidas de torch/transformers** ya mapeadas en el proceso, que no se
+  pueden devolver sin reiniciar; `malloc_trim` sólo recupera 54 MB más (se descartó por eso).
+- **Verificación**: prueba unitaria del mecanismo (las dos condiciones, inyectando tiempo y ratio de
+  RAM); y medición end-to-end: carga → `maybe_unload(inactivo + presión)` → descarga → `embed`
+  recarga y vuelve a responder. Suite **27/27**.
+
 ## [v0.7.7] — 2026-10-28
 
 ### `terminal_exec` llenaba el disco: copiaba el proyecto entero en `/tmp` (2026-10-28)

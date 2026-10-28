@@ -933,3 +933,17 @@ def test_el_umbral_cross_sesion_se_respeta(monkeypatch):
     monkeypatch.setattr(settings, "cross_session_min_similarity", 0.83)
     obj._inject_cross_session([], "consulta", 1024, task_type="general_chat")
     assert visto.get("min_similarity") == 0.83, visto
+
+def test_el_embedder_se_descarga_solo_si_esta_inactivo_y_falta_ram(monkeypatch):
+    """✅ 2026-10-28: el embedder ocupa 1030 MB (medido). Se descarga sólo con inactividad Y presión."""
+    from src.memory import embedding_model_singleton as m
+    s = m.EmbeddingModelSingleton()
+    s._model, s._loaded, s._last_access = object(), True, 100.0
+    monkeypatch.setattr(m, "EMBED_IDLE_UNLOAD_S", 60)
+    monkeypatch.setattr(m, "EMBED_UNLOAD_RAM_RATIO", 0.80)
+    descargas: list = []
+    monkeypatch.setattr(s, "unload", lambda: descargas.append(1))
+    assert s.maybe_unload(ahora=200.0, ratio_ram=0.50) is False   # RAM holgada
+    assert s.maybe_unload(ahora=120.0, ratio_ram=0.95) is False   # poco inactivo
+    assert s.maybe_unload(ahora=200.0, ratio_ram=0.95) is True    # las dos ⇒ descarga
+    assert descargas == [1]

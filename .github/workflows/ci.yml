@@ -35,8 +35,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      # v0.6.9k: requirements.txt fija torch==2.11.0+cpu + torchaudio==2.11.0
-      # (PyPI depende de torch sin +cpu) → conflicto de resolución en CI.
+      # v0.6.9k: requirements.txt fija torch y torchaudio con `+cpu`; los wheels de PyPI sin
+      # `+cpu` enlazan CUDA, así que se instalan aparte desde el índice CPU de PyTorch.
+      # ✅ 2026-10-28: el pin tiene que ser el MISMO de requirements.txt (hoy torch==2.14.1+cpu):
+      # con 2.11 pip entraba en conflicto con setuptools 84 y bajaba torch 2.15 con CUDA (2,5 GB).
       # Torch/torchaudio se instalan del index CPU por separado, y el resto de
       # deps desde requirements-ci.txt (sin las 3 líneas conflictivas).
       # ⚠️ 2026-10-28 (MEDIDO): el pin de torch tiene que coincidir con `requirements.txt`.

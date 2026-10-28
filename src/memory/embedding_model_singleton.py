@@ -12,6 +12,7 @@
 #            - client_base.py (Redirección HTTP → local)
 # ═══════════════════════════════════════════════════════════════
 import logging
+import os
 import time
 import hashlib
 import threading
@@ -33,6 +34,15 @@ logger = logging.getLogger(__name__)
 # (int8 subía a 6,3 GB): por eso se cambia de modelo en vez de cuantizar.
 EMBED_MODEL_NAME = "codefuse-ai/F2LLM-v2-330M"
 EMBED_DIMENSION = 896
+
+# ── ✅ 2026-10-28 (MEDIDO): descarga del embedder por inactividad ──────────────
+# El modelo ocupa **1030 MB de RSS** (medido con `resource.getrusage`) y se carga la primera
+# vez que se usa (5-7 s, medido). Sin política se queda en RAM para siempre, aunque AXIOMA sólo
+# esté chateando. Se descarga SÓLO si pasaron `AXIOMA_EMBED_IDLE_UNLOAD_S` segundos sin usarlo
+# **y** la RAM del equipo supera `AXIOMA_EMBED_UNLOAD_RAM_RATIO` (0.80): así nadie paga los 5-7 s
+# de recarga teniendo memoria de sobra. 0 en la primera variable = desactivado.
+EMBED_IDLE_UNLOAD_S = int(os.environ.get("AXIOMA_EMBED_IDLE_UNLOAD_S", "900"))
+EMBED_UNLOAD_RAM_RATIO = float(os.environ.get("AXIOMA_EMBED_UNLOAD_RAM_RATIO", "0.80"))
 
 # ✅ Fase 0 (2026-10-02, MEDIDO): la sonda de disponibilidad NO importa la
 # biblioteca. `import sentence_transformers` arrastra torch + transformers +
@@ -62,6 +72,7 @@ class EmbeddingModelSingleton:
         self._loaded = False
         self._load_lock = threading.Lock()
         self._last_access = 0.0
+        self._vigilante: Optional[threading.Thread] = None
         self._total_embeddings = 0
         self._total_errors = 0
 
@@ -120,10 +131,60 @@ class EmbeddingModelSingleton:
                 self._last_access = time.time()
                 duration = time.time() - start
                 logger.info(f"[EmbedSingleton] Cargado en {duration:.1f}s (~1.8GB RAM)")
+                self._iniciar_vigilante()
                 return True
             except Exception as e:
                 logger.error(f"[EmbedSingleton] Error cargando modelo: {e}")
                 return False
+
+    def maybe_unload(self, ahora: Optional[float] = None,
+                     ratio_ram: Optional[float] = None) -> bool:
+        """Descarga el modelo si estuvo inactivo **y** hay presión de RAM.
+
+        Args:
+            ahora: instante de referencia (inyectable en tests; por defecto `time.time()`).
+            ratio_ram: uso de RAM 0..1 (inyectable en tests; por defecto psutil).
+
+        Returns:
+            True si descargó el modelo.
+        """
+        if not self._loaded or self._model is None or EMBED_IDLE_UNLOAD_S <= 0:
+            return False
+        ahora = time.time() if ahora is None else ahora
+        inactivo = ahora - self._last_access
+        if inactivo < EMBED_IDLE_UNLOAD_S:
+            return False
+        if ratio_ram is None:
+            try:
+                import psutil
+                ratio_ram = psutil.virtual_memory().percent / 100.0
+            except Exception as exc:  # noqa: BLE001 — sin psutil no hay política, se mantiene cargado
+                log_degraded(logger, exc, "no se pudo medir la RAM: el embedder sigue cargado")
+                return False
+        if ratio_ram < EMBED_UNLOAD_RAM_RATIO:
+            return False
+        logger.info(
+            f"[EmbedSingleton] Descarga por inactividad ({inactivo:.0f}s sin uso) y RAM al "
+            f"{ratio_ram * 100:.0f}% (umbral {EMBED_UNLOAD_RAM_RATIO * 100:.0f}%)")
+        self.unload()
+        return True
+
+    def _iniciar_vigilante(self) -> None:
+        """Hilo daemon que revisa cada minuto si corresponde descargar (una sola vez)."""
+        if EMBED_IDLE_UNLOAD_S <= 0 or self._vigilante is not None:
+            return
+
+        def _lazo() -> None:
+            while True:
+                time.sleep(60)
+                try:
+                    self.maybe_unload()
+                except Exception as exc:  # noqa: BLE001 — el vigilante nunca puede tumbar el proceso
+                    log_degraded(logger, exc, "vigilante del embedder: descarga omitida")
+
+        hilo = threading.Thread(target=_lazo, name="embed-idle-unload", daemon=True)
+        hilo.start()
+        self._vigilante = hilo
 
     def unload(self) -> None:
         """Descarga el modelo para liberar RAM."""
