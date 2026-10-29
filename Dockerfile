@@ -52,9 +52,9 @@ COPY requirements.txt requirements-ci.txt ./
 # `requirements.txt:88` y el CI fijan 5.4.1. Las tres fuentes dicen lo mismo.
 RUN pip install --upgrade pip \
     && pip install --index-url https://download.pytorch.org/whl/cpu \
-           torch==2.11.0+cpu torchaudio==2.11.0+cpu \
+           torch==2.14.1+cpu torchaudio==2.11.0+cpu \
     && pip install -r requirements-ci.txt \
-    && pip install sentence-transformers==5.4.1
+    && pip install sentence-transformers==6.2.0
 
 # ═══════════════════════════════════════════════════════════════
 # ETAPA 2 — imagen final (sin herramientas de compilación)

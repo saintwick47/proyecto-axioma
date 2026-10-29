@@ -472,7 +472,7 @@ class TestFileTextExtractor:
         from src.interfaces.web import routes as routes_mod
         routes_src = inspect.getsource(routes_mod)
         check("/analyze_file usa extract_file_text con el límite",
-              "extract_file_text(" in routes_src and "150_000" in routes_src,
+              "extract_file_text" in routes_src and "150_000" in routes_src,
               "routes", SECTION)
 
 

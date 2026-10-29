@@ -715,6 +715,15 @@ def cmd_web(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True
             except Exception as _e:
                 _log("MAIN", f"ProactiveEngine stop error: {_e}", level="WARNING")
 
+            # ✅ 2026-10-29 (auditoría): cerrar la caché del router. Los datos de L2 ya se
+            # commitean en cada `set()`, así que no hay nada "pendiente": esto cierra la conexión
+            # SQLite en orden en vez de dejarla al recolector.
+            try:
+                from src.router.cache import get_router_cache
+                get_router_cache().close()
+            except Exception as _e:
+                _log("MAIN", f"RouterCache close error: {_e}", level="WARNING")
+
             # ═══════════════════════════════════════════════════════════════
             # ✅ v1.0.6: Liberar VRAM al cerrar
             # Descarga todos los modelos (keep_alive=0) para que Ollama

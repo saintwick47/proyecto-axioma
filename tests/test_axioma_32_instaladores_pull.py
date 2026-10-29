@@ -228,3 +228,55 @@ def test_el_exe_avisa_si_no_hay_instalacion_que_desinstalar(tmp_path):
     sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "instalar"))
     import axioma_setup
     assert axioma_setup.desinstalar(tmp_path / "no-existe", todo=False) == 0
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Coherencia Dockerfile/requirements/compose y extracción segura (2026-10-29)
+# ════════════════════════════════════════════════════════════════════════════
+
+def _raiz():
+    from pathlib import Path as _Path
+    return _Path(__file__).resolve().parent.parent
+
+
+def test_el_dockerfile_usa_las_mismas_versiones_que_requirements():
+    import re
+    raiz = _raiz()
+    docker = (raiz / "Dockerfile").read_text(encoding="utf-8")
+    reqs = (raiz / "requirements.txt").read_text(encoding="utf-8")
+    for paquete in ("torch", "sentence-transformers"):
+        en_docker = re.search(rf"{paquete}==([0-9][^ \n\\]*)", docker)
+        en_reqs = re.search(rf"^{paquete}==([0-9][^\n;]*)", reqs, re.M)
+        assert en_docker and en_reqs, f"falta el pin de {paquete}"
+        assert en_docker.group(1).strip() == en_reqs.group(1).strip(), (
+            f"{paquete}: Dockerfile {en_docker.group(1)} != requirements {en_reqs.group(1)}")
+
+
+def test_el_compose_monta_la_cache_de_embeddings():
+    compose = (_raiz() / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "./cache:/app/cache" in compose, "sin este montaje el modelo se re-descarga en cada arranque"
+
+
+def test_las_dependencias_solo_linux_llevan_marcador():
+    reqs = (_raiz() / "requirements.txt").read_text(encoding="utf-8")
+    for paquete in ("evdev", "uvloop", "pyatspi"):
+        linea = next((ln for ln in reqs.splitlines() if ln.startswith(f"{paquete}==")), None)
+        assert linea, f"falta {paquete}"
+        assert 'sys_platform == "linux"' in linea, f"{paquete} se rompe en Windows sin el marcador"
+
+
+def test_la_extraccion_rechaza_rutas_peligrosas(tmp_path):
+    import io
+    import sys
+    import tarfile
+    sys.path.insert(0, str(_raiz() / "instalar"))
+    import axioma_setup
+
+    malo = tmp_path / "malo.tar.gz"
+    with tarfile.open(malo, "w:gz") as tf:
+        info = tarfile.TarInfo("../evil.txt")
+        info.size = 1
+        tf.addfile(info, io.BytesIO(b"x"))
+    destino = tmp_path / "AXIOMA"
+    assert axioma_setup.extraer(malo, destino) is False, "tenía que rechazarse"
+    assert not (tmp_path.parent / "evil.txt").exists()

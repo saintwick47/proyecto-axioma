@@ -554,6 +554,16 @@ class RouterCache:
         _log_cache("CLEAR", "CACHE", "", items_count=l1_count + l2_count, duration=duration, success=True)
         logger.info(f"RouterCache cleared: L1={l1_count}, L2={l2_count}, L2-DB={'✅' if self._l2_db else '❌'}, L3={'✅' if self._l3 else '❌'}")
 
+    def close(self) -> None:
+        """Cierra la conexión SQLite de L2 (los datos ya están commiteados por escritura)."""
+        if self._l2_db is not None:
+            try:
+                self._l2_db.close()
+            except Exception as exc:  # noqa: BLE001 — cerrar nunca puede tumbar el apagado
+                logger.debug(f"[RouterCache] no se pudo cerrar L2: {exc}")
+            finally:
+                self._l2_db = None
+
     def get_stats(self) -> Dict[str, Any]:
         """Obtiene estadísticas de caché."""
         start = time.time()

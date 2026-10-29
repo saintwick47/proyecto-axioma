@@ -110,7 +110,7 @@ mss==10.2.0
 opencv-python==5.0.0.93
 # Push-to-talk (src/multimodal/ptt_axioma.py) + sus dependencias de input en Linux
 pynput==1.8.2
-evdev==1.9.3
+evdev==1.9.3; sys_platform == "linux"
 python-xlib==0.33
 # ═══════════════════════════════════════════════════════════════
 # === ML / CLASSIFIERS ===
@@ -240,7 +240,7 @@ multidict==7.2.1
 yarl==1.25.1
 h11==0.16.0
 propcache==0.4.1
-uvloop==0.22.1
+uvloop==0.22.1; sys_platform == "linux"
 watchfiles==1.1.1
 watchdog==6.0.0
 # ═══════════════════════════════════════════════════════════════
@@ -296,5 +296,5 @@ greenlet==3.5.1
 zipp==3.23.1
 importlib_metadata==8.7.1
 importlib_resources==7.1.0
-pyatspi==2.58.2
+pyatspi==2.58.2; sys_platform == "linux"
 dnspython==2.9.0

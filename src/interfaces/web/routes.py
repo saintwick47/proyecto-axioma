@@ -497,8 +497,11 @@ async def analyze_file_endpoint(request: FileAnalysisRequest) -> FileAnalysisRes
         # ✅ 2026-09-01: extracción de TEXTO REAL (PDF/DOCX parseados) en vez
         # de leer bytes crudos — antes un PDF binario crasheaba o inyectaba
         # basura al LLM. Límite subido de 5000 a 150000 chars.
+        # ✅ 2026-10-29 (Qwen/auditoría): la extracción (PDF/DOCX) y el LLM son SYNC y estaban
+        # dentro de un `async def`: bloqueaban el event loop de NiceGUI/FastAPI (una subida grande
+        # congelaba la web entera). Van a un hilo.
         from src.utils.file_text import extract_file_text
-        content = extract_file_text(file_path, max_chars=150_000)
+        content = await asyncio.to_thread(extract_file_text, file_path, 150_000)
         # Determinar tipo de análisis
         file_ext = Path(file_path).suffix.lower()
         analysis_type = request.analysis_type
@@ -506,7 +509,7 @@ async def analyze_file_endpoint(request: FileAnalysisRequest) -> FileAnalysisRes
         from src.agents.analyst import AnalystAgent
         analyst = AnalystAgent()
         message = Message(content=f"Analiza este archivo {file_ext}:\n{content}", role="user")
-        result = analyst.execute(message, analysis_type=analysis_type)
+        result = await asyncio.to_thread(analyst.execute, message, analysis_type=analysis_type)
         duration = time.time() - start_time
         _log_web_event("API", f"POST /api/v1/analyze_file - SUCCESS - {duration:.2f}ms",
                        extra={"file_id": request.file_id, "analysis_type": analysis_type})

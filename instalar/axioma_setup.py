@@ -184,6 +184,14 @@ def extraer(tarball: Path, destino: Path) -> bool:
                 try:
                     tf.extractall(tmp, filter="data")  # Python 3.12+: sin rutas peligrosas
                 except TypeError:  # pragma: no cover - Python < 3.12
+                    # ✅ 2026-10-29 (CVE-2007-4559): sin `filter="data"` hay que validar a mano:
+                    # nada absoluto, nada con "..", nada de enlaces (símbolicos o duros).
+                    for miembro in tf.getmembers():
+                        nombre = miembro.name.replace("\\", "/")
+                        if (nombre.startswith("/") or ".." in nombre.split("/")
+                                or miembro.issym() or miembro.islnk()):
+                            raise tarfile.TarError(
+                                f"el paquete trae una entrada peligrosa: {miembro.name!r}")
                     tf.extractall(tmp)
         except (tarfile.TarError, OSError) as e:
             mal(f"Lo descargado no se pudo descomprimir: {e}")

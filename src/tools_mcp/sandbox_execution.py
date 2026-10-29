@@ -67,7 +67,10 @@ import subprocess
 import sys
 import tempfile
 import time
-import resource
+try:  # ✅ 2026-10-29: `resource` no existe en Windows; el módulo se importaba y explotaba.
+    import resource
+except ImportError:  # pragma: no cover - sólo Windows
+    resource = None  # type: ignore[assignment]
 import shutil
 from dataclasses import dataclass, field
 from enum import Enum

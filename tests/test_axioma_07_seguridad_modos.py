@@ -643,3 +643,46 @@ class TestTokenCubreTodaLaApiCuandoEstaExpuesta:
     def test_en_loopback_no_se_pide_token(self, tmp_path, monkeypatch):
         cliente, _ = _cliente_expuesto(tmp_path, monkeypatch, bind="127.0.0.1", host="127.0.0.1")
         assert cliente.get("/v1/stats").status_code == 200
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 7F. /analyze_file no bloquea el event loop y la caché cierra en orden (2026-10-29)
+# ════════════════════════════════════════════════════════════════════════════
+
+def test_analyze_file_corre_fuera_del_event_loop(monkeypatch, tmp_path):
+    """La extracción y el LLM son SYNC: si corren dentro del async, congelan la web."""
+    import asyncio
+    import threading
+    import src.utils.file_text as ft
+    import src.agents.analyst as an
+    from src.interfaces.web import routes
+
+    (tmp_path / "uploads").mkdir()
+    (tmp_path / "uploads" / "prueba.txt").write_text("hola", encoding="utf-8")
+    monkeypatch.setattr(routes.Paths, "DATA", tmp_path, raising=False)
+    hilos: list = []
+
+    def _extraer(*_a, **_k):
+        hilos.append(threading.current_thread().name)
+        return "contenido"
+
+    class _Analista:
+        def execute(self, *_a, **_k):
+            hilos.append(threading.current_thread().name)
+            return type("R", (), {"success": True, "content": "ok", "error": None})()
+
+    monkeypatch.setattr(ft, "extract_file_text", _extraer)
+    monkeypatch.setattr(an, "AnalystAgent", _Analista)
+    respuesta = asyncio.run(routes.analyze_file_endpoint(
+        routes.FileAnalysisRequest(file_id="prueba.txt")))
+    assert respuesta.success is True
+    assert len(hilos) == 2 and all(h != threading.current_thread().name for h in hilos), (
+        f"corrieron en el hilo del loop: {hilos}")
+
+
+def test_router_cache_close_es_seguro_e_idempotente(tmp_path):
+    from src.router.cache import RouterCache
+    cache = RouterCache(enable_l2=True, enable_l3=False, persist_path=tmp_path / "rc.json")
+    cache.close()
+    cache.close()
+    assert cache._l2_db is None

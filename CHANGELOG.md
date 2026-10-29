@@ -7,6 +7,29 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Auditoría de Qwen: 7 arreglos de coherencia y bloqueo (2026-10-29)
+
+- **`/analyze_file` bloqueaba el event loop**: `extract_file_text` (PDF/DOCX) y `analyst.execute`
+  (LLM) son síncronos y corrían dentro de un `async def`, congelando la web mientras se analizaba un
+  archivo. Ahora van con `asyncio.to_thread` (verificado con un test que comprueba que corren fuera
+  del hilo del loop).
+- **`Dockerfile` desincronizado**: fijaba `torch==2.11.0+cpu` y `sentence-transformers==5.4.1`;
+  `requirements.txt` ya usa `2.14.1+cpu` y `6.2.0`. Alineado (con test que compara ambos archivos).
+- **`docker-compose.yml`**: `HF_HOME=/app/cache/huggingface` apuntaba a una carpeta que **no estaba
+  montada**, así que el modelo de embeddings se volvía a descargar en cada `down`/`up`. Se agregó
+  `./cache:/app/cache` a `axioma-puente`.
+- **`sandbox_execution.py`**: `import resource` a nivel de módulo (no existe en Windows) → el módulo
+  no importaba. Ahora está protegido con `try/except ImportError` y `resource = None`.
+- **Apagado**: `_shutdown_handler` ahora cierra la caché del router (`RouterCache.close()`, nuevo):
+  los datos de L2 ya se commitean por escritura, esto cierra la conexión SQLite en orden.
+- **`requirements.txt`/`requirements-ci.txt`**: `evdev`, `uvloop` y `pyatspi` (sólo Linux) llevan
+  `; sys_platform == "linux"` para no romper la instalación en Windows.
+- **Extracción del tarball (CVE-2007-4559)**: en Python < 3.12 no hay `filter="data"`; ahora se
+  validan los miembros (nada absoluto, nada con `..`, nada de enlaces) antes de `extractall`. Test
+  con un tar malicioso (`../evil.txt`): se rechaza y no escribe fuera.
+
+Suite **27/27** (1223 tests) · auditor **117** (0/0/0) · deuda **68** · gate **15/15**.
+
 ### Desinstalador: empezar de cero sin dejar basura (2026-10-28)
 
 - **Nuevo** `instalar/desinstalar_axioma.ps1` + `.sh` (y `DESINSTALAR_AXIOMA.bat` para doble clic), y

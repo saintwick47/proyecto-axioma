@@ -124,6 +124,9 @@ services:
       # dentro del contenedor y NO es volumen → se perdían al recrearlo. Montado, quedan en tu equipo.
       - ./.env:/app/.env
       - ./logs:/app/logs
+      # ✅ 2026-10-29: `HF_HOME=/app/cache/huggingface` apuntaba a una carpeta NO montada: el modelo
+      # de embeddings se volvía a bajar en cada `down`/`up` (antes 4,3 GB; hoy 638 MB).
+      - ./cache:/app/cache
       - ./config:/app/config
     extra_hosts:
       - "host.docker.internal:host-gateway"    # Linux: hace que el nombre resuelva al equipo
