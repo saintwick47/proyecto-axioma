@@ -14,6 +14,7 @@
 # del bloque de imagen sin arrancar nada.
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -280,3 +281,58 @@ def test_la_extraccion_rechaza_rutas_peligrosas(tmp_path):
     destino = tmp_path / "AXIOMA"
     assert axioma_setup.extraer(malo, destino) is False, "tenía que rechazarse"
     assert not (tmp_path.parent / "evil.txt").exists()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Diagnóstico previo del .exe (2026-10-30, pedido tras el error de credenciales)
+# ════════════════════════════════════════════════════════════════════════════
+
+def _ejecutable(tmp_path, nombre, contenido):
+    from pathlib import Path as _Path
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    exe = bin_dir / nombre
+    exe.write_text(contenido, encoding="utf-8")
+    exe.chmod(0o755)
+    return bin_dir
+
+
+def test_solo_diagnostico_sale_0_si_docker_responde(tmp_path, monkeypatch):
+    import subprocess
+    bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nexit 0\n")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    r = subprocess.run([sys.executable, str(_raiz() / "instalar" / "axioma_setup.py"),
+                        "--solo-diagnostico", "--destino", str(tmp_path / "AX")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Sin problemas críticos" in r.stdout
+
+
+def test_solo_diagnostico_sale_4_si_docker_no_responde(tmp_path, monkeypatch):
+    import subprocess
+    bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nexit 1\n")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    r = subprocess.run([sys.executable, str(_raiz() / "instalar" / "axioma_setup.py"),
+                        "--solo-diagnostico", "--destino", str(tmp_path / "AX")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 4, r.stdout + r.stderr
+    assert "crítico" in r.stdout.lower()
+
+
+def test_sin_ayudante_de_credenciales_usa_un_config_temporal(tmp_path, monkeypatch):
+    import importlib.util
+    bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nexit 0\n")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.delenv("DOCKER_CONFIG", raising=False)
+    spec = importlib.util.spec_from_file_location("setup_diag", _raiz() / "instalar" / "axioma_setup.py")
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    ruta = modulo._config_sin_credenciales()
+    assert ruta is not None
+    from pathlib import Path as _Path
+    assert (_Path(ruta) / "config.json").is_file()
+    assert "credsStore" not in (_Path(ruta) / "config.json").read_text(encoding="utf-8")
+    # Y si el ayudante existe, no toca nada.
+    _ejecutable(tmp_path, "docker-credential-desktop", "#!/bin/sh\nexit 0\n")
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:/usr/bin:/bin")
+    assert modulo._config_sin_credenciales() is None

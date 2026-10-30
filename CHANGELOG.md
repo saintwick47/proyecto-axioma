@@ -7,6 +7,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### El `.exe` diagnostica antes de instalar y esquiva el ayudante de credenciales (2026-10-30)
+
+- **Motivo medido (dos instalaciones reales)**: Docker Desktop con `credsStore: desktop` y
+  `docker-credential-desktop` fuera del PATH hace fallar pull, build y up con
+  `error getting credentials ... not found in %PATH%`. Los instaladores ya lo reintentaban **comando
+  por comando**; ahora el `.exe` prepara **un `DOCKER_CONFIG` temporal sin `credsStore` para toda la
+  corrida** (cubre también el build, que era donde volvía a aparecer).
+- **Comprobaciones previas** (idea de Qwen, acotada a lo que ya sabemos medir): Docker responde,
+  espacio libre (≥ 15 GB para imagen + modelos), WSL 2 en Windows y ayudante de credenciales. Los
+  problemas **críticos** (sin Docker o sin espacio) frenan con un mensaje claro; los avisos se
+  explican y se sigue.
+- **Nuevo modo** `AXIOMA-Setup.exe --solo-diagnostico`: corre esas comprobaciones, deja el diagnóstico
+  completo (versiones, docker info, compose, logs, puertos) y sale 0/4 sin instalar nada.
+- **Verificación**: 3 tests nuevos (sale 0 con Docker OK, sale 4 si Docker no responde, el config
+  temporal se crea sin `credsStore` y no se toca si el ayudante existe).
+
 ### Auditoría de Qwen: 7 arreglos de coherencia y bloqueo (2026-10-29)
 
 - **`/analyze_file` bloqueaba el event loop**: `extract_file_text` (PDF/DOCX) y `analyst.execute`

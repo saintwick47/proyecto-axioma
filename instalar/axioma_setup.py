@@ -347,6 +347,87 @@ def escribir_diagnostico(destino: Path) -> "Path | None":
         return None
 
 
+def _config_sin_credenciales() -> "str | None":
+    """Si Docker no tiene su ayudante de credenciales, prepara un DOCKER_CONFIG temporal.
+
+    ✅ 2026-10-30 (MEDIDO en Windows, dos veces): Docker Desktop con `credsStore: desktop` y el
+    ejecutable `docker-credential-desktop` fuera del PATH hace fallar CUALQUIER comando que
+    consulte credenciales (pull/build/up) con:
+        error getting credentials - err: exec: "docker-credential-desktop": ... not found in %PATH%
+    AXIOMA usa sólo imágenes públicas, así que un config sin `credsStore` para esta corrida evita
+    el problema de raíz (los instaladores ya lo hacen por comando; esto lo hace para TODO el run).
+    """
+    if shutil.which("docker-credential-desktop") or shutil.which("docker-credential-pass"):
+        return None
+    try:
+        cfg = Path(tempfile.mkdtemp(prefix="axioma-dcfg-"))
+        (cfg / "config.json").write_text('{"auths":{}}', encoding="utf-8")
+        return str(cfg)
+    except OSError as e:  # noqa: BLE001 — si no se puede, se sigue con el entorno tal cual
+        aviso(f"No pude preparar un DOCKER_CONFIG temporal: {e}")
+        return None
+
+
+def diagnostico_previo(destino: Path) -> tuple:
+    """Comprobaciones ANTES de instalar: Docker, espacio, WSL y ayudante de credenciales.
+
+    ✅ 2026-10-30 (idea de Qwen, acotada a lo que ya sabemos medir): devuelve (críticos, avisos).
+    Los críticos impiden instalar (sin Docker o sin espacio no hay nada que hacer); los avisos se
+    explican y se sigue.
+    """
+    criticos: list = []
+    avisos: list = []
+    paso("Comprobaciones previas")
+
+    # Docker (con el Desktop ya arrancado por el paso 1)
+    try:
+        r = subprocess.run(["docker", "info"], capture_output=True, timeout=10)
+        if r.returncode == 0:
+            ok("Docker responde")
+        else:
+            criticos.append("Docker instalado pero no responde")
+            mal("Docker instalado pero no responde (¿Docker Desktop cerrado?)")
+    except Exception as e:  # noqa: BLE001
+        criticos.append(f"Docker no se pudo ejecutar ({type(e).__name__})")
+        mal(f"Docker no se pudo ejecutar: {e}")
+
+    # Espacio en disco (imagen ~5,5 GB + modelos ~6,6 GB + margen)
+    base = destino if destino.exists() else Path.home()
+    try:
+        libres = shutil.disk_usage(base).free / (1024 ** 3)
+        if libres < 15:
+            criticos.append(f"Sólo {libres:.1f} GB libres (hacen falta ~15 GB)")
+            mal(f"Espacio: {libres:.1f} GB libres (hacen falta ~15 GB)")
+        else:
+            ok(f"Espacio: {libres:.1f} GB libres")
+    except OSError as e:  # noqa: BLE001
+        avisos.append(f"No se pudo medir el disco: {e}")
+
+    # WSL 2 (sólo Windows; Docker Desktop lo necesita)
+    if ES_WINDOWS:
+        try:
+            r = subprocess.run(["wsl", "--status"], capture_output=True, timeout=10)
+            if r.returncode == 0:
+                ok("WSL 2 disponible")
+            else:
+                avisos.append("WSL 2 no parece configurado (Docker Desktop lo necesita)")
+                aviso("WSL 2 no parece configurado: Docker Desktop lo necesita")
+        except FileNotFoundError:
+            avisos.append("WSL no está instalado")
+            aviso("WSL no está instalado (Docker Desktop lo necesita)")
+        except Exception as e:  # noqa: BLE001
+            avisos.append(f"No se pudo comprobar WSL: {e}")
+
+    # Ayudante de credenciales (el error que ya nos costó dos instalaciones)
+    if shutil.which("docker-credential-desktop") or shutil.which("docker-credential-pass"):
+        ok("Ayudante de credenciales de Docker presente")
+    else:
+        avisos.append("Docker no encuentra su ayudante de credenciales")
+        aviso("Docker no encuentra 'docker-credential-desktop': uso un DOCKER_CONFIG temporal")
+        print("     (las imágenes de AXIOMA son públicas: no hacen falta credenciales)")
+    return criticos, avisos
+
+
 def desinstalar(destino: Path, todo: bool = False) -> int:
     """Ejecuta el desinstalador del proyecto (lo deja limpio para empezar de cero).
 
@@ -391,6 +472,8 @@ def main() -> int:
                         help="muestra qué haría, sin descargar ni tocar nada")
     parser.add_argument("--solo-descargar", action="store_true", dest="solo_descargar",
                         help="descarga y descomprime, y se detiene (para revisar)")
+    parser.add_argument("--solo-diagnostico", action="store_true", dest="solo_diagnostico",
+                        help="sólo comprueba el equipo (Docker, espacio, WSL, credenciales) y sale")
     parser.add_argument("--desinstalar", action="store_true",
                         help="quita contenedores, imágenes, accesos directos y la carpeta de AXIOMA")
     parser.add_argument("--todo", action="store_true",
@@ -401,6 +484,19 @@ def main() -> int:
 
     if args.desinstalar:
         return desinstalar(destino, todo=args.todo)
+
+    # ✅ 2026-10-30: modo diagnóstico solo (no instala nada).
+    if args.solo_diagnostico:
+        paso("AXIOMA - diagnóstico del equipo (no instala)")
+        criticos, avisos = diagnostico_previo(destino)
+        ruta = escribir_diagnostico(destino) if destino.is_dir() else None
+        if ruta:
+            print(f"\n   Diagnóstico completo en: {ruta}")
+        if criticos:
+            mal(f"{len(criticos)} problema(s) crítico(s): " + "; ".join(criticos))
+            return 4
+        ok("Sin problemas críticos: el equipo puede instalar AXIOMA")
+        return 0
 
     # Un repositorio válido siempre es `dueno/nombre`: sin `/`, es la plantilla sin estampar.
     if "/" not in REPO:
@@ -431,6 +527,19 @@ def main() -> int:
         print("     Linux:   sudo systemctl start docker")
         return 4
     ok(f"Docker responde ({platform.system()})")
+
+    # ✅ 2026-10-30: si falta el ayudante de credenciales, un DOCKER_CONFIG temporal para TODO el run
+    # (mejor que reintentar comando por comando: cubre pull, build y up).
+    _cfg = _config_sin_credenciales()
+    if _cfg:
+        os.environ["DOCKER_CONFIG"] = _cfg
+
+    # ✅ 2026-10-30: comprobaciones previas (espacio/WSL/credenciales). Los críticos frenan.
+    criticos, _avisos = diagnostico_previo(destino)
+    if criticos:
+        mal("No se puede instalar todavía: " + "; ".join(criticos))
+        print("     Corregí eso y volvé a ejecutar el instalador (o AXIOMA-Setup.exe --solo-diagnostico).")
+        return 4
 
     # ── 2. Descarga ─────────────────────────────────────────────────────────
     url = f"https://github.com/{REPO}/archive/{args.version}.tar.gz"
