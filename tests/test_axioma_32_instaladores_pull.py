@@ -242,7 +242,10 @@ def _raiz():
 
 def test_el_dockerfile_usa_las_mismas_versiones_que_requirements():
     import re
+    import pytest
     raiz = _raiz()
+    if not (raiz / "Dockerfile").is_file():
+        pytest.skip("el Dockerfile no viaja dentro de la imagen: sólo el código")
     docker = (raiz / "Dockerfile").read_text(encoding="utf-8")
     reqs = (raiz / "requirements.txt").read_text(encoding="utf-8")
     for paquete in ("torch", "sentence-transformers"):
@@ -254,12 +257,20 @@ def test_el_dockerfile_usa_las_mismas_versiones_que_requirements():
 
 
 def test_el_compose_monta_la_cache_de_embeddings():
-    compose = (_raiz() / "docker-compose.yml").read_text(encoding="utf-8")
+    import pytest
+    archivo = _raiz() / "docker-compose.yml"
+    if not archivo.is_file():
+        pytest.skip("el compose no viaja dentro de la imagen: sólo el código")
+    compose = archivo.read_text(encoding="utf-8")
     assert "./cache:/app/cache" in compose, "sin este montaje el modelo se re-descarga en cada arranque"
 
 
 def test_las_dependencias_solo_linux_llevan_marcador():
-    reqs = (_raiz() / "requirements.txt").read_text(encoding="utf-8")
+    import pytest
+    archivo = _raiz() / "requirements.txt"
+    if not archivo.is_file():
+        pytest.skip("requirements.txt no viaja dentro de la imagen")
+    reqs = archivo.read_text(encoding="utf-8")
     for paquete in ("evdev", "uvloop", "pyatspi"):
         linea = next((ln for ln in reqs.splitlines() if ln.startswith(f"{paquete}==")), None)
         assert linea, f"falta {paquete}"
