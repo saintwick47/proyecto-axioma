@@ -368,7 +368,7 @@ def _config_sin_credenciales() -> "str | None":
         return None
 
 
-def diagnostico_previo(destino: Path) -> tuple:
+def diagnostico_previo(destino: Path, ensayo: bool = False) -> tuple:
     """Comprobaciones ANTES de instalar: Docker, espacio, WSL y ayudante de credenciales.
 
     ✅ 2026-10-30 (idea de Qwen, acotada a lo que ya sabemos medir): devuelve (críticos, avisos).
@@ -377,19 +377,14 @@ def diagnostico_previo(destino: Path) -> tuple:
     """
     criticos: list = []
     avisos: list = []
-    paso("Comprobaciones previas")
+    paso("Diagnóstico previo")
 
-    # Docker (con el Desktop ya arrancado por el paso 1)
-    try:
-        r = subprocess.run(["docker", "info"], capture_output=True, timeout=10)
-        if r.returncode == 0:
-            ok("Docker responde")
-        else:
-            criticos.append("Docker instalado pero no responde")
-            mal("Docker instalado pero no responde (¿Docker Desktop cerrado?)")
-    except Exception as e:  # noqa: BLE001
-        criticos.append(f"Docker no se pudo ejecutar ({type(e).__name__})")
-        mal(f"Docker no se pudo ejecutar: {e}")
+    # Docker: si Docker Desktop está cerrado, se abre y se espera (mismo criterio que el paso 1).
+    if asegurar_docker(ensayo):
+        ok("Docker responde")
+    else:
+        criticos.append("Docker no disponible")
+        mal("Docker no está disponible (instalá Docker Desktop o abrilo)")
 
     # Espacio en disco (imagen ~5,5 GB + modelos ~6,6 GB + margen). El umbral se puede bajar con
     # AXIOMA_ESPACIO_MIN_GB (los tests del contenedor lo ponen en 0: el disco del runner es chico).
@@ -513,6 +508,17 @@ def main() -> int:
     if args.dry_run:
         aviso("modo ensayo: no voy a descargar ni a tocar nada")
 
+    # ✅ 2026-10-30 (pedido del usuario: "diagnosticar ANTES de instalar y seguir si todo está bien"):
+    # el diagnóstico va primero y con su propio encabezado. Si hay críticos, frena acá.
+    _cfg = _config_sin_credenciales()
+    if _cfg:
+        os.environ["DOCKER_CONFIG"] = _cfg
+    criticos, _avisos = diagnostico_previo(destino, ensayo=args.dry_run)
+    if criticos:
+        mal("No se puede instalar todavía: " + "; ".join(criticos))
+        print("     Corregí eso y volvé a ejecutar el instalador (o AXIOMA-Setup.exe --solo-diagnostico).")
+        return 4
+
     # ── 1. Docker ───────────────────────────────────────────────────────────
     paso("Paso 1 de 4: Docker (es el programa que ejecuta AXIOMA)")
     desktop = buscar_docker_desktop()          # tambien arregla el PATH si hace falta
@@ -528,20 +534,7 @@ def main() -> int:
         print("              (si te pide aceptar los terminos o actualizar WSL, hacelo y volve a ejecutar esto)")
         print("     Linux:   sudo systemctl start docker")
         return 4
-    ok(f"Docker responde ({platform.system()})")
-
-    # ✅ 2026-10-30: si falta el ayudante de credenciales, un DOCKER_CONFIG temporal para TODO el run
-    # (mejor que reintentar comando por comando: cubre pull, build y up).
-    _cfg = _config_sin_credenciales()
-    if _cfg:
-        os.environ["DOCKER_CONFIG"] = _cfg
-
-    # ✅ 2026-10-30: comprobaciones previas (espacio/WSL/credenciales). Los críticos frenan.
-    criticos, _avisos = diagnostico_previo(destino)
-    if criticos:
-        mal("No se puede instalar todavía: " + "; ".join(criticos))
-        print("     Corregí eso y volvé a ejecutar el instalador (o AXIOMA-Setup.exe --solo-diagnostico).")
-        return 4
+    ok(f"Docker listo ({platform.system()})")
 
     # ── 2. Descarga ─────────────────────────────────────────────────────────
     url = f"https://github.com/{REPO}/archive/{args.version}.tar.gz"

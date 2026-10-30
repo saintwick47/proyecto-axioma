@@ -338,3 +338,18 @@ def test_sin_ayudante_de_credenciales_usa_un_config_temporal(tmp_path, monkeypat
     _ejecutable(tmp_path, "docker-credential-desktop", "#!/bin/sh\nexit 0\n")
     monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:/usr/bin:/bin")
     assert modulo._config_sin_credenciales() is None
+
+
+def test_el_exe_diagnostica_antes_de_instalar(tmp_path, monkeypatch):
+    """Pedido del usuario: el diagnóstico tiene que ir PRIMERO, no después de 'Paso 1 de 4'."""
+    import subprocess
+    bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nexit 0\n")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.setenv("AXIOMA_REPO", "dueno/repo")
+    monkeypatch.setenv("AXIOMA_ESPACIO_MIN_GB", "0")
+    r = subprocess.run([sys.executable, str(_raiz() / "instalar" / "axioma_setup.py"),
+                        "--dry-run", "--destino", str(tmp_path / "AX")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.index("Diagnóstico previo") < r.stdout.index("Paso 1 de 4"), (
+        "el diagnóstico tiene que aparecer antes de empezar los pasos de instalación")
