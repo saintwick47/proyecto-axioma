@@ -7,6 +7,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### El lanzador ya no usa `--profile`: falla en Docker 29.8.2 (2026-10-30)
+
+- **Medido en la instalación real (Windows, Docker 29.8.2)**: `docker compose --profile puente ...`
+  termina con `unknown flag: --profile` y el paso 6 no arranca (el error de credenciales de la primera
+  vuelta tapaba este otro).
+- **Arreglo**: se dejó de usar `--profile` en todos los guiones (lanzadores, desinstaladores y
+  diagnóstico) y se **nombran los servicios** (`up -d axioma-puente [ollama]`); Compose habilita el
+  perfil del servicio nombrado. `down` también va sin perfiles (baja todo el proyecto).
+- **Tests ajustados** al contrato nuevo: el lanzador de Windows no puede contener `--profile` en su
+  código y tiene que nombrar `axioma-puente` y `ollama`; el ensayo de Linux muestra
+  `up -d axioma ollama`.
+
 ### El `.exe` diagnostica antes de instalar y esquiva el ayudante de credenciales (2026-10-30)
 
 - **Motivo medido (dos instalaciones reales)**: Docker Desktop con `credsStore: desktop` y

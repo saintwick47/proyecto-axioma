@@ -61,9 +61,9 @@ if ($hayDocker) {
     $compose = Join-Path $Raiz "docker-compose.yml"
     if (Test-Path $compose) {
         if ($Todo) {
-            & docker compose -f $compose --profile puente --profile ollama-local down --remove-orphans -v
+            & docker compose -f $compose down --remove-orphans -v
         } else {
-            & docker compose -f $compose --profile puente --profile ollama-local down --remove-orphans
+            & docker compose -f $compose down --remove-orphans
         }
         if ($LASTEXITCODE -eq 0) { ok "contenedores de AXIOMA borrados$(if ($Todo) { ' (con volumenes)' })" }
         else { aviso "no se pudieron borrar del todo (mira los mensajes de arriba)" }

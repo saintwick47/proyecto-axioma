@@ -735,10 +735,10 @@ function Recolectar-Estado {
     } else {
         [void](Ejecutar "docker ps -a" "docker" 'ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"' $TimeoutDocker)
         if ($Raiz -and (Test-Path -LiteralPath (Join-Path $Raiz "docker-compose.yml"))) {
-            $cfg = Ejecutar "docker compose config (solo valida, no muestra valores)" "docker" "compose --profile puente config -q" 60 $Raiz
+            $cfg = Ejecutar "docker compose config (solo valida, no muestra valores)" "docker" "compose config -q" 60 $Raiz
             if (($cfg.Codigo -ne 0) -and (-not $cfg.Timeout)) { Hallazgo "CRITICO" ("'docker compose config' falla: " + (Recortar ($cfg.Error + " " + $cfg.Salida) 300)) "Es el mismo error que va a dar al encender AXIOMA: suele ser un .env que es carpeta, un YAML danado o una variable faltante." }
-            [void](Ejecutar "docker compose ps -a" "docker" "compose --profile puente --profile ollama-local ps -a" 60 $Raiz)
-            [void](Ejecutar "docker compose logs (ultimas 200 lineas)" "docker" "compose --profile puente --profile ollama-local logs --no-color --tail 200" 90 $Raiz)
+            [void](Ejecutar "docker compose ps -a" "docker" "compose ps -a" 60 $Raiz)
+            [void](Ejecutar "docker compose logs (ultimas 200 lineas)" "docker" "compose logs --no-color --tail 200" 90 $Raiz)
         }
         $nombres = @()
         $lst = Ejecutar "nombres de contenedores" "docker" 'ps -a --format "{{.Names}}"' 30 "" -Silencioso

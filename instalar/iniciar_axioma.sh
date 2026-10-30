@@ -37,9 +37,9 @@ mal()  { printf '  ❌ %s\n' "$*"; }
 
 if $DETENER; then
   paso "Apagando AXIOMA"
-  if $DRY; then echo "  (ensayo) docker compose --profile ollama-local down"; exit 0; fi
+  if $DRY; then echo "  (ensayo) docker compose down"; exit 0; fi
   cd "$RAIZ"
-  docker compose --profile ollama-local down
+  docker compose down
   ok "AXIOMA apagado. Tus datos y tus claves quedan guardados en la carpeta del proyecto."
   exit 0
 fi
@@ -63,10 +63,10 @@ ok "Docker responde"
 paso "Buscando Ollama"
 OLLAMA_HOST_EFECTIVO="${AXIOMA_OLLAMA_HOST:-127.0.0.1:11434}"
 if curl -s --max-time 3 "http://${OLLAMA_HOST_EFECTIVO}/api/tags" >/dev/null 2>&1; then
-  PERFIL=""
+  SERVICIOS="axioma"
   ok "Ya tenés Ollama andando en ${OLLAMA_HOST_EFECTIVO}: uso ese (no hace falta otro)."
 else
-  PERFIL="--profile ollama-local"
+  SERVICIOS="axioma ollama"
   aviso "No encontré Ollama en ${OLLAMA_HOST_EFECTIVO}."
   ok "Levanto el Ollama que viene con AXIOMA (los modelos quedan guardados en un volumen)."
 fi
@@ -112,12 +112,11 @@ elif [ ! -f .env ] && [ -f .env.example ]; then
 fi
 paso "Encendiendo AXIOMA"
 if $DRY; then
-  echo "  (ensayo) cd $RAIZ && docker compose ${PERFIL} up -d"
+  echo "  (ensayo) cd $RAIZ && docker compose up -d ${SERVICIOS}"
   echo "  (ensayo) abriría $URL cuando responda"
   exit 0
 fi
 cd "$RAIZ"
-# shellcheck disable=SC2086  # PERFIL puede ir vacío a propósito
 # El código de salida se MIRA (como en el guion de Windows): sin esto, `set -e` cortaba el guion con el
 # error crudo de Docker y la persona no sabía que hacer. Medido el 2026-10-06: pasa cuando ya hay otro
 # AXIOMA andando (el nombre del contenedor está en uso) o cuando el motor de Docker no está sano.
@@ -131,12 +130,12 @@ cd "$RAIZ"
 # reintenta UNA vez con un DOCKER_CONFIG temporal sin credsStore (las imágenes son públicas).
 log_up=$(mktemp)
 up_ok=0
-if ! docker compose ${PERFIL} up -d >"$log_up" 2>&1; then
+if ! docker compose up -d ${SERVICIOS} >"$log_up" 2>&1; then
   if grep -qiE "credential|error getting credentials" "$log_up"; then
     aviso "Docker no encontró su ayudante de credenciales: reintento sin él (las imágenes son públicas)."
     cfg_tmp=$(mktemp -d)
     printf '{"auths":{}}' > "$cfg_tmp/config.json"
-    if DOCKER_CONFIG="$cfg_tmp" docker compose ${PERFIL} up -d >>"$log_up" 2>&1; then
+    if DOCKER_CONFIG="$cfg_tmp" docker compose up -d ${SERVICIOS} >>"$log_up" 2>&1; then
       up_ok=1
     fi
     rm -rf "$cfg_tmp"

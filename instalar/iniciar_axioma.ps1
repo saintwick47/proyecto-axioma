@@ -153,12 +153,12 @@ function Hay-OllamaEnElEquipo {
 # ── Apagar ──────────────────────────────────────────────────────────────────
 if ($Detener) {
     paso "Apagando AXIOMA"
-    $comando = "docker compose --profile puente --profile ollama-local down"
+    $comando = "docker compose down"
     if ($Ensayo) { Write-Host "  (ensayo) $comando"; exit 0 }
     if (-not (Probar-Docker)) { Explicar-FaltaDocker; exit 4 }
     Push-Location $Raiz
     try {
-        try { & docker compose --profile puente --profile ollama-local down }
+        try { & docker compose down }
         catch { aviso "Docker devolvió un error al apagar: revisá que Docker Desktop esté abierto." }
     } finally { Pop-Location }
     ok "AXIOMA apagado. Tus datos y tus claves quedan guardados en la carpeta del proyecto."
@@ -217,16 +217,16 @@ if ($Ensayo) {
 # ── 3. ¿Usamos el Ollama del equipo o el que trae AXIOMA? ───────────────────
 paso "Buscando Ollama"
 # Los servicios se nombran UNO POR UNO a propósito. Medido el 2026-10-06 en Linux: `docker compose
-# --profile puente up -d` levanta ADEMÁS el servicio `axioma` (no tiene perfil, arranca siempre), y
+# `up -d` a secas levanta ADEMÁS el servicio `axioma` (no tiene perfil, arranca siempre), y
 # como ése usa la red del equipo, los dos pelean por el puerto 8080: `axioma` queda en bucle de
 # reinicios y en Windows directamente no puede usar esa red. Por eso: `axioma-puente` y, si hace
 # falta, `ollama`.
 if (Hay-OllamaEnElEquipo) {
-    $perfilOllama = @()
+    # 2026-10-30 (MEDIDO en Windows, Docker 29.8.2): `docker compose --profile ...` falla con
+    # "unknown flag: --profile". No hace falta: al NOMBRAR el servicio, Compose habilita su perfil.
     $servicios = @("axioma-puente")
     ok "Ya tenés Ollama andando en 127.0.0.1:11434: uso ese (no hace falta otro)."
 } else {
-    $perfilOllama = @("--profile", "ollama-local")
     $servicios = @("axioma-puente", "ollama")
     aviso "No encontré Ollama en 127.0.0.1:11434."
     ok "Levanto el Ollama que viene con AXIOMA (los modelos quedan guardados en un volumen)."
@@ -235,7 +235,7 @@ if (Hay-OllamaEnElEquipo) {
 # ── 4. Encender, esperar y abrir el navegador ───────────────────────────────
 paso "Encendiendo AXIOMA"
 if ($Ensayo) {
-    Write-Host "  (ensayo) cd $Raiz; docker compose --profile puente $($perfilOllama -join ' ') up -d $($servicios -join ' ')"
+    Write-Host "  (ensayo) cd $Raiz; docker compose up -d $($servicios -join ' ')"
     Write-Host "  (ensayo) abriría $Url cuando responda"
     exit 0
 }
@@ -258,7 +258,7 @@ try {
     $encendido = $true
     $eapAntes = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    try { $salida = (& docker compose --profile puente @perfilOllama up -d @servicios 2>&1 | Out-String) } catch { $encendido = $false }
+    try { $salida = (& docker compose up -d @servicios 2>&1 | Out-String) } catch { $encendido = $false }
     $codigo = $LASTEXITCODE
     $ErrorActionPreference = $eapAntes
     if ($encendido) { $encendido = ($codigo -eq 0) }
@@ -272,7 +272,7 @@ try {
         $ErrorActionPreference = "Continue"
         try {
             $env:DOCKER_CONFIG = $cfgTmp
-            $salida = (& docker compose --profile puente @perfilOllama up -d @servicios 2>&1 | Out-String)
+            $salida = (& docker compose up -d @servicios 2>&1 | Out-String)
             $codigo = $LASTEXITCODE
             $encendido = ($codigo -eq 0)
         } catch { $encendido = $false } finally {

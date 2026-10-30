@@ -65,10 +65,10 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   paso "Apagando y borrando los contenedores de AXIOMA"
   if [ -f "$RAIZ/docker-compose.yml" ]; then
     if $TODO; then
-      docker compose --profile puente --profile ollama-local down --remove-orphans -v \
+      docker compose down --remove-orphans -v \
         && ok "contenedores y volúmenes de AXIOMA borrados" || aviso "no se pudieron borrar del todo"
     else
-      docker compose --profile puente --profile ollama-local down --remove-orphans \
+      docker compose down --remove-orphans \
         && ok "contenedores de AXIOMA borrados (volúmenes conservados)" || aviso "no se pudieron borrar del todo"
     fi
   else

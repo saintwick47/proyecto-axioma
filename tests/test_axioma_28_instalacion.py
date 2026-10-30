@@ -715,13 +715,13 @@ def _lanzador_con(tmp_path, docker_ok=True, ollama_en_el_equipo=False, audio_gid
 def test_sin_ollama_en_el_equipo_el_lanzador_levanta_el_de_axioma(tmp_path):
     salida = _lanzador_con(tmp_path, ollama_en_el_equipo=False)
     assert salida.returncode == 0, salida.stderr
-    assert "ollama-local" in salida.stdout, salida.stdout
+    assert "up -d axioma ollama" in salida.stdout, salida.stdout
     assert "Levanto el Ollama que viene con AXIOMA" in salida.stdout, salida.stdout
 
 def test_con_ollama_en_el_equipo_el_lanzador_usa_ese_y_no_levanta_otro(tmp_path):
     salida = _lanzador_con(tmp_path, ollama_en_el_equipo=True)
     assert salida.returncode == 0, salida.stderr
-    assert "--profile ollama-local" not in salida.stdout, salida.stdout
+    assert "--profile" not in salida.stdout, salida.stdout
     assert "uso ese" in salida.stdout, salida.stdout
 
 def test_si_docker_no_responde_el_lanzador_lo_explica_y_no_sigue(tmp_path):

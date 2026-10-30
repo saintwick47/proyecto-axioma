@@ -443,11 +443,11 @@ def test_los_guiones_de_windows_nombran_perfiles_y_servicios_que_existen():
         codigo = _codigo_ps1(texto)
         assert "network_mode" not in codigo, (
             f"{nombre} no debe tocar `network_mode`: eso es de compose, no del guion")
-    # El que elige el perfil es el lanzador: el instalador sólo arma la imagen y lo llama.
+    # 2026-10-30 (MEDIDO): Docker 29.8.2 falla con "unknown flag: --profile" ⇒ se nombran servicios.
     lanzador = (PROJECT_ROOT / "instalar" / "iniciar_axioma.ps1").read_bytes().decode("utf-8-sig")
-    usados = set(re.findall(r"--profile\s+([A-Za-z0-9_-]+)", lanzador))
-    assert "puente" in usados, "el lanzador tiene que usar el perfil «puente» en Windows"
-    assert "ollama-local" in usados, "tiene que poder levantar el Ollama propio (perfil ollama-local)"
+    codigo_lanzador = _codigo_ps1(lanzador)
+    assert "--profile" not in codigo_lanzador, "en Docker 29.8.2 falla con 'unknown flag'"
+    assert '"axioma-puente"' in codigo_lanzador and '"ollama"' in codigo_lanzador, "servicios nombrados"
 
 
 @_sin_empaquetado
@@ -458,7 +458,7 @@ def test_el_lanzador_de_windows_hace_lo_mismo_que_el_de_linux():
     assert "docker-desktop" in texto, "si falta Docker tiene que decir de dónde bajarlo"
     # 2) decide solo entre el Ollama del equipo y el que trae AXIOMA (misma decisión que Linux)
     assert "/api/tags" in texto and "11434" in texto, "no busca el Ollama del equipo"
-    assert "ollama-local" in texto, "no sabe levantar el Ollama propio si no hay ninguno"
+    assert '"ollama"' in texto, "no sabe levantar el Ollama propio si no hay ninguno"
     # 3) espera a que responda y abre el navegador
     assert "Start-Process $Url" in texto, "no abre el navegador al terminar"
     # 3.b) nombra el servicio UNO POR UNO. Medido en Linux el 2026-10-06: `--profile puente` a secas
