@@ -53,6 +53,27 @@ function Probar-Docker {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Comando-Compose {
+    # 2026-10-30 (MEDIDO en Windows): si falta el plugin Compose v2, `docker compose ...` cae al CLI
+    # de `docker` y el flag siguiente se interpreta como propio ("unknown shorthand flag: 'd' in -d").
+    # Devuelve la lista del Compose que funcione, o $null si no hay ninguno.
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { return $null }
+    try { & docker compose version *> $null } catch { }
+    if ($LASTEXITCODE -eq 0) { return @("docker", "compose") }
+    if (Get-Command docker-compose -ErrorAction SilentlyContinue) {
+        try { & docker-compose version *> $null } catch { return $null }
+        if ($LASTEXITCODE -eq 0) { return @("docker-compose") }
+    }
+    return $null
+}
+
+function Invocar-Compose {
+    param([string[]]$Compose, [string[]]$Argumentos)
+    $previos = @()
+    if ($Compose.Count -gt 1) { $previos = $Compose[1..($Compose.Count - 1)] }
+    & $Compose[0] @previos @Argumentos
+}
+
 function Buscar-DockerDesktopExe {
     # Docker Desktop se instala "para todos" (Program Files) o SOLO para el usuario
     # (%LOCALAPPDATA%\Programs\DockerDesktop): hay que mirar los dos sitios. Como último recurso se
@@ -156,9 +177,15 @@ if ($Detener) {
     $comando = "docker compose down"
     if ($Ensayo) { Write-Host "  (ensayo) $comando"; exit 0 }
     if (-not (Probar-Docker)) { Explicar-FaltaDocker; exit 4 }
+    $compose = Comando-Compose
+    if ($null -eq $compose) {
+        mal "Docker Compose no está disponible (Docker lo necesita para apagar AXIOMA)."
+        Write-Host "     Probá:  docker compose version"
+        exit 4
+    }
     Push-Location $Raiz
     try {
-        try { & docker compose down }
+        try { Invocar-Compose -Compose $compose -Argumentos @("down") }
         catch { aviso "Docker devolvió un error al apagar: revisá que Docker Desktop esté abierto." }
     } finally { Pop-Location }
     ok "AXIOMA apagado. Tus datos y tus claves quedan guardados en la carpeta del proyecto."
@@ -168,6 +195,16 @@ if ($Detener) {
 # ── 1. ¿Está Docker? ────────────────────────────────────────────────────────
 paso "Comprobando Docker"
 if (-not (Asegurar-Docker)) { Explicar-FaltaDocker; exit 4 }
+# 2026-10-30 (MEDIDO): sin el plugin Compose v2, `docker compose ...` cae al CLI de docker y el
+# flag siguiente se toma como propio ("unknown shorthand flag: 'd' in -d"). Se elige el que ande.
+$compose = Comando-Compose
+if ($null -eq $compose) {
+    mal "Docker Compose no está disponible (Docker lo necesita para encender AXIOMA)."
+    Write-Host "     Probá:  docker compose version"
+    Write-Host "     Docker Desktop lo incluye; si tenés otro 'docker' en el PATH, quitálo o actualizá Docker Desktop."
+    exit 4
+}
+ok ("Compose: " + ($compose -join " "))
 ok "Docker responde ($(& docker --version))"
 
 if ($env:AXIOMA_PUERTO -and $env:AXIOMA_PUERTO -ne "$Puerto") {
@@ -235,7 +272,7 @@ if (Hay-OllamaEnElEquipo) {
 # ── 4. Encender, esperar y abrir el navegador ───────────────────────────────
 paso "Encendiendo AXIOMA"
 if ($Ensayo) {
-    Write-Host "  (ensayo) cd $Raiz; docker compose up -d $($servicios -join ' ')"
+    Write-Host "  (ensayo) cd $Raiz; $($compose -join ' ') up -d $($servicios -join ' ')"
     Write-Host "  (ensayo) abriría $Url cuando responda"
     exit 0
 }
@@ -258,7 +295,7 @@ try {
     $encendido = $true
     $eapAntes = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    try { $salida = (& docker compose up -d @servicios 2>&1 | Out-String) } catch { $encendido = $false }
+    try { $salida = (Invocar-Compose -Compose $compose -Argumentos (@("up", "-d") + $servicios) 2>&1 | Out-String) } catch { $encendido = $false }
     $codigo = $LASTEXITCODE
     $ErrorActionPreference = $eapAntes
     if ($encendido) { $encendido = ($codigo -eq 0) }

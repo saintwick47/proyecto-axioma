@@ -386,6 +386,21 @@ def diagnostico_previo(destino: Path, ensayo: bool = False) -> tuple:
         criticos.append("Docker no disponible")
         mal("Docker no está disponible (instalá Docker Desktop o abrilo)")
 
+    # Compose: si falta el plugin v2, `docker compose ...` cae al CLI de docker y el flag siguiente se
+    # interpreta como propio ("unknown shorthand flag: 'd' in -d" / "unknown flag: --profile"). Se
+    # comprueba ANTES de descargar nada (2026-10-30, medido en Windows; causa confirmada buscando el
+    # mensaje: es el fallthrough del CLI cuando no está el plugin Compose v2).
+    if subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=15).returncode == 0:
+        ok("Docker Compose disponible (docker compose)")
+    elif shutil.which("docker-compose") and subprocess.run(
+            ["docker-compose", "version"], capture_output=True, timeout=15).returncode == 0:
+        ok("Docker Compose disponible (docker-compose v1)")
+    else:
+        criticos.append("Falta Docker Compose (el plugin v2 o docker-compose)")
+        mal("Docker Compose no está disponible: sin él AXIOMA no se puede arrancar")
+        print("     Probá:  docker compose version")
+        print("     Docker Desktop lo incluye; si hay otro 'docker' en el PATH, quitálo o actualizá Docker Desktop.")
+
     # Espacio en disco (imagen ~5,5 GB + modelos ~6,6 GB + margen). El umbral se puede bajar con
     # AXIOMA_ESPACIO_MIN_GB (los tests del contenedor lo ponen en 0: el disco del runner es chico).
     minimo_gb = float(os.environ.get("AXIOMA_ESPACIO_MIN_GB", "15"))

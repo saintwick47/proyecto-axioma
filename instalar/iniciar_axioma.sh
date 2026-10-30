@@ -30,16 +30,31 @@ for arg in "$@"; do
   esac
 done
 
+# 2026-10-30 (MEDIDO en Windows): si falta el plugin Compose v2, `docker compose ...` cae al CLI de
+# `docker` y el flag siguiente se interpreta como propio ("unknown shorthand flag: 'd' in -d").
+# Se usa el Compose que funcione; si no hay ninguno, se explica en vez de fallar raro.
+detectar_compose() {
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE=(docker compose)
+  elif command -v docker-compose >/dev/null 2>&1 && docker-compose version >/dev/null 2>&1; then
+    COMPOSE=(docker-compose)
+  else
+    COMPOSE=()
+  fi
+}
+COMPOSE=(docker compose)
+
 paso() { printf '\n▶ %s\n' "$*"; }
 ok()   { printf '  ✅ %s\n' "$*"; }
 aviso(){ printf '  ⚠️  %s\n' "$*"; }
 mal()  { printf '  ❌ %s\n' "$*"; }
 
 if $DETENER; then
+  detectar_compose
   paso "Apagando AXIOMA"
-  if $DRY; then echo "  (ensayo) docker compose down"; exit 0; fi
+  if $DRY; then echo "  (ensayo) ${COMPOSE[*]} down"; exit 0; fi
   cd "$RAIZ"
-  docker compose down
+  "${COMPOSE[@]}" down
   ok "AXIOMA apagado. Tus datos y tus claves quedan guardados en la carpeta del proyecto."
   exit 0
 fi
@@ -58,6 +73,14 @@ if ! docker info >/dev/null 2>&1; then
   exit 4
 fi
 ok "Docker responde"
+detectar_compose
+if [ ${#COMPOSE[@]} -eq 0 ]; then
+  mal "Docker Compose no está disponible (Docker lo necesita para armar y encender AXIOMA)."
+  echo "     Probá:  docker compose version"
+  echo "     Docker Desktop lo incluye; si tenés otro 'docker' en el PATH, quitálo o actualizá Docker Desktop."
+  exit 4
+fi
+ok "Compose: ${COMPOSE[*]}"
 
 # ── 2. ¿Usamos el Ollama del equipo o el que trae AXIOMA? ───────────────────
 paso "Buscando Ollama"
@@ -112,7 +135,7 @@ elif [ ! -f .env ] && [ -f .env.example ]; then
 fi
 paso "Encendiendo AXIOMA"
 if $DRY; then
-  echo "  (ensayo) cd $RAIZ && docker compose up -d ${SERVICIOS}"
+  echo "  (ensayo) cd $RAIZ && ${COMPOSE[*]} up -d ${SERVICIOS}"
   echo "  (ensayo) abriría $URL cuando responda"
   exit 0
 fi
@@ -130,12 +153,12 @@ cd "$RAIZ"
 # reintenta UNA vez con un DOCKER_CONFIG temporal sin credsStore (las imágenes son públicas).
 log_up=$(mktemp)
 up_ok=0
-if ! docker compose up -d ${SERVICIOS} >"$log_up" 2>&1; then
+if ! "${COMPOSE[@]}" up -d ${SERVICIOS} >"$log_up" 2>&1; then
   if grep -qiE "credential|error getting credentials" "$log_up"; then
     aviso "Docker no encontró su ayudante de credenciales: reintento sin él (las imágenes son públicas)."
     cfg_tmp=$(mktemp -d)
     printf '{"auths":{}}' > "$cfg_tmp/config.json"
-    if DOCKER_CONFIG="$cfg_tmp" docker compose up -d ${SERVICIOS} >>"$log_up" 2>&1; then
+    if DOCKER_CONFIG="$cfg_tmp" "${COMPOSE[@]}" up -d ${SERVICIOS} >>"$log_up" 2>&1; then
       up_ok=1
     fi
     rm -rf "$cfg_tmp"

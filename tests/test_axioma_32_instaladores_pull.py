@@ -353,3 +353,30 @@ def test_el_exe_diagnostica_antes_de_instalar(tmp_path, monkeypatch):
     assert r.returncode == 0, r.stdout + r.stderr
     assert r.stdout.index("Diagnóstico previo") < r.stdout.index("Paso 1 de 4"), (
         "el diagnóstico tiene que aparecer antes de empezar los pasos de instalación")
+
+
+def test_sin_compose_el_diagnostico_frena(tmp_path, monkeypatch):
+    """Causa confirmada (2026-10-30): sin el plugin Compose v2, `docker compose ...` cae al CLI."""
+    import subprocess
+    bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nif [ \"$1\" = \"compose\" ]; then exit 1; fi\nexit 0\n")
+    _ejecutable(tmp_path, "docker-compose", "#!/bin/sh\nexit 1\n")  # tapa el del sistema
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.setenv("AXIOMA_ESPACIO_MIN_GB", "0")
+    r = subprocess.run([sys.executable, str(_raiz() / "instalar" / "axioma_setup.py"),
+                        "--solo-diagnostico", "--destino", str(tmp_path / "AX")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 4, r.stdout + r.stderr
+    assert "Compose" in r.stdout
+
+
+def test_sin_compose_pero_con_docker_compose_v1_sigue(tmp_path, monkeypatch):
+    import subprocess
+    bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nif [ \"$1\" = \"compose\" ]; then exit 1; fi\nexit 0\n")
+    _ejecutable(tmp_path, "docker-compose", "#!/bin/sh\nexit 0\n")
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.setenv("AXIOMA_ESPACIO_MIN_GB", "0")
+    r = subprocess.run([sys.executable, str(_raiz() / "instalar" / "axioma_setup.py"),
+                        "--solo-diagnostico", "--destino", str(tmp_path / "AX")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "docker-compose v1" in r.stdout

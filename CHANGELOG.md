@@ -7,6 +7,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Compose se detecta antes de usarlo: fin del "unknown shorthand flag: 'd' in -d" (2026-10-30)
+
+- **Causa confirmada buscando el mensaje**: cuando falta el **plugin Compose v2**, `docker compose ...`
+  **cae al CLI de `docker`**, que interpreta el flag siguiente como propio. Por eso el error cambió de
+  `unknown flag: --profile` a `unknown shorthand flag: 'd' in -d` según el comando. Referencia:
+  [commit de multica que documenta el fallthrough](https://github.com/multica-ai/multica/commit/9c1d8d265974447bca5d2fccf6bc3f9031fd684b)
+  y la [pregunta de Stack Overflow con el mismo error](https://stackoverflow.com/questions/72446973/unknown-shorthand-flag-d-in-d-docker-compose).
+- **Arreglo en los lanzadores** (`.ps1`/`.sh`): se detecta el Compose que funcione
+  (`docker compose version` → `docker-compose version`) y se usa ése; si no hay ninguno, se explica y
+  se sale con 4 **antes** de tocar nada.
+- **Arreglo en el `.exe`**: el diagnóstico previo comprueba Compose y lo marca crítico, así frena antes
+  de descargar.
+- **Tests**: sin Compose ⇒ diagnóstico 4; con `docker-compose` v1 ⇒ sigue; el lanzador de Linux usa la
+  detección (con `docker` falso).
+
 ### El lanzador ya no usa `--profile`: falla en Docker 29.8.2 (2026-10-30)
 
 - **Medido en la instalación real (Windows, Docker 29.8.2)**: `docker compose --profile puente ...`

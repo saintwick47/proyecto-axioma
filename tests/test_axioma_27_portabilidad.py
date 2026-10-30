@@ -721,7 +721,7 @@ def test_el_ci_ejecuta_los_instaladores_de_linux():
 
     # Y el lanzador de Linux tiene que MIRAR el código de Docker, como el de Windows: si el contenedor
     lanzador = (PROJECT_ROOT / "instalar" / "iniciar_axioma.sh").read_text(encoding="utf-8")
-    assert "if ! docker compose" in lanzador, "el lanzador de Linux no comprueba si Docker pudo encender"
+    assert 'if ! "${COMPOSE[@]}" up' in lanzador, "el lanzador de Linux no comprueba si Docker pudo encender"
     assert "Docker no pudo encender AXIOMA" in lanzador, "no explica el fallo en castellano"
 
 
