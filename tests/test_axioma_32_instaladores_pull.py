@@ -298,6 +298,7 @@ def _ejecutable(tmp_path, nombre, contenido):
 
 
 def test_solo_diagnostico_sale_0_si_docker_responde(tmp_path, monkeypatch):
+    monkeypatch.setenv("AXIOMA_ESPACIO_MIN_GB", "0")
     import subprocess
     bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nexit 0\n")
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
@@ -309,6 +310,7 @@ def test_solo_diagnostico_sale_0_si_docker_responde(tmp_path, monkeypatch):
 
 
 def test_solo_diagnostico_sale_4_si_docker_no_responde(tmp_path, monkeypatch):
+    monkeypatch.setenv("AXIOMA_ESPACIO_MIN_GB", "0")
     import subprocess
     bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nexit 1\n")
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")

@@ -391,13 +391,15 @@ def diagnostico_previo(destino: Path) -> tuple:
         criticos.append(f"Docker no se pudo ejecutar ({type(e).__name__})")
         mal(f"Docker no se pudo ejecutar: {e}")
 
-    # Espacio en disco (imagen ~5,5 GB + modelos ~6,6 GB + margen)
+    # Espacio en disco (imagen ~5,5 GB + modelos ~6,6 GB + margen). El umbral se puede bajar con
+    # AXIOMA_ESPACIO_MIN_GB (los tests del contenedor lo ponen en 0: el disco del runner es chico).
+    minimo_gb = float(os.environ.get("AXIOMA_ESPACIO_MIN_GB", "15"))
     base = destino if destino.exists() else Path.home()
     try:
         libres = shutil.disk_usage(base).free / (1024 ** 3)
-        if libres < 15:
-            criticos.append(f"Sólo {libres:.1f} GB libres (hacen falta ~15 GB)")
-            mal(f"Espacio: {libres:.1f} GB libres (hacen falta ~15 GB)")
+        if libres < minimo_gb:
+            criticos.append(f"Sólo {libres:.1f} GB libres (hacen falta ~{minimo_gb:.0f} GB)")
+            mal(f"Espacio: {libres:.1f} GB libres (hacen falta ~{minimo_gb:.0f} GB)")
         else:
             ok(f"Espacio: {libres:.1f} GB libres")
     except OSError as e:  # noqa: BLE001
