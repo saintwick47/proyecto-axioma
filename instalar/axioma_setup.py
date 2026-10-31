@@ -409,7 +409,8 @@ def diagnostico_previo(destino: Path, ensayo: bool = False) -> tuple:
     paso("Diagnóstico previo")
 
     # Docker: si Docker Desktop está cerrado, se abre y se espera (mismo criterio que el paso 1).
-    if asegurar_docker(ensayo):
+    docker_ok = asegurar_docker(ensayo)
+    if docker_ok:
         ok("Docker responde")
     elif ensayo:
         # ✅ 2026-10-31 (medido en un Windows real): en --dry-run NO se abre Docker Desktop, así que
@@ -424,7 +425,9 @@ def diagnostico_previo(destino: Path, ensayo: bool = False) -> tuple:
     # interpreta como propio ("unknown shorthand flag: 'd' in -d" / "unknown flag: --profile"). Se
     # comprueba ANTES de descargar nada (2026-10-30, medido en Windows; causa confirmada buscando el
     # mensaje: es el fallthrough del CLI cuando no está el plugin Compose v2).
-    if subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=15).returncode == 0:
+    if not docker_ok:
+        avisos.append("Compose no se comprobó (Docker no responde)")
+    elif subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=15).returncode == 0:
         ok("Docker Compose disponible (docker compose)")
     elif shutil.which("docker-compose") and subprocess.run(
             ["docker-compose", "version"], capture_output=True, timeout=15).returncode == 0:

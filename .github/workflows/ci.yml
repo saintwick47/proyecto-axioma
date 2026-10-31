@@ -65,7 +65,7 @@ jobs:
       # sentence-transformers después de torch (su dep torch ya está satisfecha)
       - name: Instalar sentence-transformers
         run: |
-          pip install sentence-transformers==5.4.1
+          pip install sentence-transformers==6.2.0
 
       # v0.6.9n: libs de sistema que los tests necesitan (audio/multimodal):
       # sounddevice requiere PortAudio (no trae la lib) y soundfile libsndfile.
@@ -160,7 +160,7 @@ jobs:
             exit 0
           fi
           echo "::error::reporte: $ultimo"
-          grep -E "^- FAIL:" "$ultimo" | head -5 | sed 's/^/::error::/' || true
+          grep -E "^[[:space:]]*- FAIL:" "$ultimo" | head -5 | sed 's/^/::error::/' || true
           grep -E "^\s*\|.*❌" "$ultimo" | head -8 | sed 's/^/::error::/' || true
 
       - name: Quality gate
