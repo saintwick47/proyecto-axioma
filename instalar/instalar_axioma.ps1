@@ -34,6 +34,31 @@ function ok    { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundCol
 function aviso { param([string]$Texto) Write-Host "  [!]  $Texto" -ForegroundColor Yellow }
 function mal   { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundColor Red }
 
+function Carpetas-PluginsDocker {
+    # 2026-10-31 (MEDIDO en Windows): un DOCKER_CONFIG temporal deja a Docker SIN sus plugins (compose,
+    # buildx), que viven en <config>\cli-plugins: `docker compose up -d` fallaba con "unknown shorthand
+    # flag: 'd' in -d" y AXIOMA no arrancaba. Devuelve las carpetas de plugins que existen, para pasarlas
+    # en `cliPluginsExtraDirs` del config temporal.
+    $candidatas = New-Object System.Collections.ArrayList
+    if ($env:DOCKER_CONFIG) { [void]$candidatas.Add((Join-Path $env:DOCKER_CONFIG "cli-plugins")) }
+    if ($env:USERPROFILE)   { [void]$candidatas.Add((Join-Path $env:USERPROFILE ".docker\cli-plugins")) }
+    try {
+        $cli = Get-Command docker -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($cli -and $cli.Source) {
+            [void]$candidatas.Add((Join-Path (Split-Path -Parent (Split-Path -Parent $cli.Source)) "cli-plugins"))
+        }
+    } catch { }
+    return @($candidatas | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique)
+}
+
+function Escribir-ConfigSinCredenciales {
+    # Config de Docker sin `credsStore` (AXIOMA sólo usa imágenes públicas) pero CON los plugins reales.
+    param([string]$Carpeta)
+    $config = [ordered]@{ auths = @{}; cliPluginsExtraDirs = @(Carpetas-PluginsDocker) }
+    [IO.File]::WriteAllText((Join-Path $Carpeta "config.json"), (ConvertTo-Json -InputObject $config -Compress -Depth 4),
+        (New-Object System.Text.UTF8Encoding($false)))
+}
+
 # ── Registro de pasos: es lo que permite decir EN QUÉ PASO falló ────────────
 $Fallos = New-Object System.Collections.ArrayList
 
@@ -425,8 +450,7 @@ if ($Ensayo) {
                 $cfgOriginal = $env:DOCKER_CONFIG
                 try {
                     New-Item -ItemType Directory -Force -Path $cfgTemp | Out-Null
-                    [IO.File]::WriteAllText((Join-Path $cfgTemp "config.json"), '{"auths":{}}',
-                        (New-Object System.Text.UTF8Encoding($false)))
+                    Escribir-ConfigSinCredenciales -Carpeta $cfgTemp
                     $env:DOCKER_CONFIG = $cfgTemp
                     $armado = Invoke-Build
                 } finally {

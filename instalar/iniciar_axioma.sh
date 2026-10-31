@@ -44,6 +44,28 @@ detectar_compose() {
 }
 COMPOSE=(docker compose)
 
+carpetas_plugins_docker() {
+  # 2026-10-31 (causa confirmada en Windows, aplica igual en Linux): un DOCKER_CONFIG temporal deja a
+  # Docker SIN sus plugins (compose/buildx), que viven en <config>/cli-plugins; entonces `docker compose`
+  # desaparece y el CLI parsea el flag siguiente ("unknown shorthand flag"). Se listan las carpetas reales.
+  for d in "${DOCKER_CONFIG:-}/cli-plugins" "$HOME/.docker/cli-plugins" \
+           /usr/libexec/docker/cli-plugins /usr/local/lib/docker/cli-plugins /usr/lib/docker/cli-plugins; do
+    [ -n "$d" ] && [ -d "$d" ] && printf '%s\n' "$d"
+  done
+}
+
+escribir_config_sin_credenciales() {
+  # Config sin credsStore (AXIOMA usa sólo imágenes públicas) pero CON los plugins reales.
+  local destino="$1" lista="" d
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    lista="${lista:+$lista,}\"$d\""
+  done <<EOF
+$(carpetas_plugins_docker)
+EOF
+  printf '{"auths":{},"cliPluginsExtraDirs":[%s]}\n' "$lista" > "$destino/config.json"
+}
+
 paso() { printf '\n▶ %s\n' "$*"; }
 ok()   { printf '  ✅ %s\n' "$*"; }
 aviso(){ printf '  ⚠️  %s\n' "$*"; }
@@ -157,7 +179,7 @@ if ! "${COMPOSE[@]}" up -d ${SERVICIOS} >"$log_up" 2>&1; then
   if grep -qiE "credential|error getting credentials" "$log_up"; then
     aviso "Docker no encontró su ayudante de credenciales: reintento sin él (las imágenes son públicas)."
     cfg_tmp=$(mktemp -d)
-    printf '{"auths":{}}' > "$cfg_tmp/config.json"
+    escribir_config_sin_credenciales "$cfg_tmp"
     if DOCKER_CONFIG="$cfg_tmp" "${COMPOSE[@]}" up -d ${SERVICIOS} >>"$log_up" 2>&1; then
       up_ok=1
     fi

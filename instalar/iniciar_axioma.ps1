@@ -39,6 +39,47 @@ function ok    { param([string]$Texto) Write-Host "  [OK] $Texto" -ForegroundCol
 function aviso { param([string]$Texto) Write-Host "  [!]  $Texto" -ForegroundColor Yellow }
 function mal   { param([string]$Texto) Write-Host "  [X]  $Texto" -ForegroundColor Red }
 
+function Carpetas-PluginsDocker {
+    # 2026-10-31 (MEDIDO en Windows): un DOCKER_CONFIG temporal deja a Docker SIN sus plugins (compose,
+    # buildx), que viven en <config>\cli-plugins: `docker compose up -d` fallaba con "unknown shorthand
+    # flag: 'd' in -d" y AXIOMA no arrancaba. Devuelve las carpetas de plugins que existen, para pasarlas
+    # en `cliPluginsExtraDirs` del config temporal.
+    $candidatas = New-Object System.Collections.ArrayList
+    if ($env:DOCKER_CONFIG) { [void]$candidatas.Add((Join-Path $env:DOCKER_CONFIG "cli-plugins")) }
+    if ($env:USERPROFILE)   { [void]$candidatas.Add((Join-Path $env:USERPROFILE ".docker\cli-plugins")) }
+    try {
+        $cli = Get-Command docker -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($cli -and $cli.Source) {
+            [void]$candidatas.Add((Join-Path (Split-Path -Parent (Split-Path -Parent $cli.Source)) "cli-plugins"))
+        }
+    } catch { }
+    return @($candidatas | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique)
+}
+
+function Escribir-ConfigSinCredenciales {
+    # Config de Docker sin `credsStore` (AXIOMA sólo usa imágenes públicas) pero CON los plugins reales.
+    param([string]$Carpeta)
+    $config = [ordered]@{ auths = @{}; cliPluginsExtraDirs = @(Carpetas-PluginsDocker) }
+    [IO.File]::WriteAllText((Join-Path $Carpeta "config.json"), (ConvertTo-Json -InputObject $config -Compress -Depth 4),
+        (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Salir-Con-Pausa {
+    # El acceso directo abre una ventana que se cierra sola al terminar: sin esta pausa el mensaje de
+    # error se perdía y parecía que AXIOMA "no se ejecuta" (medido 2026-10-31). No pausa en ensayo ni
+    # si la entrada/salida está redirigida (pruebas, instalador, tareas programadas).
+    param([int]$Codigo)
+    if (-not $Ensayo) {
+        try {
+            if (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
+                Write-Host ""
+                [void](Read-Host "  Presioná Enter para cerrar esta ventana")
+            }
+        } catch { }
+    }
+    exit $Codigo
+}
+
 $Raiz = Split-Path -Parent $PSScriptRoot
 $Puerto = 8080                     # el mapeo del servicio `axioma-puente` (Windows no tiene red de equipo)
 $Url = "http://127.0.0.1:$Puerto/"
@@ -194,7 +235,7 @@ if ($Detener) {
 
 # ── 1. ¿Está Docker? ────────────────────────────────────────────────────────
 paso "Comprobando Docker"
-if (-not (Asegurar-Docker)) { Explicar-FaltaDocker; exit 4 }
+if (-not (Asegurar-Docker)) { Explicar-FaltaDocker; Salir-Con-Pausa 4 }
 # 2026-10-30 (MEDIDO): sin el plugin Compose v2, `docker compose ...` cae al CLI de docker y el
 # flag siguiente se toma como propio ("unknown shorthand flag: 'd' in -d"). Se elige el que ande.
 $compose = Comando-Compose
@@ -202,7 +243,7 @@ if ($null -eq $compose) {
     mal "Docker Compose no está disponible (Docker lo necesita para encender AXIOMA)."
     Write-Host "     Probá:  docker compose version"
     Write-Host "     Docker Desktop lo incluye; si tenés otro 'docker' en el PATH, quitálo o actualizá Docker Desktop."
-    exit 4
+    Salir-Con-Pausa 4
 }
 ok ("Compose: " + ($compose -join " "))
 ok "Docker responde ($(& docker --version))"
@@ -238,13 +279,13 @@ if ($Ensayo) {
             ok "Había una CARPETA vacía .env (la crea Docker cuando falta el archivo): la saqué y creé tu .env"
         } catch {
             mal "Hay una CARPETA llamada .env y no pude sacarla ($($_.Exception.Message))."
-            exit 4
+            Salir-Con-Pausa 4
         }
     } else {
         mal "Hay una CARPETA llamada .env con contenido: el montaje va a fallar."
         Write-Host "     Mirá qué tiene:  Get-ChildItem `"$archivoEnv`""
         Write-Host "     Si no te sirve, borrala:  Remove-Item -Recurse `"$archivoEnv`""
-        exit 4
+        Salir-Con-Pausa 4
     }
 } elseif ((Test-Path -LiteralPath $plantillaEnv) -and -not (Test-Path -LiteralPath $archivoEnv)) {
     Copy-Item -LiteralPath $plantillaEnv -Destination $archivoEnv
@@ -300,10 +341,11 @@ try {
     $ErrorActionPreference = $eapAntes
     if ($encendido) { $encendido = ($codigo -eq 0) }
     if (-not $encendido -and ($salida -match "credential|error getting credentials")) {
+        if ($salida) { Write-Host $salida }
         aviso "Docker no encontro su ayudante de credenciales: reintento sin el (las imagenes son publicas)."
         $cfgTmp = Join-Path ([System.IO.Path]::GetTempPath()) ("axioma-cfg-" + [guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Path $cfgTmp -Force | Out-Null
-        '{"auths":{}}' | Set-Content -Path (Join-Path $cfgTmp "config.json") -Encoding ascii
+        Escribir-ConfigSinCredenciales -Carpeta $cfgTmp
         $cfgAntes = $env:DOCKER_CONFIG
         $eapAntes2 = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
@@ -325,7 +367,7 @@ try {
     if ($salida) { Write-Host $salida }
     if (-not $encendido) {
         mal "Docker no pudo encender AXIOMA (mira los mensajes de arriba)."
-        exit 4
+        Salir-Con-Pausa 4
     }
 } finally { Pop-Location }
 ok "Contenedores encendidos"
@@ -352,4 +394,4 @@ for ($intento = 1; $intento -le 30; $intento++) {
 }
 mal "AXIOMA no respondió en un minuto."
 Write-Host "     Mirá qué dice con:  docker compose logs --tail 40 axioma-puente"
-exit 4
+Salir-Con-Pausa 4

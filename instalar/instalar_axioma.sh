@@ -26,6 +26,28 @@ for arg in "$@"; do
   esac
 done
 
+carpetas_plugins_docker() {
+  # 2026-10-31 (causa confirmada en Windows, aplica igual en Linux): un DOCKER_CONFIG temporal deja a
+  # Docker SIN sus plugins (compose/buildx), que viven en <config>/cli-plugins; entonces `docker compose`
+  # desaparece y el CLI parsea el flag siguiente ("unknown shorthand flag"). Se listan las carpetas reales.
+  for d in "${DOCKER_CONFIG:-}/cli-plugins" "$HOME/.docker/cli-plugins" \
+           /usr/libexec/docker/cli-plugins /usr/local/lib/docker/cli-plugins /usr/lib/docker/cli-plugins; do
+    [ -n "$d" ] && [ -d "$d" ] && printf '%s\n' "$d"
+  done
+}
+
+escribir_config_sin_credenciales() {
+  # Config sin credsStore (AXIOMA usa sólo imágenes públicas) pero CON los plugins reales.
+  local destino="$1" lista="" d
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    lista="${lista:+$lista,}\"$d\""
+  done <<EOF
+$(carpetas_plugins_docker)
+EOF
+  printf '{"auths":{},"cliPluginsExtraDirs":[%s]}\n' "$lista" > "$destino/config.json"
+}
+
 paso() { printf '\n▶ %s\n' "$*"; }
 ok()   { printf '  ✅ %s\n' "$*"; }
 aviso(){ printf '  ⚠️  %s\n' "$*"; }
@@ -195,7 +217,7 @@ else
     # La imagen es pública: un DOCKER_CONFIG temporal sin credenciales evita que `docker pull`
     # tropiece con el mismo ayudante roto que el build (`docker-credential-desktop`).
     CFG_PULL="${TMPDIR:-/tmp}/axioma-docker-config"
-    mkdir -p "$CFG_PULL" && printf '{"auths":{}}\n' > "$CFG_PULL/config.json"
+    mkdir -p "$CFG_PULL" && escribir_config_sin_credenciales "$CFG_PULL"
     LOG_PULL="${TMPDIR:-/tmp}/axioma-pull.log"
     for TAG in $TAGS_IMAGEN; do
       if DOCKER_CONFIG="$CFG_PULL" docker pull "$IMAGEN_GHCR:$TAG" 2>&1 | tee "$LOG_PULL"; then
@@ -221,7 +243,7 @@ else
     elif grep -qiE "docker-credential|error getting credentials" "$LOG_BUILD" 2>/dev/null; then
       aviso "Docker no encontró su ayudante de credenciales. AXIOMA usa sólo imágenes públicas: reintento con una configuración temporal."
       CFG_TMP="${TMPDIR:-/tmp}/axioma-docker-config"
-      mkdir -p "$CFG_TMP" && printf '{"auths":{}}\n' > "$CFG_TMP/config.json"
+      mkdir -p "$CFG_TMP" && escribir_config_sin_credenciales "$CFG_TMP"
       if DOCKER_CONFIG="$CFG_TMP" docker compose build 2>&1 | tee "$LOG_BUILD"; then
         ok "AXIOMA armado (con configuración temporal de Docker)"
       else

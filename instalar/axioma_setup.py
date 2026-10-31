@@ -28,6 +28,8 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import json
 import os
 import platform
 import shutil
@@ -347,6 +349,32 @@ def escribir_diagnostico(destino: Path) -> "Path | None":
         return None
 
 
+def _carpetas_plugins_docker() -> list[str]:
+    """Carpetas reales de plugins de Docker (compose, buildx) que existen en este equipo.
+
+    ✅ 2026-10-31 (MEDIDO en Windows): un DOCKER_CONFIG temporal deja a Docker SIN sus plugins, que
+    viven en `<config>/cli-plugins`: `docker compose up -d` fallaba con "unknown shorthand flag: 'd' in
+    -d" y AXIOMA no arrancaba. Se pasan en `cliPluginsExtraDirs` del config temporal.
+    """
+    candidatas: list[Path] = []
+    base = os.environ.get("DOCKER_CONFIG")
+    if base:
+        candidatas.append(Path(base) / "cli-plugins")
+    candidatas.append(Path.home() / ".docker" / "cli-plugins")
+    docker = shutil.which("docker")
+    if docker:
+        with contextlib.suppress(OSError):  # si no se puede resolver, quedan las otras carpetas
+            candidatas.append(Path(docker).resolve().parent.parent / "cli-plugins")
+    carpetas: list[str] = []
+    for c in candidatas:
+        try:
+            if c.is_dir() and str(c) not in carpetas:
+                carpetas.append(str(c))
+        except OSError:  # noqa: BLE001 — una carpeta ilegible no frena a las demás
+            continue
+    return carpetas
+
+
 def _config_sin_credenciales() -> "str | None":
     """Si Docker no tiene su ayudante de credenciales, prepara un DOCKER_CONFIG temporal.
 
@@ -361,7 +389,8 @@ def _config_sin_credenciales() -> "str | None":
         return None
     try:
         cfg = Path(tempfile.mkdtemp(prefix="axioma-dcfg-"))
-        (cfg / "config.json").write_text('{"auths":{}}', encoding="utf-8")
+        (cfg / "config.json").write_text(
+            json.dumps({"auths": {}, "cliPluginsExtraDirs": _carpetas_plugins_docker()}), encoding="utf-8")
         return str(cfg)
     except OSError as e:  # noqa: BLE001 — si no se puede, se sigue con el entorno tal cual
         aviso(f"No pude preparar un DOCKER_CONFIG temporal: {e}")
@@ -382,6 +411,11 @@ def diagnostico_previo(destino: Path, ensayo: bool = False) -> tuple:
     # Docker: si Docker Desktop está cerrado, se abre y se espera (mismo criterio que el paso 1).
     if asegurar_docker(ensayo):
         ok("Docker responde")
+    elif ensayo:
+        # ✅ 2026-10-31 (medido en un Windows real): en --dry-run NO se abre Docker Desktop, así que
+        # un Desktop cerrado daba "Docker no disponible" y salía 4: un falso error. En ensayo es aviso.
+        avisos.append("Docker Desktop cerrado (en ensayo no se abre)")
+        aviso("Docker Desktop está cerrado: en ensayo no lo abro (el instalador real lo abre y espera)")
     else:
         criticos.append("Docker no disponible")
         mal("Docker no está disponible (instalá Docker Desktop o abrilo)")
@@ -543,7 +577,9 @@ def main() -> int:
         print("              (necesita WSL 2: si te lo pide, 'wsl --install' como administrador y reinicia)")
         print("     Linux:   el de tu distribucion (o 'sudo systemctl start docker' si ya lo tenes)")
         return 4
-    if not asegurar_docker(args.dry_run):
+    if not asegurar_docker(args.dry_run) and args.dry_run:
+        aviso("(ensayo) Docker no responde; el instalador real abriria Docker Desktop o pediria instalarlo")
+    elif not asegurar_docker(args.dry_run):
         mal("Docker esta instalado pero no llego a responder (lo mas comun: Docker Desktop esta cerrado).")
         print("     Windows: abri Docker Desktop desde el menu Inicio y espera a que diga 'Engine running'")
         print("              (si te pide aceptar los terminos o actualizar WSL, hacelo y volve a ejecutar esto)")

@@ -29,6 +29,9 @@ búsqueda web, archivos y memoria persistente por usuario.
    en **Windows** además **WSL 2**.
 2. **Bajar el instalador de la página de _Releases_** (versión **v0.7.7**, lo más simple):
    - **Windows**: `AXIOMA-Setup.exe` — doble clic (necesita Docker Desktop con WSL 2).
+     Si el arranque falla con `unknown flag`/`unknown shorthand flag`: comprobá
+     `docker compose version` (si falla, falta el plugin Compose: actualizá Docker Desktop) y
+     `where.exe docker` (si hay varios, otro `docker.exe` tapa el de Docker Desktop).
      Para **desinstalar** y empezar de cero: `AXIOMA-Setup.exe --desinstalar` (o doble clic en
      `instalar\DESINSTALAR_AXIOMA.bat`). Conserva tus datos en `%USERPROFILE%\axioma-datos-<fecha>`;
      con `--todo` borra también datos y modelos descargados.

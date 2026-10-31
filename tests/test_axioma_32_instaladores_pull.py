@@ -391,3 +391,61 @@ def test_sin_compose_pero_con_docker_compose_v1_sigue(tmp_path, monkeypatch):
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "docker-compose v1" in r.stdout
+
+
+def test_dry_run_no_falla_si_docker_desktop_esta_cerrado(tmp_path, monkeypatch):
+    """MEDIDO 2026-10-31: en --dry-run no se abre Docker Desktop; un Desktop cerrado daba exit 4."""
+    import subprocess
+    bin_dir = _ejecutable(tmp_path, "docker", "#!/bin/sh\nexit 1\n")  # Docker no responde
+    monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    monkeypatch.setenv("AXIOMA_REPO", "dueno/repo")
+    monkeypatch.setenv("AXIOMA_ESPACIO_MIN_GB", "0")
+    r = subprocess.run([sys.executable, str(_raiz() / "instalar" / "axioma_setup.py"),
+                        "--dry-run", "--destino", str(tmp_path / "AX")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "en ensayo no lo abro" in r.stdout
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# El config temporal NO puede dejar a Docker sin plugins (2026-10-31, causa real)
+# ════════════════════════════════════════════════════════════════════════════
+
+def test_el_config_temporal_conserva_los_plugins_en_sh(tmp_path):
+    import subprocess
+    texto = (_raiz() / "instalar" / "iniciar_axioma.sh").read_text(encoding="utf-8")
+    inicio = texto.index("carpetas_plugins_docker()")
+    fin = texto.index("paso() {")
+    home = tmp_path / "home"
+    (home / ".docker" / "cli-plugins").mkdir(parents=True)
+    cfg = tmp_path / "cfg"
+    guion = texto[inicio:fin] + f'\nmkdir -p "{cfg}" && escribir_config_sin_credenciales "{cfg}"\n'
+    r = subprocess.run(["bash", "-c", guion], capture_output=True, text=True, timeout=30,
+                       env={"HOME": str(home), "PATH": "/usr/bin:/bin"})
+    assert r.returncode == 0, r.stderr
+    generado = (cfg / "config.json").read_text(encoding="utf-8")
+    assert str(home / ".docker" / "cli-plugins") in generado, "sin los plugins, compose desaparece"
+    assert '"auths":{}' in generado.replace(" ", "")
+
+
+def test_los_guiones_de_windows_conservan_los_plugins():
+    for nombre in ("iniciar_axioma.ps1", "instalar_axioma.ps1"):
+        texto = (_raiz() / "instalar" / nombre).read_text(encoding="utf-8-sig")
+        assert "cliPluginsExtraDirs" in texto, f"{nombre} deja a Docker sin plugins en el reintento"
+
+
+def test_el_exe_conserva_los_plugins_en_el_config_temporal(tmp_path, monkeypatch):
+    import sys
+    sys.path.insert(0, str(_raiz() / "instalar"))
+    import axioma_setup
+    home = tmp_path / "home"
+    (home / ".docker" / "cli-plugins").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("DOCKER_CONFIG", raising=False)
+    carpetas = axioma_setup._carpetas_plugins_docker()
+    assert str(home / ".docker" / "cli-plugins") in carpetas
+    ruta = axioma_setup._config_sin_credenciales()
+    assert ruta is not None
+    from pathlib import Path as _Path
+    generado = (_Path(ruta) / "config.json").read_text(encoding="utf-8")
+    assert "cliPluginsExtraDirs" in generado and str(home / ".docker" / "cli-plugins") in generado
