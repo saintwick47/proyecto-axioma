@@ -161,6 +161,13 @@ En esa misma pantalla, tocá **⬇️ Descargar los que faltan**. Vas a ver el a
 
 Son varios GB: es normal que tarde. Cuando termina, el renglón pasa a ✅ y podés cerrar la pantalla.
 
+**¿Querés otro modelo?** En la misma pantalla tocá **🧠 Modelos**: aparece la lista del catálogo con
+**para qué sirve cada uno**, cuánto ocupa, cuánta RAM necesita y si ya está instalado. Cada uno tiene su
+botón **⬇️ Instalar** con **barra de progreso** (GB descargados), así ves qué está pasando en todo
+momento. Después elegís el que quieras en **«¿Qué modelo querés usar en cada rol?»**.
+
+Para **cerrar AXIOMA**, tocá **🚪 Salir** y confirmá: AXIOMA se apaga y **la ventana se cierra sola**.
+
 ### 6.4 Cargá tus claves (opcional)
 
 Algunas funciones —**buscar en internet** y **noticias**— necesitan una clave **tuya y gratuita** que te da

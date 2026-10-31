@@ -7,6 +7,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Pantalla 🧠 Modelos: elegir del catálogo e instalar con progreso (2026-10-31)
+
+- **Pedido del usuario**: en *Configurar AXIOMA* sólo aparecían los modelos ya instalados; no había
+  lista para elegir según el equipo ni forma de ver el avance de la descarga.
+- **Nuevo botón 🧠 Modelos** dentro de *Configurar AXIOMA* (donde están las claves): lista el catálogo
+  con rol, para qué sirve, disco, RAM, estado (✅ instalado / ⬇️ falta) y **Instalar con barra de
+  progreso** (`OllamaClient.pull_model` + `on_progress`). No inventa modelos: todo sale de
+  `config/model_catalog.yaml`.
+- **Catálogo ampliado** con variantes para equipos con poca memoria y razonamiento:
+  `qwen2.5-coder:3b`, `llama3.2:3b`, `gemma3:4b`, `deepseek-r1:7b` (además de los obligatorios).
+- **Salir cierra la ventana**: `window.close()` al confirmar y el lanzador abre AXIOMA en **modo app**
+  (Edge/Chrome `--app=`), que es lo que permite cerrarla. En un navegador normal no se puede.
+- **Aclaración de privacidad**: el "dólar" usa `dolarapi.com`, que es gratis y **sin clave**; sólo si
+  falla cae a Tavily, con la clave del usuario (guardada en su `.env`).
+
 ### Compose se detecta antes de usarlo: fin del "unknown shorthand flag: 'd' in -d" (2026-10-30)
 
 - **Causa confirmada buscando el mensaje**: cuando falta el **plugin Compose v2**, `docker compose ...`
@@ -2218,7 +2233,7 @@ cualquier verificación estática previa.
   - `tools/run_diagnostic_suite.py` actualizado (`TOOLS_TESTS = []`).
 - ✅ **`tools/detailed_logger.py` v0.2.0** (usado por 59 archivos de src/):
   - Rutas portátiles derivadas de `__file__` (antes hardcodeadas a
-    `/ruta/a/axioma`).
+    `/home/saintwick/Escritorio/axioma`).
   - Singleton reiniciable (`reset()` / `_reset_singleton()`) — antes el
     segundo `initialize()` en tests fallaba silenciosamente.
   - Auto-crea `logs/` (antes exigía `mkdir -p` manual).

@@ -1,123 +1,349 @@
-# AXIOMA
+# 🧠 AXIOMA — Sistema Multi-Agente de IA Local-First
 
-**Asistente de inteligencia artificial local para tu PC.** Corre en tu propio equipo, con memoria entre
-conversaciones, agentes especializados (código, investigación, análisis) y voz. Tus conversaciones y tus
-claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ollama](https://ollama.com).
+> **Autor:** `saintwick` · **Repositorio:** [github.com/saintwick47/axioma](https://github.com/saintwick47/axioma)
+> **Documentación actualizada:** 2026-10-25 (código fuente + suite completa + compuerta de calidad)
+>
+> **Para quien instala** (sin saber programar): [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) · **decisiones y
+> errores del proyecto** (registro privado): `DECISIONES.md` · **comandos**: [`COMANDOS_AXIOMA.txt`](COMANDOS_AXIOMA.txt)
 
-> **Instalación guiada**: no hace falta saber programar. El instalador se abre con doble clic, y AXIOMA
-> mismo te dice qué le falta la primera vez y lo instala con un clic.
+**AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
 
----
+> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.7"` (último tag `v0.7.7`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
 
-## ¿Qué necesitás?
-
-| | Mínimo | Recomendado |
-|---|---|---|
-| **Memoria (RAM)** | 9 GB (funciona con restricciones) | **16 GB** (bien) · **24-32 GB** (ideal) |
-| **Disco libre** | ~15 GB (la aplicación ~5,6 GB + los dos modelos que hacen falta ~9,6 GB) | 25 GB (con los opcionales) |
-| **Sistema** | Linux, macOS o Windows con Docker | — |
-| **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop) | — |
-
-En **Windows** hace falta Docker Desktop con **WSL 2**; los instaladores y el demonio de voz se prueban en cada cambio sobre un Windows real (runner de GitHub Actions). Ahí AXIOMA usa el puerto **8080** y la **voz del contenedor no está disponible**; sí existe un **demonio nativo** que usa la voz de Windows
-(`instalar/rafael_windows.ps1`, ver [`MANUAL_RAFAEL.md`](MANUAL_RAFAEL.md)). El chat y los modelos funcionan igual. En **macOS** el instalador todavía se ejecuta desde una consola.
-
-Con menos de 16 GB **igual funciona**: AXIOMA te avisa de la restricción concreta. Con una placa de video
-con memoria suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en paralelo** en vez de
-un modelo por vez. **No necesitás** placa dedicada, ni cuentas de pago, ni internet después de bajar los
-modelos.
+| Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| 🟢 En desarrollo activo | 610 commits · `main` · último tag `v0.7.7` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 610 |
 
 ---
 
-## Instalación (una sola vez)
+## 📚 Documentación (fuentes fiables)
 
-1. **Instalá Docker** desde [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
-   y abrilo una vez para que arranque.
-2. **Bajá el instalador desde la página de _Releases_ de este repositorio** (versión **v0.7.7**):
-   - **Windows**: `AXIOMA-Setup.exe` — **doble clic** (necesita Docker Desktop con WSL 2).
-   - **Linux y macOS**: `axioma-instalar.sh` — desde una consola, `bash axioma-instalar.sh`.
-3. **Ejecutalo y esperá**: comprueba Docker, **baja la imagen ya compilada desde GHCR** (GitHub Container
-   Registry; si no puede, la arma en tu equipo), deja un **acceso directo en tu menú** (en Windows, también
-   en el Escritorio) y lo enciende.
-4. **Usalo**: cada vez, doble clic en el acceso directo: se enciende y **se abre solo en tu navegador**.
+La documentación de detalle se **genera localmente** y no se publica en el repositorio (`docs/` está
+fuera de la copia pública). Los comandos para generarla son:
 
-> **Alternativa sin Release (código fuente)**: botón verde **Code → Download ZIP** y descomprimilo. Después
-> ejecutá `instalar/instalar_axioma.sh` (Linux/macOS) o, en Windows, clic derecho en
-> `instalar/instalar_axioma.ps1` → **Ejecutar con PowerShell** (si Windows bloquea el guion:
-> `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1`). Es el mismo
-> instalador, sin la descarga de la imagen publicada.
-
-## ¿Qué se descarga?
-
-Sólo lo necesario, y **vos elegís**: AXIOMA te dice cuánto ocupa cada cosa **antes** de bajarla, con el
-avance a la vista y un botón **DETENER**.
-
-| Rol | Cuánto ocupa | ¿Hace falta? |
-|---|---|---|
-| Conversar y razonar | ~5 GB | **sí** (sin esto no puede responder) |
-| Programar (generar y revisar código) | ~4,7 GB | **sí** (las tareas de código fallan sin él; el chat sigue andando) |
-| Leer imágenes | ~3,3 GB | no (opcional) |
-| Respaldo de código | ~4,7 GB | no (opcional) |
-| Voz (hablar) | ~0,1 GB | no (opcional) |
-
-Los modelos son **abiertos y gratuitos**, quedan guardados en tu equipo y no se vuelven a bajar en cada
-arranque. **Cuál conviene** según tu memoria RAM lo decide AXIOMA solo; si querés saber si **otro** modelo
-que tengas en mente va a andar en tu PC, la pantalla **🧩 Configurar AXIOMA** tiene esa comprobación.
-
-## El primer arranque
-
-1. **Creá tu usuario** (no hay ninguno predefinido: el tuyo lo creás vos; cada uno tiene su memoria aparte).
-2. Se abre sola la pantalla **🧩 Configurar AXIOMA**, que te dice punto por punto qué está bien, qué falta y
-   **por qué**.
-3. **Descargá los modelos** con un clic (con avance real y botón **DETENER**).
-4. **Cargá tus claves** (opcional): la búsqueda web y las noticias necesitan una clave **tuya y gratuita**
-   (por ejemplo de [tavily.com](https://tavily.com)); sin claves todo lo demás funciona igual. Se guardan
-   **sólo en tu equipo** y nunca se muestran.
+- `python tools/structure_detector.py` → `docs/STRUCTURE_REPORT.md` (listado estructural, métricas
+  verificadas).
+- `python tools/documentador/axioma_doc_main.py` → `docs/AXIOMA_COMPLETE_CONTEXT.md` (contexto
+  completo; FlowMapper activo por defecto e **IA opt-in** con `--ollama`; `--validate` mide la
+  cobertura real contra el AST y falla con exit 1 si baja del umbral).
+- `docs/AGENT_GUIDE.md` es una guía de trabajo interna que **no se distribuye**; las reglas que cita
+  este README (por ejemplo R13: ≤950 líneas por archivo de tests) están explicadas acá mismo.
 
 ---
 
-## Cómo se usa
+## 🏗️ Resumen de arquitectura (verificado)
 
-| Quiero… | Qué hago |
+```
+Usuario (GUI NiceGUI / CLI / API / voz)
+        ▼
+Dispatcher ──────────────────────────── src/core/dispatcher.py (+ 4 mixins)
+  ├─ IntentClassifier + caché L1/L2/L3  src/router/
+  ├─ SmartRouter (facade)               src/router/smart_router.py
+  ├─ Handlers por tarea                 src/core/dispatcher_handlers.py
+  │    └─ CoderAgent · Searcher · Researcher · Analyst · Validator ·
+  │       System · Vision · JarvisEngine · InterpreterLoop · DataHandler
+  ├─ MemoryGateway (4 capas)            src/memory/gateway.py
+  ├─ OllamaClient (circuit breaker)     src/llm/client.py
+  └─ ModelSwap (VRAM arbitrator)        src/core/model_swap.py
+```
+
+### Componentes clave
+
+- **Dispatcher** (`src/core/`): orquestador central, compuesto por 4 mixins (`dispatcher_handlers`, `dispatcher_operations`, `dispatcher_process`, `dispatcher_distributed`). Clasifica intención, consulta caché multicapa, enruta al agente adecuado, valida y retroalimenta.
+- **Agentes** (`src/agents/`): `CoderAgent` genera código con contrato verificable (`CodeContract` + `CodeValidator` en 3 capas) y ciclo de reparación ante fallos; `SearcherAgent` (Tavily→Serper→DDG) y `ResearcherAgent` (clima/hora/noticias/finanzas); `AnalystAgent` (documentos/datos); `ValidatorAgent` (CoT forzado + auditoría CWE Top-25); `VisionAgent` (VLM); `SystemAgent` (control del SO); subpaquete `loop/` con el ciclo observe-think-act-reflect.
+- **Enrutamiento** (`src/router/`): `IntentClassifier` + `SmartRouter` + caché L1 (RAM LRU) / L2 (SQLite) / L3 (semántica LanceDB).
+- **Memoria** (`src/memory/`): `MemoryGateway` unifica ShortTerm (RAM), LongTerm (SQLite `data/axioma.db`), Semantic (LanceDB, embeddings `codefuse-ai/F2LLM-v2-330M`, 896 dims`) y KnowledgeGraph (SQLite).
+- **Multimodal** (`src/multimodal/`): voz full-duplex (wake word → VAD → STT `faster-whisper` → TTS `edge-tts`/`piper`) y visión (captura de pantalla multi-backend + cámara). **PortAudio es opcional**: sin la librería del sistema los módulos **se importan igual** (quedan sin dispositivo de audio) y los tests de voz se saltean; antes reventaban con `OSError: PortAudio library not found`.
+- **Ejecución segura** (`src/tools_mcp/`): `Sandbox` (límites Unix, blacklist, redacción de secretos), `PermissionGateway`, `PromotionGate` (veredictos para operaciones destructivas) y protocolo **MCP** (JSON-RPC 2.0).
+- **Seguridad por modos**: `RuntimeMode` (standard/minimal/safe_mode/code_mode) filtra el toolset por sesión en `ToolExecutor` y `ToolRegistry.list_for_mode()`; sandbox **fail-closed** (`SandboxUnavailableError` si STRICT no puede confinar); `PermissionMode.DENY` con reglas "NUNCA tocar" para `.git/**`, `.env*`, `config/**` y `data/**`; `src/**` siempre pide confirmación.
+- **Trazabilidad**: `SessionEventLog` (bitácora de sesión con replay/`derive_messages`/`fork`) y `FileAuditTrail` (operaciones de archivo con checksum SHA256), integrados en `MemoryGateway.add_message()` y `PromotionGate`.
+- **Eventos**: `EventBus` + `SecurityListener` publican y observan denegaciones de tools, circuit-open, operaciones de archivo y fail-closed del sandbox — sin acoplar productores a consumidores.
+- **Coordinación multi-modelo sin OOM**: `AgentCoordinator` + `TaskBoard` + `MemoryGuard` orquestan agentes multi-modelo: el guard rechaza cargas que sobrecargarían la RAM (`refused_oom`), el coordinador **drena** al modelo cargado antes de swappear y usa **checkpoint/resume** para dependencias cruzadas (sin perder el hilo). `allow_parallel_models` habilita el futuro paralelo solo si `can_coexist()` confirma memoria.
+
+---
+
+## 🤖 Modelos (fuente única: `config/model_catalog.yaml`)
+
+Esta es la lista **real**: los mismos modelos que usa `config/settings.py`, los que el preflight
+comprueba y los que ocupan disco. Los tamaños son **medidos** (`ollama list` + el archivo del modelo de
+voz), no estimados; la prueba de coherencia del catálogo falla si un rol apunta a un modelo que no está
+declarado.
+
+| Rol | Modelo | Disco | RAM en uso | ¿Obligatorio? | Para qué |
+|---|---|---|---|---|---|
+| Chat + razonamiento + **visión** | `qwen3.5:9b` | 6,60 GB | 7,50 GB | **sí** | conversar, razonar y **leer imágenes**: multimodal nativo, un solo modelo para los tres roles |
+| Código | `qwen2.5-coder:7b` | 4,68 GB | 5,80 GB | **sí** | generar, revisar y corregir código |
+| Respaldo de código | `huihui_ai/qwen2.5-coder-abliterate:7b` | 4,68 GB | 5,80 GB | no | cuando el de código se **niega** en prosa ante pedidos legítimos de laboratorio (en código común rinde menos: por eso es respaldo) |
+| Voz (TTS) | `piper:es_AR-daniela-high` | 0,11 GB | 0,10 GB | no | hablar sin internet (`data/piper/es_AR-daniela-high.onnx`); si falta, cae a `edge-tts` |
+| Embeddings | `codefuse-ai/F2LLM-v2-330M` (sentence-transformers) | 0,64 GB | ~1,0 GB | sí | memoria semántica (LanceDB), **896 dims**; no es de Ollama, se baja sola la primera vez |
+
+**Total medido en disco**: ~16,7 GB con todo (los dos obligatorios son ~11,3 GB); el contenedor suma 5,58 GB.
+Desde v0.7.6 **no hay un modelo aparte de visión**: `qwen3.5:9b` es multimodal nativo, así que chat y visión
+comparten el mismo modelo (antes eran `qwen3:8b` + `qwen3-vl:4b`, 1,9 GB más en disco).
+Con eso se entiende el «~15 GB libres» del manual: alcanza para la aplicación + los obligatorios.
+
+**¿Entra en tu PC?** No hace falta calcularlo a mano: `python -m src.core.preflight` dice qué falta y por
+qué, y la pantalla **🧩 Configurar AXIOMA** tiene la comprobación **«¿Este modelo va a andar en mi PC?»**,
+que también evalúa un modelo **que no esté en el catálogo**.
+
+**Elegir e instalar desde la web**: dentro de **🧩 Configurar AXIOMA** (donde están las claves) hay un
+botón **🧠 Modelos** con el catálogo completo: para qué sirve cada uno, cuánto ocupa, cuánta RAM necesita,
+si ya está ✅ o falta ⬇️, y un botón **Instalar** con **barra de progreso**. Además de los obligatorios,
+el catálogo ofrece variantes para equipos con poca memoria (`qwen2.5-coder:3b`, `llama3.2:3b`,
+`gemma3:4b`) y razonamiento (`deepseek-r1:7b`).
+
+`llm_judge_model` y `llm_fallback_2` están desactivados; el juez externo fue eliminado — la validación de respuestas la hace el `ValidatorAgent` local (single-pass).
+
+**Comandos del chat:**
+- `/plan <consulta compleja>` — pipeline multi-paso opt-in: rol principal (coder/researcher) + validador final, cap `settings.plan_max_steps=2`. Auto-opcional con `plan_pipeline_enabled=true` (default OFF). Detalles en `COMANDOS_AXIOMA.txt` §1.1.
+- 🖼️ **Adjuntar imágenes al chat**: PNG/JPG/WebP/GIF/BMP → `qwen3.5:9b` (el mismo modelo del chat, multimodal nativo); OCR híbrido con **Tesseract local** al pedir leer/transcribir texto y **preprocesado adaptativo** (autocontraste/upscale). Ver *🖼️ Imágenes en el chat* más abajo.
+- 📎 **Fuentes/citas**: respuestas grounded (fs_search/folder-analysis) muestran el bloque *📎 Fuentes* en la Web y la lista en el CLI.
+- 🧮 **Calculadora**: tool MCP determinística y segura (AST, sin `eval()`) en el agent loop.
+- Consultas de archivos grounded (sin LLM, <1 s): *"usá fs_search para buscar qué archivos de X hablan de Y"* / *"qué archivos mencionan Z"* / *"usá fs_list para listar la carpeta X"* → grep local con `sources`; validador con extracción tolerante a markdown y streaming de tokens opt-in vía `stream_chat_tokens`.
+
+---
+
+## 🖼️ Imágenes en el chat (v0.6.9p — canal de visión)
+
+Adjuntás una imagen con 📎, escribís tu pregunta (o nada → la describe) y responde el VLM local. Canal en `src/interfaces/web/`:
+
+1. **Detección**: extensiones de imagen se guardan en base64 (nunca se mezclan como texto).
+2. **OCR híbrido** (`vision_ocr.py`): si la instrucción pide leer/transcribir (`copiá/transcribí/texto/dice…`) y Tesseract local (dependencia de sistema `tesseract-ocr-spa`) da confianza ≥ `vision_ocr_min_conf` → texto **exacto en ~0 s**; si no, cae al VLM.
+3. **Preprocesado** (`vision_preprocess.py`): análisis CV (desviación estándar de grises) → contraste bajo = autocontraste; imagen <400 px = upscale 2×; la original queda como fallback del reintento.
+4. **VLM** (`vision_agent.describe_generic_image`): prompt **neutro** (sin el sesgo de screenshot del VisionAgent de Jarvis), tope `vision_num_predict` (evita generaciones colgadas) y **unload de RAM** tras usar (best-effort).
+
+**Medido en vivo (`qwen3.5:9b`, CPU):** transcribe texto, distingue formas geométricas y **colores**, cuenta objetos y no alucina con ruido aleatorio; OCR de texto grande/limpio exacto. **Ventaja del modelo unificado:** la imagen usa el **mismo** modelo que el chat, así que **no desaloja** otro de RAM (con `qwen3-vl:4b` había que descargar el de chat y recargarlo). **Límites:** texto muy chico o embebido → inestable en el VLM (mitigado por Tesseract); fotos reales complejas/rostros → acotados por el hardware.
+
+```bash
+python tools/vision_battery.py                      # batería diagnóstica 13 casos → logs/vision_battery_*.md
+python tools/vision_battery.py --quick              # subconjunto rápido
+AXIOMA_VISION_E2E=1 venv_axioma/bin/python -m pytest tests/test_axioma_11_vision_imagenes.py -q   # 47 tests (integración real)
+```
+
+Settings: `vision_num_predict` (512) · `vision_preprocess_enabled` · `vision_ocr_enabled` · `vision_ocr_min_conf` (60) · `llm_vision_model`.
+
+---
+
+## 🚀 Comandos (fuente: `COMANDOS_AXIOMA.txt`)
+
+```bash
+# Entry point
+python main.py --check                # verificación de dependencias/hardware
+python main.py --chat "consulta"      # chat por CLI (--chat sin args = interactivo)
+python main.py --web                  # servidor web NiceGUI + API en http://127.0.0.1:8000 (sólo loopback)
+python main.py --backup               # backup ESTRUCTURAL: sólo el JSON en data/backups/
+python main.py --backup --full        # + .tar.gz con data/memory (LanceDB) y data/knowledge
+# --full: retención MÁXIMO 3 backups (rota el par {json, tar} junto), aviso si AXIOMA
+# parece estar corriendo (el tar podría ser inconsistente) y escritura atómica del tar
+# (temporal + rename: si falla no queda un .tar.gz a medias). También vale `python -m src.interfaces.cli.main --backup --full`.
+python main.py --rotar-token          # código de acceso nuevo para la API web (data/.web_token)
+
+# Tests
+pytest tests/ -v
+python tools/run_diagnostic_suite.py            # diagnóstico por fases
+python tools/run_diagnostic_suite.py --real     # incluye tests con Ollama
+python tools/log_health_report.py           # health report desde logs (E2; v2 detector: clasificación de errores, anomalías/verdicto, reintentos, reparaciones, delta vs previo)
+
+# Seguridad / auditoría
+python axioma_auditor.py                        # auditoría completa (38 detectores → logs/)
+python axioma_auditor.py --full --run-tests     # + pytest + SCORE AXIOMA /100
+python axioma_auditor.py --format json -o logs/audit_summary.json   # resumen máquina (lo lee el gate)
+venv_axioma/bin/python tools/run_all_tests.py --timeout 150   # suite por archivo + reporte con run_id
+venv_axioma/bin/python tools/quality_gate.py           # 15 condiciones de calidad (CI/local, incluye ratchet de deuda)
+venv_axioma/bin/python tools/measure_task_config.py    # modelo + temperatura EFECTIVOS por tarea
+python axioma_auditor.py --detectors security_harness   # solo protecciones FASE 1-3
+python axioma_auditor.py --detectors plan_v2_protections # solo protecciones PLAN v2.0
+python axioma_auditor.py --write-baseline        # congela la deuda en audit_baseline.json
+python axioma_auditor.py --ratchet               # exit 2 si empeora vs el baseline
+python axioma_auditor.py --fail-on HIGH          # exit 2 con HIGH/CRITICAL (CI/shell)
+python axioma_auditor.py --include-tools-tests   # audita también tools/ y tests/ (opt-in)
+# axioma_inspector.py fue FUSIONADO en el auditor (v8.3): singletons, asyncio
+# module-level, imports circulares, duplicados, integración, tests y SCORE.
+# v0.7.5: axioma_auditor.py es SHIM — la lógica vive en tools/auditor/
+# (6 módulos aud_*; `aud_detectors_infra.py` es el mayor, ~1136 líneas; tipos
+# AudVerdict/AudSeverity/AudFinding sin colisión).
+# ⚠️ SCORE 100 ≠ calidad: sólo resta CRITICAL/HIGH. MEDIUM/LOW se reportan en
+# summary.debt (índice por detector) y el gate bloquea si empeoran vs el baseline.
+
+# Evals (requiere Ollama con qwen2.5-coder:7b)
+python tools/run_evals.py                       # ejecuta tests/dataset_evals.yaml con LLMJudge
+```
+
+**Primer arranque del CLI**: la primera vez que se ejecuta `python main.py …` aparece una sola vez un
+aviso en lenguaje llano con las tres formas de usar AXIOMA (sólo esta computadora —recomendada—, otros
+equipos de la casa/oficina, o desde internet). La elección por defecto es la 1 y, si no hay terminal
+(CI, doble clic sin consola), se muestra el aviso y se sigue con la 1 sin bloquearse. El marcador queda en
+`data/.primer_arranque`; para volver a verlo, borralo. Los **instaladores** (`instalar_axioma.sh`,
+`instalar_axioma.ps1` y el `.exe`) hacen la misma pregunta y guardan `AXIOMA_WEB_HOST` en el `.env`.
+
+## 🛡️ Seguridad y modos de ejecución (implementado)
+
+> ✅ **Finalizado y verificado** — protecciones de seguridad (plan_harness FASE 1-4) e
+> integridad de contenido + anti-injection (PLAN v2.0, Fases 2-6): implementadas, con
+> **0 hallazgos** en los detectores `security_harness` y `plan_v2_protections` del
+> auditor, y cubiertas por `tests/test_axioma_07_seguridad_modos.py` (23 tests) y
+> `tests/test_axioma_10_plan_v2.py` (18 tests por Fase). Los documentos de plan
+> originales no están en el repo; la verificación automática del auditor es la canónica.
+
+### RuntimeMode — acota el toolset por sesión
+
+| Modo | Descripción | Escribe archivos | Nivel de permiso máximo |
+|---|---|---|---|
+| `standard` (default) | Toolset completo | ✅ | PRIVILEGED |
+| `minimal` | Solo sandbox_exec + fs_read | ❌ | EXECUTE |
+| `safe_mode` | Solo lectura | ❌ | READ_ONLY |
+| `code_mode` | Generación de código orquesta tools | ✅ | PRIVILEGED |
+
+- CLI: `/mode [standard|minimal|safe_mode|code_mode]` persiste en `settings.runtime_mode` y se propaga a TODAS las tools de los agentes (verificado end-to-end: `safe_mode` bloquea `fs_write` desde un agente).
+- **Sandbox fail-closed**: si STRICT no puede aplicar límites de recursos → `SandboxUnavailableError` — nunca degrada a ejecución sin límites.
+
+### Reglas DENY en `config/permissions.json`
+
+| Regla | Efecto |
 |---|---|
-| Conversar o pedir código | Escribo en el chat y envío |
-| Ver si falta algo | Botón **🧩** del encabezado |
-| Apagar AXIOMA | Doble clic en el lanzador otra vez |
-| Ver qué pasa | `docker compose logs -f axioma` |
-| Cambiar de usuario | *Avanzado* → 👤 |
+| `.git/**` deny | NUNCA tocar el repositorio (ni lectura) |
+| `.env*` deny | NUNCA tocar secretos |
+| `config/**` deny + `fs_read,fs_list` | Config: solo lectura desde chat |
+| `data/**` deny + `fs_read,fs_list` | Datos: solo lectura desde chat |
+| `src/**` default | Código fuente: SIEMPRE pide confirmación |
 
-**Voz (opcional)**: un servicio aparte escucha la frase *"hey rafael"*:
-`docker compose --profile voz up -d voz` (encender) · `docker compose --profile voz stop voz` (apagar).
-En **Windows** ese servicio del contenedor no está disponible, pero hay un **demonio nativo** que usa la voz
-del sistema: `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\rafael_windows.ps1`
-(detalle en [`MANUAL_RAFAEL.md`](MANUAL_RAFAEL.md)).
+### Token de escritura, bind y workspaces
+
+- **Bind por defecto**: `start_server()` escucha en **`127.0.0.1`** (antes `0.0.0.0`). Para exponerlo a la red hay que pedirlo explícitamente con `host='0.0.0.0'` (o `AXIOMA_WEB_HOST=0.0.0.0` en el contenedor).
+- **Código de acceso automático**: protege las rutas que escriben el `.env` (`POST /api/v1/preflight/claves` y `POST /api/v1/preflight/modelos`). **No hay que generarlo a mano**: el orden de resolución es `AXIOMA_WEB_TOKEN` (entorno o `.env`, opción avanzada para fijarlo) → `data/.web_token` → si no existe, se genera con `secrets.token_urlsafe(32)` y se guarda con permisos **0600** (`config/acceso_web.py`). Se envía en el header **`X-AXIOMA-Token`** y se compara con `hmac.compare_digest`; el valor nunca se registra en los logs.
+  - **Sólo esta computadora**: no hace falta código; las rutas de escritura se permiten en loopback (la UI llama en proceso y sigue funcionando igual).
+  - **Expuesto a la red**: al arrancar, AXIOMA genera el código solo y lo muestra en la consola y en un **banner permanente de la UI** (con el botón «volver a sólo esta computadora»). Ausente o inválido → **401**. Si el archivo no se pudo guardar, el arranque lo avisa y esas rutas responden **403**.
+  - **Rotación**: `python main.py --rotar-token` genera uno nuevo (los procesos abiertos lo toman sin reiniciar). También `python main.py --check` avisa si está expuesto y todavía no hay código.
+- **`session_id` validado**: en los workspaces sólo se acepta `[A-Za-z0-9_-]{1,64}`. Se rechaza con `ValueError` (400 en HTTP) cualquier ruta absoluta, `..` o separador, y el `cleanup` no puede salir del directorio base.
+
+```bash
+# El código se genera solo en data/.web_token; también podés fijarlo con AXIOMA_WEB_TOKEN
+export AXIOMA_WEB_TOKEN="$(cat data/.web_token)"   # o el que muestra el banner de la UI
+curl -X POST http://127.0.0.1:8080/api/v1/preflight/claves \
+  -H "X-AXIOMA-Token: $AXIOMA_WEB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"TAVILY_API_KEY": "tvly-tu-clave"}'
+```
+
+### Trazabilidad, eventos y coordinación multi-modelo
+
+- **Auditoría**: `SessionEventLog` (bitácora de sesión con fork/replay) + `FileAuditTrail` (checksum SHA256), integrados en `MemoryGateway.add_message()` y `PromotionGate`.
+- **Eventos**: `EventBus` + `SecurityListener` registran denegaciones de tools, circuit-open, operaciones de archivo y fail-closed (los listeners nunca rompen al publicador).
+- **Sin OOM**: `MemoryGuard` (rechaza si la RAM post-swap supera `memory_ram_hard_ratio` 0.95) + `AgentCoordinator` (drenado + checkpoint/resume entre modelos) + `TaskBoard` (estado `refused_oom`). `settings.allow_parallel_models` (default `False`).
+- CLI: `/session events [id] | fork <id> | invariant [id]`, `/audit [session_id]`, `/mode [modo]`, `/guard [memory|coordinator]`.
+
+```bash
+# Git / commit con seguridad
+python tools/commit.py --message "feat: ..."    # backup + commit + log
+python tools/commit.py --list-backups
+python tools/commit.py --restore TIMESTAMP
+
+# Verificación / diagnóstico
+python tools/verify_axioma.py
+python tools/structure_detector.py              # regenera STRUCTURE_REPORT.md
+python tools/system_check.py health           # chequeo de salud (hardware/Ollama/runtime)
+```
 
 ---
 
-## Tus datos y tu privacidad
+## 🖥️ Interfaz web (qué ve el usuario)
 
-- **Los modelos corren en tu equipo**: nada de lo que conversás se envía a servicios externos.
-- **Tus claves** quedan en un archivo de tu equipo con permisos **sólo para tu usuario**.
-- **Tu memoria** vive en la carpeta `data/`: si la borrás, empezás de cero.
-- Las únicas salidas a internet son bajar los modelos y las funciones que vos pidas.
-
-## Problemas frecuentes
-
-| Síntoma | Qué hacer |
+| Botón / zona | Qué hace |
 |---|---|
-| "Docker no responde" | Abrí Docker Desktop (Linux: `sudo systemctl start docker`) |
-| "permiso denegado" con Docker | `sudo usermod -aG docker $USER` y volvé a entrar |
-| Puerto 8080 ocupado | `AXIOMA_PUERTO=8090 ./instalar/iniciar_axioma.sh` |
-| Un modelo no baja | Reintentá desde la pantalla 🧩 (lo bajado no se pierde) |
+| **🔍 ¿Por qué esta respuesta?** (bajo cada respuesta) | Panel de transparencia: modelo, tarea, agente que atendió, **confianza calibrada**, estado de validación (`aprobada`/`fallida`/`omitida`/`no aplica`), fuentes y tiempo. Dentro, la **calificación 1-5 + comentario + etiquetas**, que sí llega al ciclo de aprendizaje (`FeedbackLoop.record_explicit`) |
+| **🟢/🟡/🔴 badge de salud** (header) | Estado del sistema en vivo: degradaciones de contrato en rutas críticas, tasa de error de la API, feedback negativo. Refresco manual (sin polling) |
+| **🗂️ Sesiones** | Listar, buscar, **exportar** (MD/HTML/JSON) y borrar sesiones. No permite borrar la sesión en uso |
+| **📄 Exportar** | Investigación (respuestas con citas) **y** conversación completa (incluye el código generado) en MD/HTML/JSON |
+| **🖥️ Mi Hard** | Hardware detectado + qué modelos entran (`hardware_fit`) y ranking de instalados |
+| **🏥 Estado** | Servicios y APIs (con el motivo real: `Sin key (.env)` vs `No responde`) |
+| **🔐 Banner de acceso** (sólo si está expuesto) | Aviso permanente de que AXIOMA está abierto a la red, con el **código de acceso** y el botón **«volver a sólo esta computadora»** (pasos exactos para el `.env`). En modo local no aparece |
+| **📁 Archivos / 📎 Imagen** | Explorar, leer y adjuntar archivos; imágenes por canal de visión |
 
-## Documentación
+### Endpoints nuevos (además de los históricos)
+```
+GET /api/v1/metrics/degradation   → degradaciones de contrato vs esperadas (con alertas)
+GET /api/v1/feedback/stats        → feedback agregado + señal ROUTED
+GET /api/v1/stats                 → requests/latencia/uptime reales + storage + degradación
+GET /api/v1/hwfit/{hardware,rank,check,compatible}
+```
+> ⚠️ La API se monta bajo `/api` y el router ya trae `/api/v1`: la URL real es
+> **`/api/v1/...`**.
 
-| Documento | Para qué |
+---
+
+## 🛠️ Stack tecnológico (fuente: `requirements.txt`; la imagen instala `requirements-ci.txt`)
+
+> `requirements.txt` es el del **venv de desarrollo** (compartido con otro proyecto) y todavía declara
+> paquetes que la imagen **no** instala: `opentelemetry-*`, `grpcio`, `googleapis-common-protos`,
+> `playwright`, `customtkinter`, etc. La imagen usa `requirements-ci.txt`, que documenta cada exclusión.
+
+- **Web/UI:** FastAPI, Uvicorn, NiceGUI, Starlette
+- **IA/LLM:** Ollama (HTTP), transformers, sentence-transformers, vLLM (cliente alternativo)
+- **Voz:** faster-whisper, silero-vad, webrtcvad, edge-tts, piper-tts, sounddevice
+- **Memoria vectorial:** lancedb, pyarrow, numpy, pandas
+- **ML:** scikit-learn, scipy, networkx, sympy
+- **Observabilidad:** logging propio (`tools/detailed_logger.py` → `logs/`, `tools/log_health_report.py`), rich
+- **Configuración:** pydantic, pydantic-settings
+- **Automatización web:** playwright (desarrollo; no va en la imagen)
+- **Otros:** httpx, pytest, coverage, PyYAML, tenacity
+
+---
+
+## 📊 Métricas reales (medición propia, 2026-08-24)
+
+Excluye `venv/`, `.git/`, `cache/`, `data/` (backups/salidas) y `logs/`, más las carpetas de
+otros proyectos que puedan estar adentro del árbol de trabajo y no tengan nada que ver con AXIOMA:
+
+| Métrica | Valor |
 |---|---|
-| **`MANUAL_USUARIO.md`** | **Empezá por acá si es tu primera vez**: paso a paso con lo que vas a ver |
-| `COMANDOS_AXIOMA.txt` | Todos los comandos (contenedor y desarrollo) |
-| `MANUAL_AXIOMA.md`, `MANUAL_RAFAEL.md`, `README_TECNICO.md` | Manuales técnicos |
-| `CHANGELOG.md` | Qué cambió en cada versión |
+| Archivos de código documentados | **270** |
+| Archivos Python de fuente | **250** (249 reportados; `tools/push.py` excluido por seguridad) |
+| LOC Python | **≈ 117.400** |
+| Clases (incl. anidadas) | **≈ 678** |
+| Funciones (incl. métodos) | **≈ 4.471** |
+| Archivos de test | **26** `test_axioma_*.py` en `tests/` (la suite del proyecto) |
 
-## Licencia
+> ⚠️ Las métricas de los README anteriores (p. ej. "1.067 funciones", "124.473 LOC", "47 TaskTypes", "162 variables de entorno") **no eran fiables** — provenían del documentador automático. Las de este README están verificadas. El documentador (`tools/documentador/`) reporta su propio alcance (excluye además `tools/documentador/`, `commit.py` y `structure_detector.py`); sus métricas están etiquetadas con esa nota de alcance. `docs/STRUCTURE_REPORT.md` se regenera con `python tools/structure_detector.py` y tampoco se publica.
+> **2026-10-27:** suite en verde con **27 archivos** `test_axioma_*.py` (**1206 tests**,
+SCORE AXIOMA **100/100**, MEDIUM 0) y **gate de calidad** en CI. Los archivos de
+test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líneas
+(regla R13 del proyecto: ≤950 líneas por archivo de tests). Se sumaron el canal de imágenes (visión +
+OCR híbrido, `tests/test_axioma_11_vision_imagenes.py`), calculadora y
+fuentes/citas (hoy dentro de `test_axioma_10_plan_v2.py`), el health report v2 y
+las pruebas de seguridad web y audio opcional — regenerar estructura con
+`python tools/structure_detector.py` para métricas actualizadas.
 
-MIT — podés usarlo, modificarlo y compartirlo citando la autoría. Ver [`LICENSE`](LICENSE).
+---
+
+## 📁 Estructura de directorios
+
+```
+axioma/
+├── main.py                  # Entry point CLI + servidor web
+├── Rafael.py                # Daemon autónomo (systemd)
+├── src/                     # Paquete principal (223 archivos .py)
+│   ├── core/                # Dispatcher, colas, VRAM, feedback, jarvis
+│   ├── agents/              # Agentes especializados (+ loop/)
+│   ├── router/              # Clasificador + SmartRouter + caché L1/L2/L3
+│   ├── llm/                 # OllamaClient, ModelRouter, vLLM
+│   ├── memory/              # Gateway de 4 capas + embeddings + KG
+│   ├── multimodal/          # Voz (STT/TTS/VAD/wake) + visión
+│   ├── interfaces/          # Web (FastAPI+NiceGUI), componentes, CLI
+│   ├── tools_mcp/           # Sandbox, permisos, herramientas, MCP
+│   ├── prompts/             # Gestión de prompts + plantillas YAML
+│   ├── domain/              # Tipos, entidades, excepciones, contratos
+│   ├── handlers/            # Datos deterministas sin LLM
+│   ├── integrations/        # APIs externas
+│   ├── monitoring/          # Alertas
+│   ├── learning/            # Trazas de ejecución
+│   └── utils/               # Utilidades
+├── config/                  # settings.py, models.yaml, paths.py, ...
+├── data/                    # BD SQLite, memoria vectorial, backups, salidas
+├── tests/                   # Suite pytest (24 test_axioma_*.py: axioma integral + diagnósticos)
+├── tools/                   # Operación, verificación, diagnóstico, documentador
+├── logs/                    # Logs del sistema
+└── docs/                    # Documentación generada localmente (no se publica)
+```
+
+La estructura y función de **cada archivo** se genera localmente con `python tools/structure_detector.py`
+en `docs/STRUCTURE_REPORT.md` (ese archivo no se publica).
