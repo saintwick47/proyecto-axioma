@@ -85,6 +85,49 @@ modelos:
     si_falta: "las tareas de código fallan; el chat sigue andando"
     instalar: "ollama pull qwen2.5-coder:7b"
 
+  # ── Otras opciones para ELEGIR (no obligatorias) ────────────────────────────
+  # Pedido del usuario (2026-10-31): que la pantalla de configuración muestre una lista de modelos
+  # para elegir según el equipo, con su rol y su tamaño, en vez de ofrecer sólo los ya instalados.
+  "qwen2.5-coder:3b":
+    roles: [codigo]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 1.93
+    ram_gb: 2.60
+    para: "programar en equipos con poca memoria (más rápido, menos preciso que el 7b)"
+    si_falta: "las tareas de código usan el modelo de 7b (si está instalado)"
+    instalar: "ollama pull qwen2.5-coder:3b"
+
+  "llama3.2:3b":
+    roles: [chat]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 2.02
+    ram_gb: 2.70
+    para: "conversar rápido y con poca memoria (respuestas más simples)"
+    si_falta: "el chat usa el modelo configurado (qwen3.5:9b por defecto)"
+    instalar: "ollama pull llama3.2:3b"
+
+  "gemma3:4b":
+    roles: [chat, vision]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 3.34
+    ram_gb: 4.20
+    para: "conversar y leer imágenes en equipos con poca memoria"
+    si_falta: "la visión usa el modelo configurado (qwen3.5:9b por defecto)"
+    instalar: "ollama pull gemma3:4b"
+
+  "deepseek-r1:7b":
+    roles: [chat]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 4.68
+    ram_gb: 5.80
+    para: "razonamiento paso a paso (más lento; útil para problemas difíciles)"
+    si_falta: "el chat usa el modelo configurado (qwen3.5:9b por defecto)"
+    instalar: "ollama pull deepseek-r1:7b"
+
   "huihui_ai/qwen2.5-coder-abliterate:7b":
     roles: [codigo_respaldo]
     obligatorio: false

@@ -383,7 +383,20 @@ for ($intento = 1; $intento -le 30; $intento++) {
     }
     if ($listo) {
         ok "AXIOMA está en línea: $Url"
-        try { Start-Process $Url; ok "Abrí el navegador en $Url" }
+        try {
+            # 2026-10-31: en modo app la ventana la abre un programa, así que "Salir" puede cerrarla
+            # con window.close(). Si no hay Edge/Chrome, se abre el navegador normal.
+            $navegador = $null
+            foreach ($cand in @(
+                    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
+                    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+                    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+                    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'))) {
+                if ($cand -and (Test-Path -LiteralPath $cand)) { $navegador = $cand; break }
+            }
+            if ($navegador) { Start-Process $navegador "--app=$Url"; ok "Abrí AXIOMA en su ventana" }
+            else { Start-Process $Url; ok "Abrí el navegador en $Url" }
+        }
         catch { aviso "No pude abrir el navegador: entrá a mano a $Url" }
         paso "Listo"
         Write-Host "  Si en la pantalla dice que falta algo (modelos, claves), AXIOMA mismo lo explica y lo instala."

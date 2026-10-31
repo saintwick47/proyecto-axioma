@@ -449,3 +449,49 @@ def test_el_exe_conserva_los_plugins_en_el_config_temporal(tmp_path, monkeypatch
     from pathlib import Path as _Path
     generado = (_Path(ruta) / "config.json").read_text(encoding="utf-8")
     assert "cliPluginsExtraDirs" in generado and str(home / ".docker" / "cli-plugins") in generado
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Pantalla 🧠 Modelos: elegir del catálogo e instalar con progreso (2026-10-31)
+# ════════════════════════════════════════════════════════════════════════════
+
+def test_el_catalogo_ofrece_variantes_para_elegir():
+    import sys
+    sys.path.insert(0, str(_raiz()))
+    from config.model_catalog import cargar_catalogo
+    cat = cargar_catalogo(usar_cache=False)
+    ollama = [m for m in cat.modelos.values() if m.tipo == "ollama"]
+    assert len(ollama) >= 6, f"el catálogo tiene que ofrecer opciones, hay {len(ollama)}"
+    for m in ollama:
+        assert m.roles and m.para and m.disco_gb > 0 and m.ram_gb > 0, m.nombre
+    nombres = {m.nombre for m in ollama}
+    for esperado in ("qwen3.5:9b", "qwen2.5-coder:7b", "qwen2.5-coder:3b", "llama3.2:3b"):
+        assert esperado in nombres, f"falta {esperado} en el catálogo"
+
+
+def test_la_pantalla_de_modelos_lista_y_avisa_el_estado():
+    import sys
+    sys.path.insert(0, str(_raiz()))
+    from src.interfaces.components import catalogo_modelos as cm
+    modelos = cm._ollama_del_catalogo()
+    assert modelos and all(m.tipo == "ollama" for m in modelos)
+    assert cm._estado(modelos[0], {modelos[0].nombre}) == "✅ instalado"
+    assert cm._estado(modelos[0], set()).startswith("⬇️")
+
+
+def test_el_boton_modelos_esta_dentro_de_configurar_axioma():
+    texto = (_raiz() / "src" / "interfaces" / "components" / "configurar_axioma.py").read_text(encoding="utf-8")
+    assert "abrir_catalogo_modelos" in texto and "🧠 Modelos" in texto
+
+
+def test_la_pantalla_de_modelos_instala_con_progreso():
+    texto = (_raiz() / "src" / "interfaces" / "components" / "catalogo_modelos.py").read_text(encoding="utf-8")
+    for pieza in ("pull_model", "linear_progress", "asyncio.to_thread"):
+        assert pieza in texto, f"la descarga sin {pieza} no muestra avance"
+
+
+def test_salir_cierra_la_ventana_y_el_lanzador_abre_en_modo_app():
+    modales = (_raiz() / "src" / "interfaces" / "components" / "modals.py").read_text(encoding="utf-8")
+    lanzador = (_raiz() / "instalar" / "iniciar_axioma.ps1").read_text(encoding="utf-8-sig")
+    assert "window.close()" in modales, "Salir tiene que intentar cerrar la ventana"
+    assert "--app=$Url" in lanzador, "el lanzador tiene que abrir en modo app para poder cerrarla"

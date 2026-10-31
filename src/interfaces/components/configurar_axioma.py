@@ -135,6 +135,10 @@ def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
         # viven en la tarjeta del diálogo, se van con ella, y el botón Cerrar queda abajo de todo.
         _seccion_chequeo_de_modelo()
         _seccion_modelos()
+        # ✅ 2026-10-31 (pedido del usuario): lista del catálogo para elegir e instalar con progreso,
+        # acá adentro (donde están las claves y el estado), no en la barra lateral.
+        from src.interfaces.components.catalogo_modelos import abrir_catalogo_modelos
+        ui.button('🧠 Modelos', on_click=abrir_catalogo_modelos).props('dense color=primary')
         with ui.row().classes('w-full justify-end'):
             ui.button('Cerrar', on_click=dialogo.close).props('flat dense')
 

@@ -13,6 +13,7 @@
 # ═══════════════════════════════════════════════════════════════
 import logging
 import asyncio
+import contextlib
 import os
 import signal
 import time
@@ -747,6 +748,12 @@ def _build_exit_dialog() -> "ui.dialog":
                 try:
                     dialog.close()
                     _log_web_event("SYSTEM", "Shutdown initiated")
+                    # ✅ 2026-10-31 (pedido del usuario): que la ventana se cierre sola al salir.
+                    # `window.close()` sólo funciona si la ventana la abrió un script: el lanzador
+                    # abre AXIOMA en modo app (Edge/Chrome --app=), así que ahí sí cierra. Si el
+                    # navegador lo bloquea, no pasa nada (no rompe la salida).
+                    with contextlib.suppress(Exception):  # el navegador puede bloquear el cierre
+                        ui.run_javascript('setTimeout(() => window.close(), 400)')
                     os.kill(os.getpid(), signal.SIGINT)
                 except Exception as e:
                     _log_error(e, "shutdown")
