@@ -499,7 +499,11 @@ def test_salir_cierra_la_ventana_y_el_lanzador_abre_en_modo_app():
 
 def test_el_motor_de_ollama_arranca_ajustado_para_poca_ram():
     """Verificado 2026-11-03 con ollama/ollama:0.30.0: acepta las variables y flash_attn=enabled."""
-    compose = (_raiz() / "docker-compose.yml").read_text(encoding="utf-8")
+    import pytest
+    archivo = _raiz() / "docker-compose.yml"
+    if not archivo.is_file():
+        pytest.skip("el compose no viaja dentro de la imagen: sólo el código")
+    compose = archivo.read_text(encoding="utf-8")
     for clave in ("OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE",
                   "OLLAMA_MAX_LOADED_MODELS", "OLLAMA_NUM_PARALLEL"):
         assert clave in compose, f"falta {clave} en el servicio ollama"
