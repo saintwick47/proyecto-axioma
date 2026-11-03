@@ -83,6 +83,12 @@ Con eso se entiende el «~15 GB libres» del manual: alcanza para la aplicación
 qué, y la pantalla **🧩 Configurar AXIOMA** tiene la comprobación **«¿Este modelo va a andar en mi PC?»**,
 que también evalúa un modelo **que no esté en el catálogo**.
 
+**Elegir e instalar desde la web**: dentro de **🧩 Configurar AXIOMA** (donde están las claves) hay un
+botón **🧠 Modelos** con el catálogo completo: para qué sirve cada uno, cuánto ocupa, cuánta RAM necesita,
+si ya está ✅ o falta ⬇️, y un botón **Instalar** con **barra de progreso**. Además de los obligatorios,
+el catálogo ofrece variantes para equipos con poca memoria (`qwen2.5-coder:3b`, `llama3.2:3b`,
+`gemma3:4b`) y razonamiento (`deepseek-r1:7b`).
+
 `llm_judge_model` y `llm_fallback_2` están desactivados; el juez externo fue eliminado — la validación de respuestas la hace el `ValidatorAgent` local (single-pass).
 
 **Comandos del chat:**

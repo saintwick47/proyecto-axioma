@@ -2233,7 +2233,7 @@ cualquier verificación estática previa.
   - `tools/run_diagnostic_suite.py` actualizado (`TOOLS_TESTS = []`).
 - ✅ **`tools/detailed_logger.py` v0.2.0** (usado por 59 archivos de src/):
   - Rutas portátiles derivadas de `__file__` (antes hardcodeadas a
-    `/home/saintwick/Escritorio/axioma`).
+    `/ruta/a/axioma`).
   - Singleton reiniciable (`reset()` / `_reset_singleton()`) — antes el
     segundo `initialize()` en tests fallaba silenciosamente.
   - Auto-crea `logs/` (antes exigía `mkdir -p` manual).

@@ -27,6 +27,15 @@ def _estado(modelo: Any, instalados: set) -> str:
     return "✅ instalado" if modelo.nombre in instalados else "⬇️ falta"
 
 
+def _total_a_descargar(modelos: List[Any], instalados: set) -> float:
+    """GB de descarga si se instala todo lo que falta (para saberlo ANTES de empezar).
+
+    No se mide el disco libre: dentro del contenedor ese número es el del disco de Docker, no el del
+    equipo, y mostrarlo sería engañoso. El tamaño del catálogo, en cambio, es exacto.
+    """
+    return round(sum(m.disco_gb for m in modelos if m.nombre not in instalados), 1)
+
+
 def abrir_catalogo_modelos() -> None:
     """Abre el diálogo con la lista y los botones de descarga."""
     estado: dict = {"instalados": set()}
@@ -35,6 +44,7 @@ def abrir_catalogo_modelos() -> None:
         ui.label('🧠 Modelos').classes('text-lg font-bold')
         ui.label('Elegí según para qué lo querés y cuánta memoria tiene tu equipo. Lo que falte se '
                  'descarga acá, con el avance a la vista.').classes('text-xs opacity-70')
+        resumen = ui.label('').classes('text-xs font-bold')
         lista = ui.column().classes('w-full gap-1')
         progreso = ui.column().classes('w-full gap-1')
         with ui.row().classes('w-full justify-end'):
@@ -44,6 +54,10 @@ def abrir_catalogo_modelos() -> None:
         from src.interfaces.web import routes_preflight as rp
         datos = await rp.preflight_modelos()
         estado["instalados"] = set(datos.get("instalados") or [])
+        modelos = _ollama_del_catalogo()
+        total = _total_a_descargar(modelos, estado["instalados"])
+        resumen.set_text(f'Si instalás todo lo que falta: {total:.1f} GB de descarga'
+                         if total else 'Ya está todo instalado')
         lista.clear()
         with lista:
             for m in _ollama_del_catalogo():

@@ -495,3 +495,20 @@ def test_salir_cierra_la_ventana_y_el_lanzador_abre_en_modo_app():
     lanzador = (_raiz() / "instalar" / "iniciar_axioma.ps1").read_text(encoding="utf-8-sig")
     assert "window.close()" in modales, "Salir tiene que intentar cerrar la ventana"
     assert "--app=$Url" in lanzador, "el lanzador tiene que abrir en modo app para poder cerrarla"
+
+
+def test_el_motor_de_ollama_arranca_ajustado_para_poca_ram():
+    """Verificado 2026-11-03 con ollama/ollama:0.30.0: acepta las variables y flash_attn=enabled."""
+    compose = (_raiz() / "docker-compose.yml").read_text(encoding="utf-8")
+    for clave in ("OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE",
+                  "OLLAMA_MAX_LOADED_MODELS", "OLLAMA_NUM_PARALLEL"):
+        assert clave in compose, f"falta {clave} en el servicio ollama"
+
+
+def test_la_pantalla_de_modelos_dice_cuanto_hay_que_descargar():
+    import sys
+    sys.path.insert(0, str(_raiz()))
+    from src.interfaces.components import catalogo_modelos as cm
+    modelos = cm._ollama_del_catalogo()
+    assert cm._total_a_descargar(modelos, set()) > 0
+    assert cm._total_a_descargar(modelos, {m.nombre for m in modelos}) == 0

@@ -205,6 +205,17 @@ services:
     image: ollama/ollama:0.30.0
     container_name: axioma-ollama
     profiles: ["ollama-local"]
+    # ✅ 2026-11-03 (VERIFICADO con ollama/ollama:0.30.0 en este equipo): el motor acepta estas
+    # variables y con un modelo cargado el log confirma `flash_attn = enabled`. En 15-16 GB bajan la
+    # RAM del contexto y evitan cargas en paralelo (AXIOMA ya hace swap; esto lo refuerza en el motor):
+    #   · KV cache q8_0 (en vez de f16) → menos RAM por contexto
+    #   · flash attention               → menos memoria y algo más rápido en CPU
+    #   · 1 modelo cargado, 1 slot      → nada de paralelismo duplicando memoria
+    environment:
+      OLLAMA_FLASH_ATTENTION: "1"
+      OLLAMA_KV_CACHE_TYPE: "q8_0"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
     restart: unless-stopped
     # ✅ 2026-10-28 (MEDIDO: `ss -ltn` mostraba `0.0.0.0:11434`): antes el motor quedaba publicado
     # en TODAS las interfaces y sin autenticación, así que cualquier equipo de la red local podía
