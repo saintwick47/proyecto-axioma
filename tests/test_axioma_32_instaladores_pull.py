@@ -516,3 +516,29 @@ def test_la_pantalla_de_modelos_dice_cuanto_hay_que_descargar():
     modelos = cm._ollama_del_catalogo()
     assert cm._total_a_descargar(modelos, set()) > 0
     assert cm._total_a_descargar(modelos, {m.nombre for m in modelos}) == 0
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Ícono propio y acceso para desinstalar (2026-11-03, pedido del usuario)
+# ════════════════════════════════════════════════════════════════════════════
+
+def test_el_icono_existe_y_es_un_ico_valido():
+    ruta = _raiz() / "instalar" / "axioma.ico"
+    assert ruta.is_file(), "falta instalar/axioma.ico"
+    datos = ruta.read_bytes()
+    assert datos[:4] == b"\x00\x00\x01\x00", "no tiene cabecera ICO"
+    cuantos = int.from_bytes(datos[4:6], "little")
+    assert cuantos >= 4, f"el .ico tiene que traer varios tamaños (trae {cuantos})"
+
+
+def test_el_instalador_crea_el_acceso_de_desinstalar_con_icono():
+    texto = (_raiz() / "instalar" / "instalar_axioma.ps1").read_text(encoding="utf-8-sig")
+    assert "Desinstalar AXIOMA.lnk" in texto, "no crea el acceso para desinstalar"
+    assert "axioma.ico" in texto, "los accesos no usan el ícono propio"
+    assert "IconLocation" in texto
+
+
+def test_el_desinstalador_borra_los_dos_accesos():
+    texto = (_raiz() / "instalar" / "desinstalar_axioma.ps1").read_text(encoding="utf-8-sig")
+    assert "AXIOMA.lnk" in texto and "Desinstalar AXIOMA.lnk" in texto
+    assert (_raiz() / "instalar" / "DESINSTALAR_AXIOMA.bat").is_file()

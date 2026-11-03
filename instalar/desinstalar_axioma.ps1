@@ -88,7 +88,9 @@ if ($hayDocker) {
 paso "Borrando los accesos directos"
 $accesos = @(
     (Join-Path ([Environment]::GetFolderPath("Desktop")) "AXIOMA.lnk"),
-    (Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\AXIOMA.lnk")
+    (Join-Path ([Environment]::GetFolderPath("Desktop")) "Desinstalar AXIOMA.lnk"),
+    (Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\AXIOMA.lnk"),
+    (Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\Desinstalar AXIOMA.lnk")
 )
 foreach ($acceso in $accesos) {
     if (Test-Path $acceso) {

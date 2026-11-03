@@ -494,9 +494,27 @@ if (-not $SinAcceso) {
             $acceso.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$Raiz\instalar\iniciar_axioma.ps1`""
             $acceso.WorkingDirectory = $Raiz
             $acceso.Description = "AXIOMA: asistente de IA local (arranca y abre la pantalla de configuración)"
-            $acceso.IconLocation = "$env:SystemRoot\System32\shell32.dll,13"
+            # 2026-11-03 (pedido del usuario): ícono propio para reconocerlo (antes era uno genérico
+            # de Windows y no se distinguía). Sale del logo del proyecto, en `instalar/axioma.ico`.
+            $icono = Join-Path $Raiz "instalar\axioma.ico"
+            if (Test-Path -LiteralPath $icono) { $acceso.IconLocation = $icono }
+            else { $acceso.IconLocation = "$env:SystemRoot\System32\shell32.dll,13" }
             $acceso.Save()
             ok "Acceso creado: $archivo"
+
+            # 2026-11-03: acceso para DESINSTALAR, con el mismo ícono. Queda al lado del de AXIOMA
+            # para que se encuentre fácil (antes sólo existía el .bat dentro de instalar\ y nadie lo veía).
+            $archivoDes = Join-Path $destino "Desinstalar AXIOMA.lnk"
+            $desinstalador = Join-Path $Raiz "instalar\DESINSTALAR_AXIOMA.bat"
+            if (Test-Path -LiteralPath $desinstalador) {
+                $baja = $shell.CreateShortcut($archivoDes)
+                $baja.TargetPath = $desinstalador
+                $baja.WorkingDirectory = (Join-Path $Raiz "instalar")
+                $baja.Description = "Quita AXIOMA (contenedores, imagen y accesos). Conserva tus datos."
+                if (Test-Path -LiteralPath $icono) { $baja.IconLocation = $icono }
+                $baja.Save()
+                ok "Acceso creado: $archivoDes"
+            }
         } catch {
             aviso "No pude crear el acceso en $destino ($($_.Exception.Message))."
             Write-Host "        Podés arrancar igual con: instalar\INICIAR_AXIOMA.bat"
