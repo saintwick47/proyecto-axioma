@@ -7,6 +7,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Calidad: `pyproject.toml` sólo para herramientas + ratchet de ruff (2026-11-04)
+
+- **`pyproject.toml`** (nuevo) **sólo** con `[tool.ruff]` (`target-version = "py314"`, `line-length = 120`).
+  **No** es un paquete instalable: `requirements.txt`/`requirements-ci.txt` siguen siendo la fuente de
+  verdad (los usa el Dockerfile, el CI y el test que los compara).
+- **`tools/calidad_ruff.py`**: ratchet de calidad. Mide las reglas objetivo (I, UP, C4, E, W, SIM, B, F,
+  ASYNC, TC, RUF; sin E501) y compara con la sección **`calidad` de `audit_baseline.json`** (el mismo
+  baseline del auditor). Falla sólo si un contador **sube**; `--medir`/`--actualizar` son explícitos.
+  Medido: **7.013** infracciones (la deuda queda congelada, no se exige arreglarla de golpe).
+- **CI**: paso nuevo «Calidad (ratchet de ruff)» dentro del job `test`. Usa el ruff que ya estaba
+  (`requirements-ci`), sin dependencias nuevas ni cambios en la imagen.
+- **Arreglo que destapó el `target-version`**: `tools/system_check.py` tenía **imports duplicados**
+  (el archivo se fusionó de dos módulos y la segunda mitad re-importaba `Dict`/`Any`) → F811. Se quitó
+  el bloque duplicado; verificado: `ruff` pasa y `test_axioma_26` sigue en 65/65.
+- **No** se implementó (por ahora): mypy, `ruff format` masivo, oleadas `UP` (≈4.000 de las 7.013 son
+  modernización de tipos, no bugs) ni pre-commit.
+
 ### Pantalla 🧠 Modelos: elegir del catálogo e instalar con progreso (2026-10-31)
 
 - **Pedido del usuario**: en *Configurar AXIOMA* sólo aparecían los modelos ya instalados; no había

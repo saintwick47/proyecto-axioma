@@ -135,6 +135,13 @@ jobs:
       # Ejecuta cada archivo por separado y escribe el reporte CONSOLIDADO con
       # `run_id`, `pytest exitstatus` REAL por archivo y tests recolectados —
       # que es exactamente lo que el gate necesita como evidencia.
+      # 2026-11-04 (plan de calidad v2.0, recortado): ratchet de RUFF contra la sección `calidad`
+      # de `audit_baseline.json`. Falla sólo si algún contador SUBE; hoy son ~7.000 infracciones
+      # medidas de reglas que todavía no se exigen (la deuda sólo baja). Usa el ruff que ya está en
+      # requirements-ci (0.16.9): no agrega dependencias ni toca la imagen.
+      - name: Calidad (ratchet de ruff)
+        run: python tools/calidad_ruff.py
+
       - name: Suite de tests (reporte consolidado)
         env:
           CI: 'true'

@@ -918,6 +918,15 @@ def main() -> int:
     baseline_doc = auditor.baseline_document()
     if args.write_baseline:
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
+        # 2026-11-04: conservar la sección 'calidad' (ratchet de ruff, tools/calidad_ruff.py). Sin esto,
+        # reescribir la base del auditor la borraría y el ratchet de calidad quedaría sin base.
+        try:
+            anterior = (json.loads(baseline_path.read_text(encoding="utf-8"))
+                        if baseline_path.is_file() else {})
+        except (OSError, ValueError):
+            anterior = {}
+        if isinstance(anterior.get("calidad"), dict):
+            baseline_doc["calidad"] = anterior["calidad"]
         baseline_path.write_text(
             json.dumps(baseline_doc, indent=2, ensure_ascii=False,
                        default=str),

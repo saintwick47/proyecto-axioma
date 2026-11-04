@@ -242,6 +242,7 @@ def _raiz():
 
 def test_el_dockerfile_usa_las_mismas_versiones_que_requirements():
     import re
+
     import pytest
     raiz = _raiz()
     if not (raiz / "Dockerfile").is_file():
@@ -542,3 +543,47 @@ def test_el_desinstalador_borra_los_dos_accesos():
     texto = (_raiz() / "instalar" / "desinstalar_axioma.ps1").read_text(encoding="utf-8-sig")
     assert "AXIOMA.lnk" in texto and "Desinstalar AXIOMA.lnk" in texto
     assert (_raiz() / "instalar" / "DESINSTALAR_AXIOMA.bat").is_file()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Calidad: pyproject sólo para herramientas + ratchet de ruff (2026-11-04)
+# ════════════════════════════════════════════════════════════════════════════
+
+def test_el_pyproject_solo_configura_herramientas():
+    import pytest
+    archivo = _raiz() / "pyproject.toml"
+    if not archivo.is_file():
+        pytest.skip("pyproject.toml no viaja dentro de la imagen")
+    import tomllib
+    datos = tomllib.loads(archivo.read_text(encoding="utf-8"))
+    assert "project" not in datos, "no es un paquete instalable: las dependencias van en requirements"
+    assert datos["tool"]["ruff"]["target-version"] == "py314"
+    assert datos["tool"]["ruff"]["line-length"] == 120
+    # Los requirements siguen siendo la fuente de verdad.
+    assert (_raiz() / "requirements.txt").is_file()
+    assert (_raiz() / "requirements-ci.txt").is_file()
+
+
+def test_el_ratchet_de_calidad_detecta_subas_y_no_inventa_bajadas():
+    import sys
+    sys.path.insert(0, str(_raiz() / "tools"))
+    import calidad_ruff as cr
+    base = {"por_regla": {"I001": 575, "UP006": 2571}}
+    assert cr.comparar({"por_regla": {"I001": 575, "UP006": 2571}}, base) == {}
+    sube = cr.comparar({"por_regla": {"I001": 576, "UP006": 2571}}, base)
+    assert sube == {"I001": (575, 576)}
+    baja = cr.comparar({"por_regla": {"I001": 500, "UP006": 2571}}, base)
+    assert baja == {}, "una mejora no es una regresión"
+
+
+def test_el_baseline_tiene_la_seccion_de_calidad():
+    import json
+
+    import pytest
+    archivo = _raiz() / "audit_baseline.json"
+    if not archivo.is_file():
+        pytest.skip("el baseline no viaja dentro de la imagen")
+    datos = json.loads(archivo.read_text(encoding="utf-8"))
+    calidad = datos.get("calidad") or {}
+    assert isinstance(calidad.get("total"), int) and calidad["total"] > 0
+    assert isinstance(calidad.get("por_regla"), dict) and calidad["por_regla"]

@@ -1,0 +1,12 @@
+# Configuración de HERRAMIENTAS (no es un paquete instalable): las dependencias siguen en
+# requirements.txt / requirements-ci.txt, que son la fuente de verdad (el Dockerfile y el CI los usan y
+# `test_requirements_ci_es_requirements_menos_lo_documentado` los mantiene en sync).
+# Plan de calidad v2.0 (2026-11-04), recortado a lo verificado: sólo ruff.
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+# Lo que el proyecto YA cumple (test_axioma_26). Las reglas nuevas entran al ratchet de a una, cuando
+# su contador llega a cero: `tools/calidad_ruff.py` mide `calidad.reglas_objetivo` y falla si sube.
+select = ["F821", "F811", "W605"]
