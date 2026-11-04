@@ -172,14 +172,19 @@ class TestOtrosAgentes:
     # ✅ REGRESIÓN v0.6.8u: _build_search_prompt usaba session_id/user_id
     # sin declararlos → NameError rompía la búsqueda web general.
     def test_researcher_build_search_prompt_con_session(self):
+        from unittest.mock import patch
         from src.agents.researcher import ResearcherAgent
         from src.domain.entities import Message, MessageRole
         try:
             agent = ResearcherAgent(model="m", timeout=1, enable_memory=False)
             msg = Message(role=MessageRole.USER, content="noticias de tecnologia")
-            prompt = agent._build_search_prompt(
-                msg, [], task_type="web_search", session_id="s2", user_id="u2",
-            )
+            # ✅ 2026-11-04 (auditoría de tests): `_get_context` cargaba el modelo de embeddings
+            # (~5,7 s por corrida) y no es lo que este test verifica: se reemplaza por un contexto fijo
+            # para medir SÓLO la construcción del prompt. Mismo comportamiento, ~5 s menos.
+            with patch.object(ResearcherAgent, "_get_context", return_value=[]):
+                prompt = agent._build_search_prompt(
+                    msg, [], task_type="web_search", session_id="s2", user_id="u2",
+                )
             check("ResearcherAgent._build_search_prompt(session_id, user_id) sin NameError",
                   isinstance(prompt, str) and len(prompt) > 0, f"len={len(prompt)}", SECTION)
         except Exception as e:  # noqa: BLE001

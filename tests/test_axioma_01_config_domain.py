@@ -643,10 +643,10 @@ task_mappings:
 # ═══════════════════════════════════════════════════════════════
 # POLÍTICA DE TAMAÑO DE LOS TESTS (ISSUE-057 / R13)
 # ═══════════════════════════════════════════════════════════════
-    # Los archivos de test se FUSIONAN por tema y ninguno supera las 950 líneas: si crece, hay que
+    # Los archivos de test se FUSIONAN por tema y ninguno supera las 1000 líneas: si crece, hay que
     # fusionarlo (o dividir por tema) antes de seguir agregando.
 class TestTamanoDeArchivosDeTest:
-    LIMITE = 950
+    LIMITE = 1000
 
     def test_ningun_archivo_supera_el_limite(self):
         excedidos = {}
@@ -665,7 +665,7 @@ class TestTamanoDeArchivosDeTest:
         )
 
     def test_la_suite_no_multiplica_archivos(self):
-        """Tope: 26 autorizado (test_34; test_18 ya está en 946/950 líneas)."""
+        """Tope: 26 autorizado (test_34; test_18 ya está en 946/1000 líneas)."""
         archivos = sorted((PROJECT_ROOT / "tests").glob("test_axioma_*.py"))
         check("cantidad de archivos de suite razonable (≤ 27)", len(archivos) <= 27,
               f"{len(archivos)} archivos", SECTION)

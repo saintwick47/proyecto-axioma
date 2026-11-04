@@ -54,6 +54,20 @@ def _index(root: Path) -> CodeIndex:
     return idx
 
 
+_INDICE_DEL_REPO = None
+
+
+def _indice_real() -> CodeIndex:
+    """Índice del repo, construido UNA sola vez (2026-11-04: eran 2 builds de ~3 s cada uno).
+
+    Los detectores sólo lo leen; no se modifica entre tests.
+    """
+    global _INDICE_DEL_REPO
+    if _INDICE_DEL_REPO is None:
+        _INDICE_DEL_REPO = _index(PROJECT_ROOT)
+    return _INDICE_DEL_REPO
+
+
 def _run(detector_cls, tmp_path: Path, fname: str, src: str):
     p = tmp_path / "src" / fname
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -329,7 +343,7 @@ class TestProyectoRealSinMEDIUMDeSeguridad:
     """
 
     def test_path_containment_y_native_import_en_cero(self):
-        idx = _index(PROJECT_ROOT)
+        idx = _indice_real()
         for detector_cls in (PathContainmentDetector, NativeImportOSErrorDetector):
             findings = detector_cls(idx).run().findings
             medium = [f for f in findings if f.severity is AudSeverity.MEDIUM]
@@ -806,7 +820,7 @@ class TestDetectoresSeguridadV076:
         f = _run(FileReadSinkDetector, tmp_path, "safe.py", FSR_SAFE_SRC)
         check("AUD-FSR no marca basename + is_relative_to", f == [], str(f), SECTION)
         # Y en el árbol real (upload/workspace_manager/download ya corregidos): 0.
-        real = FileReadSinkDetector(_index(PROJECT_ROOT)).run().findings
+        real = FileReadSinkDetector(_indice_real()).run().findings
         check("AUD-FSR = 0 en los lugares ya corregidos del repo", real == [],
               str([(x.file, x.line_start) for x in real]), SECTION)
         assert f == [] and real == []

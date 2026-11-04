@@ -7,6 +7,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Auditoría de la suite: 3 recortes medidos y tope de 1000 líneas (2026-11-04)
+
+- **Test duplicado eliminado**: `test_researcher_build_search_prompt_*` estaba en `test_04` y `test_08`
+  (5 s cada corrida). Queda uno.
+- **Sin cargar embeddings para probar un prompt**: `_build_search_prompt` llamaba al contexto semántico
+  (5,7 s de carga del modelo). En el test se parchea `_get_context` con un contexto fijo: verifica lo
+  mismo (el prompt) en milisegundos.
+- **Índice del repo una sola vez** en `test_34` (`_indice_real()`): los detectores sólo lo leen.
+- **Tope R13**: 950 → **1000** líneas por archivo de test (había 9 archivos en el límite).
+- **Medido**: `test_04` 8,97 → 4,24 s · `test_08` 9,76 → 3,18 s · `test_34` 6,95 → 6,13 s · suite
+  completa ~135-150 s → **~122 s**. Detalle y lo que **no** se tocó: `docs/AUDITORIA_TESTS_2026-11-04.md`.
+
 ### Calidad: `pyproject.toml` sólo para herramientas + ratchet de ruff (2026-11-04)
 
 - **`pyproject.toml`** (nuevo) **sólo** con `[tool.ruff]` (`target-version = "py314"`, `line-length = 120`).

@@ -503,19 +503,6 @@ def test_researcher_propaga_session_a_build_search_prompt():
     assert result.success is True, f"execute falló: {result.error}"
 
 
-def test_researcher_build_search_prompt_acepta_session_y_user():
-    """_build_search_prompt no debe lanzar NameError (bug del log)."""
-    from src.agents.researcher import ResearcherAgent
-    from src.domain.entities import Message, MessageRole
-    with patch("src.agents.base.OllamaClient"):
-        agent = ResearcherAgent(model="m", timeout=1, enable_memory=False)
-    msg = Message(role=MessageRole.USER, content="noticias de ciencia")
-    prompt = agent._build_search_prompt(
-        msg, [], task_type="web_search", session_id="s2", user_id="u2",
-    )
-    assert isinstance(prompt, str) and len(prompt) > 0
-
-
 def test_chat_usa_timeout_configurable_no_hardcode():
     """El agent loop del chat debe usar settings.ollama_timeout_chat, no 60.
     ✅ v0.6.8mm: _handle_chat vive en dispatcher_handlers_extra.py (refactor
