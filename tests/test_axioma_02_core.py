@@ -944,3 +944,53 @@ def test_contratos_del_chat_detener_y_avanzado():
     comp.set_advanced(False)
     assert visto == [True, False], visto
 
+
+
+# ════════════════════════════════════════════════════════════════
+# Hardware: iGPU vs dGPU y presupuesto (2026-11-04, medido en el equipo)
+# ════════════════════════════════════════════════════════════════
+
+def test_hardware_clasifica_igpu_y_dgpu_por_nombre(tmp_path):
+    """El equipo real tiene RX 460 (2 GB) + iGPU Phoenix2 (512 MB): antes decía "amd_igpu"."""
+    from src.core import hardware_fit as hf
+
+    def tarjeta(carpeta, vram_mb, nombre=None):
+        d = tmp_path / carpeta / "device"
+        d.mkdir(parents=True)
+        (d / "mem_info_vram_total").write_text(str(vram_mb * 1024 * 1024))
+        if nombre:
+            (d / "product_name").write_text(nombre)
+
+    tarjeta("card0", 512, "AMD Radeon 740M")
+    tarjeta("card1", 2048, "Radeon RX 460/560D")
+    vram, nombre, backend = hf._detect_amd_sysfs(tmp_path)
+    assert backend == "amd", "con dGPU el backend no puede ser amd_igpu"
+    assert "RX 460" in nombre and 1.9 < vram < 2.1
+
+    solo = tmp_path / "solo"
+    d = solo / "card0" / "device"
+    d.mkdir(parents=True)
+    (d / "mem_info_vram_total").write_text(str(512 * 1024 * 1024))
+    (d / "product_name").write_text("AMD Radeon 740M")
+    _, nombre, backend = hf._detect_amd_sysfs(solo)
+    assert backend == "amd_igpu" and "740M" in nombre
+
+
+def test_hardware_presupuesto_usa_ram_si_la_gpu_no_sostiene_un_modelo():
+    from src.core.hardware_fit import HardwareProfile
+    chica = HardwareProfile(gpu_vram_gb=2.0, ram_gb=14.74, cpu_threads=12,
+                            gpu_name="RX 460", backend="amd")
+    assert chica.gpu_usable_para_modelos is False
+    assert abs(chica.effective_budget_gb - 14.74 * 0.72) < 0.01
+    grande = HardwareProfile(gpu_vram_gb=8.0, ram_gb=32.0, cpu_threads=16,
+                             gpu_name="RX 6600", backend="amd")
+    assert grande.gpu_usable_para_modelos is True
+    assert abs(grande.effective_budget_gb - 8.0 * 0.88) < 0.01
+
+
+def test_hardware_informa_el_cpu():
+    """Sin modelo/núcleos no se puede recomendar OLLAMA_NUM_THREADS."""
+    from src.core.hardware_fit import detect_hardware
+    hw = detect_hardware()
+    assert hw.cpu_model and len(hw.cpu_model) > 3
+    assert hw.cpu_cores == 0 or hw.cpu_cores <= hw.cpu_threads

@@ -15,8 +15,10 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
+import platform
 import shutil
 import subprocess
 import time
@@ -54,20 +56,32 @@ class HardwareProfile:
     gpu_name: str
     backend: GpuBackend
     detected_at: float = field(default_factory=time.time)
+    # ✅ 2026-11-04 (medido en el equipo real): faltaba el CPU. Con 6 físicos/12 hilos se puede
+    # recomendar OLLAMA_NUM_THREADS; antes no había de dónde sacarlo.
+    cpu_model: str = ""
+    cpu_cores: int = 0
+
+    @property
+    def gpu_usable_para_modelos(self) -> bool:
+        """¿La GPU puede sostener un modelo ENTERO? (bajo 4 GB el offload parcial es más lento)."""
+        return self.backend in ("nvidia", "amd", "apple") and self.gpu_vram_gb >= 4.0
 
     @property
     def effective_budget_gb(self) -> float:
-        if self.backend in ("nvidia", "amd") and self.gpu_vram_gb > 0:
-            return self.gpu_vram_gb * _GPU_SAFE_MARGIN
-        if self.backend == "amd_igpu" and self.gpu_vram_gb > 0:
-            return self.gpu_vram_gb * _IGPU_USABLE_RATIO
-        if self.backend == "apple" and self.gpu_vram_gb > 0:
+        # ✅ 2026-11-04 (medido): la iGPU COMPARTE la RAM del sistema; los modelos corren en CPU y
+        # usan RAM, así que su VRAM (512 MB) no puede ser el presupuesto (daba 0,23 GB y "no entraba"
+        # nada). Y una dGPU de menos de 4 GB no sostiene un modelo entero: el offload parcial es más
+        # lento que CPU, así que el presupuesto vuelve a la RAM.
+        if self.backend in ("nvidia", "amd", "apple") and self.gpu_usable_para_modelos:
             return self.gpu_vram_gb * _GPU_SAFE_MARGIN
         return self.ram_gb * _RAM_SAFE_MARGIN
 
     @property
     def is_gpu_available(self) -> bool:
-        return self.backend in ("nvidia", "amd", "apple") and self.gpu_vram_gb > 0
+        # ✅ 2026-11-04: es el indicador que usan el modo de trabajo, el preflight y la vista
+        # «Mi Hard» para decir «GPU utilizable». Debe significar UTILIZABLE (sostiene un modelo
+        # entero), no «hay una tarjeta»: con una dGPU de 2 GB daba «gpu» y el modelo no entraba.
+        return self.gpu_usable_para_modelos
 
 
 @dataclass(frozen=True)
@@ -127,26 +141,64 @@ def _detect_amd_rocm() -> Optional[Tuple[float, str]]:
     return None
 
 
-def _detect_amd_sysfs() -> Optional[Tuple[float, str, GpuBackend]]:
-    drm = Path("/sys/class/drm")
-    if not drm.exists():
+_IGPU_EN_EL_NOMBRE = re.compile(
+    r"phoenix|renoir|cezanne|rembrandt|raphael|granite|radeon\s+\d{3}m", re.IGNORECASE)
+
+
+def _nombre_de_la_tarjeta(carpeta: Path) -> str:
+    """Nombre legible de la GPU: `product_name` o, si falta, `lspci` del slot."""
+    nombre = carpeta / "product_name"
+    if nombre.exists():
+        with contextlib.suppress(OSError):
+            texto = nombre.read_text().strip()
+            if texto:
+                return texto
+    slot = carpeta.resolve().name  # p. ej. 0000:01:00.0
+    salida = _run(["lspci", "-s", slot])
+    if salida:
+        # "… Baffin [Radeon RX 460/560D / Pro …]" → lo que está entre corchetes
+        entre = re.findall(r"\[([^\]]+)\]", salida)
+        if entre:
+            return entre[-1].split(" / ")[0].strip()
+        return salida.split(": ", 1)[-1].strip()
+    return "AMD GPU"
+
+
+def _detect_amd_sysfs(drm: Path | None = None) -> tuple[float, str, GpuBackend] | None:
+    """Detecta la GPU AMD y distingue iGPU de dGPU (2026-11-04).
+
+    ✅ MEDIDO en el equipo real: había una **RX 460 de 2 GB** y una iGPU Phoenix2 de 512 MB. El código
+    anterior se quedaba con la de MÁS VRAM (la RX 460) y la etiquetaba `amd_igpu` sólo porque tenía
+    < 4 GB; además el nombre salía "AMD GPU" (esas tarjetas no tienen `product_name`). Ahora:
+      · el nombre se saca de `product_name` o de `lspci`;
+      · iGPU/dGPU se decide por el NOMBRE (Phoenix/Renoir/…/Radeon 7xxM = integrada);
+      · si hay dGPU, se reporta ÉSA (es la que puede acelerar), con su VRAM real.
+    """
+    base = drm or Path("/sys/class/drm")
+    if not base.exists():
         return None
-    best_vram = 0.0
-    gpu_name = "AMD GPU"
-    for vram_path in sorted(drm.glob("card*/device/mem_info_vram_total")):
+    integrada: tuple[float, str] | None = None
+    dedicada: tuple[float, str] | None = None
+    for vram_path in sorted(base.glob("card*/device/mem_info_vram_total")):
         try:
             vram_gb = int(vram_path.read_text().strip()) / (1024 ** 3)
-            if vram_gb > best_vram:
-                best_vram = vram_gb
-                name_path = vram_path.parent / "product_name"
-                if name_path.exists():
-                    gpu_name = name_path.read_text().strip()
         except (ValueError, OSError):
             continue
-    if best_vram <= 0.0:
-        return None
-    backend: GpuBackend = "amd_igpu" if best_vram < 4.0 else "amd"
-    return best_vram, gpu_name, backend
+        if vram_gb <= 0.0:
+            continue
+        carpeta = vram_path.parent
+        nombre = _nombre_de_la_tarjeta(carpeta)
+        if _IGPU_EN_EL_NOMBRE.search(nombre):
+            if integrada is None or vram_gb > integrada[0]:
+                integrada = (vram_gb, nombre)
+        else:
+            if dedicada is None or vram_gb > dedicada[0]:
+                dedicada = (vram_gb, nombre)
+    if dedicada:
+        return dedicada[0], dedicada[1], "amd"
+    if integrada:
+        return integrada[0], integrada[1], "amd_igpu"
+    return None
 
 
 def _detect_apple() -> Optional[Tuple[float, str]]:
@@ -190,6 +242,29 @@ def _detect_cpu_threads() -> int:
 # DETECCIÓN PRINCIPAL
 # ═══════════════════════════════════════════════════════════════
 
+def _detectar_cpu() -> tuple[str, int]:
+    """Modelo y núcleos FÍSICOS del CPU (2026-11-04: faltaban y hacen falta para OLLAMA_NUM_THREADS)."""
+    modelo = ""
+    nucleos = 0
+    try:
+        import psutil
+        nucleos = psutil.cpu_count(logical=False) or 0
+    except ImportError:
+        nucleos = 0
+    info = Path("/proc/cpuinfo")
+    if info.exists():
+        with contextlib.suppress(OSError):
+            for linea in info.read_text(errors="replace").splitlines():
+                if not modelo and linea.startswith("model name"):
+                    modelo = linea.split(":", 1)[1].strip()
+                elif not nucleos and linea.startswith("cpu cores"):
+                    with contextlib.suppress(ValueError, IndexError):
+                        nucleos = int(linea.split(":", 1)[1].strip())
+    if not modelo:
+        modelo = platform.processor() or "CPU"
+    return modelo, nucleos
+
+
 def detect_hardware() -> HardwareProfile:
     """
     Detecta hardware del sistema. Orden de prioridad:
@@ -201,32 +276,33 @@ def detect_hardware() -> HardwareProfile:
     """
     ram_gb = _detect_ram_gb()
     cpu_threads = _detect_cpu_threads()
+    cpu_model, cpu_cores = _detectar_cpu()
 
     nvidia = _detect_nvidia()
     if nvidia:
         vram_gb, name = nvidia
         return HardwareProfile(gpu_vram_gb=vram_gb, ram_gb=ram_gb,
-                               cpu_threads=cpu_threads, gpu_name=name, backend="nvidia")
+                               cpu_threads=cpu_threads, cpu_model=cpu_model, cpu_cores=cpu_cores, gpu_name=name, backend="nvidia")
 
     rocm = _detect_amd_rocm()
     if rocm:
         vram_gb, name = rocm
         return HardwareProfile(gpu_vram_gb=vram_gb, ram_gb=ram_gb,
-                               cpu_threads=cpu_threads, gpu_name=name, backend="amd")
+                               cpu_threads=cpu_threads, cpu_model=cpu_model, cpu_cores=cpu_cores, gpu_name=name, backend="amd")
 
     sysfs = _detect_amd_sysfs()
     if sysfs:
         vram_gb, name, backend = sysfs
         return HardwareProfile(gpu_vram_gb=vram_gb, ram_gb=ram_gb,
-                               cpu_threads=cpu_threads, gpu_name=name, backend=backend)
+                               cpu_threads=cpu_threads, cpu_model=cpu_model, cpu_cores=cpu_cores, gpu_name=name, backend=backend)
 
     apple = _detect_apple()
     if apple:
         vram_gb, name = apple
         return HardwareProfile(gpu_vram_gb=vram_gb, ram_gb=ram_gb,
-                               cpu_threads=cpu_threads, gpu_name=name, backend="apple")
+                               cpu_threads=cpu_threads, cpu_model=cpu_model, cpu_cores=cpu_cores, gpu_name=name, backend="apple")
 
-    return HardwareProfile(gpu_vram_gb=0.0, ram_gb=ram_gb, cpu_threads=cpu_threads,
+    return HardwareProfile(gpu_vram_gb=0.0, ram_gb=ram_gb, cpu_threads=cpu_threads, cpu_model=cpu_model, cpu_cores=cpu_cores,
                            gpu_name="", backend="cpu")
 
 

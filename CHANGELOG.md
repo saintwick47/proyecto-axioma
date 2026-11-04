@@ -7,6 +7,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Hardware: iGPU/dGPU bien clasificadas y CPU en el perfil (2026-11-04)
+
+- **Medido en el equipo real** (Ryzen 5 8500G + **RX 460/560 de 2 GB** + iGPU Phoenix2 de 512 MB):
+  `detect_hardware()` reportaba `backend="amd_igpu"`, `gpu_name="AMD GPU"` y un presupuesto de
+  **0,9 GB** — mezclaba la dGPU con la iGPU por la heurística «menos de 4 GB ⇒ integrada». Con eso el
+  preflight recomendaba con un presupuesto que no era el real.
+- **Arreglo**: la GPU se identifica por **nombre** (`product_name` o `lspci`) y se clasifica
+  integrada/dedicada; si hay dGPU se reporta **ésa** con su VRAM. `is_gpu_available` ahora significa
+  **utilizable** (sostiene un modelo entero), así que una dGPU de 2 GB no fuerza el modo «gpu».
+- **Presupuesto**: la iGPU **comparte RAM** (los modelos corren en CPU) y una dGPU de < 4 GB no
+  sostiene un modelo entero → en ambos casos el presupuesto es la **RAM** (14,74 × 0,72 = 10,61 GB en
+  este equipo), no la VRAM.
+- **CPU en el perfil**: `cpu_model` y `cpu_cores` (6 físicos de 12 hilos acá), que antes no existían y
+  hacían imposible recomendar `OLLAMA_NUM_THREADS`.
+- **Tests**: 3 nuevos con sysfs falso (iGPU sola, dGPU + iGPU, presupuesto) y se corrigió `test_19`,
+  que tenía fijado el resultado equivocado del equipo real.
+
 ### Auditoría de la suite: 3 recortes medidos y tope de 1000 líneas (2026-11-04)
 
 - **Test duplicado eliminado**: `test_researcher_build_search_prompt_*` estaba en `test_04` y `test_08`

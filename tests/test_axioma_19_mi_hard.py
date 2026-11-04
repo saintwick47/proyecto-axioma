@@ -14,8 +14,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 HW_CPU = {
-    "backend": "amd_igpu", "gpu_name": "AMD GPU", "gpu_vram_gb": 2.0,
-    "effective_budget_gb": 0.9, "ram_gb": 14.74, "cpu_threads": 12,
+    # 2026-11-04: esto representa un equipo SÓLO con iGPU (la iGPU comparte RAM, el presupuesto
+    # de modelos es la RAM, no su VRAM de 512 MB). El equipo real con dGPU se prueba en test_02.
+    "backend": "amd_igpu", "gpu_name": "AMD Radeon 740M", "gpu_vram_gb": 0.5,
+    "effective_budget_gb": 10.61, "ram_gb": 14.74, "cpu_threads": 12,
     "is_gpu_available": False,
 }
 RANK = {
@@ -61,7 +63,7 @@ class TestMiHardSections:
         texts = " ".join(t for t, _ in sec["lines"])
         assert "CPU (sin GPU utilizable)" in texts
         assert "amd_igpu" in texts
-        assert "14.74 GB" in texts and "budget: 0.9 GB" in texts
+        assert "14.74 GB" in texts and "budget: 10.61 GB" in texts
 
     def test_gpu_present_changes_label(self):
         hw = dict(HW_CPU, is_gpu_available=True)
