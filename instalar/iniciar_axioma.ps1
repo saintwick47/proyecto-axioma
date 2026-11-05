@@ -108,6 +108,31 @@ function Cerrar-Registro {
     }
 }
 
+function Probar-Axioma {
+    # 2026-11-05 (MEDIDO en la PC de la usuaria): `Invoke-WebRequest` fallaba con "la conexión ha
+    # terminado de forma inesperada" y el lanzador decía que AXIOMA no respondía aunque el
+    # contenedor estuviera arriba. La causa típica es un PROXY del sistema interceptando 127.0.0.1.
+    # Se prueba HTTP SIN proxy y, si no, un TCP directo al puerto (que no pasa por ningún proxy).
+    param([string]$Direccion)
+    try {
+        $req = [System.Net.WebRequest]::Create($Direccion)
+        $req.Proxy = $null
+        $req.Timeout = 2500
+        $resp = $req.GetResponse()
+        $codigo = [int]$resp.StatusCode
+        $resp.Close()
+        return ($codigo -eq 200)
+    } catch { }
+    try {
+        $uri = [Uri]$Direccion
+        $cliente = New-Object System.Net.Sockets.TcpClient
+        $tarea = $cliente.ConnectAsync($uri.Host, $uri.Port)
+        if ($tarea.Wait(1500) -and $cliente.Connected) { $cliente.Close(); return $true }
+        $cliente.Close()
+    } catch { }
+    return $false
+}
+
 function Probar-Docker {
     # Devuelve $true si Docker está instalado Y respondiendo.
     # El try/catch no es adorno: en PowerShell 7.4+ `$PSNativeCommandUseErrorActionPreference` viene
@@ -397,14 +422,14 @@ try {
 ok "Contenedores encendidos"
 
 paso "Esperando a que AXIOMA responda"
-for ($intento = 1; $intento -le 30; $intento++) {
-    $listo = $false
-    try {
-        $r = Invoke-WebRequest -Uri $Url -TimeoutSec 2 -UseBasicParsing
-        $listo = ($r.StatusCode -eq 200)
-    } catch {
-        $listo = $false
-    }
+if ($env:HTTP_PROXY -or $env:HTTPS_PROXY -or $env:http_proxy) {
+    aviso "Hay un proxy configurado: la prueba de AXIOMA va sin proxy."
+}
+# 2026-11-05: 60 s no alcanzaban en el primer arranque (importar torch/sentence-transformers dentro
+# del contenedor tarda). Ahora se espera hasta ~3 minutos, mostrando el avance cada 15 s.
+for ($intento = 1; $intento -le 60; $intento++) {
+    $listo = Probar-Axioma $Url
+    if (-not $listo -and ($intento % 5 -eq 0)) { Write-Host ("  ... esperando a AXIOMA ({0} de ~180 s)" -f ($intento * 3)) }
     if ($listo) {
         ok "AXIOMA está en línea: $Url"
         try {
@@ -430,6 +455,16 @@ for ($intento = 1; $intento -le 30; $intento++) {
     }
     Start-Sleep -Seconds 2
 }
-mal "AXIOMA no respondió en un minuto."
-Write-Host "     Mirá qué dice con:  docker compose logs --tail 40 axioma-puente"
+mal "AXIOMA no respondió en ~3 minutos."
+Write-Host "     Se guardan los logs del contenedor en este mismo archivo (y en el .log)."
+try {
+    $compose = Comando-Compose
+    if ($compose) {
+        Write-Host "  --- docker compose ps ---"
+        Invocar-Compose @compose "ps"
+        Write-Host "  --- docker compose logs --tail 60 axioma-puente ---"
+        Invocar-Compose @compose "logs" "--tail" "60" "axioma-puente"
+    }
+} catch { Write-Host "     (no se pudieron volcar los logs: $_)" }
+Write-Host "     A mano:  docker compose logs --tail 80 axioma-puente"
 Salir-Con-Pausa 4

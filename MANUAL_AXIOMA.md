@@ -27,7 +27,7 @@ búsqueda web, archivos y memoria persistente por usuario.
    ```
 1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop));
    en **Windows** además **WSL 2**.
-2. **Bajar el instalador de la página de _Releases_** (versión **v0.7.8**, lo más simple):
+2. **Bajar el instalador de la página de _Releases_** (versión **v0.7.9**, lo más simple):
    - **Windows**: `AXIOMA-Setup.exe` — doble clic (necesita Docker Desktop con WSL 2).
      Si el arranque falla con `unknown flag`/`unknown shorthand flag`: comprobá
      `docker compose version` (si falla, falta el plugin Compose: actualizá Docker Desktop) y
@@ -225,4 +225,4 @@ python -m tools.benchmark_calibration   # Calibración de hardware/modelos
 
 ---
 
-*AXIOMA v0.7.8*
+*AXIOMA v0.7.9*

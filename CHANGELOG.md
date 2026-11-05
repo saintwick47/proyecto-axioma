@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.9]
+
+### Arranque en Windows: sin proxy, con más tiempo y con los logs del contenedor (2026-11-05)
+
+- **Medido en la PC de prueba** (logs del pendrive): la instalación terminó bien y los contenedores
+  arrancaron, pero la verificación «AXIOMA responde» falló con *"la conexión ha terminado de forma
+  inesperada"* a los 60 s. Es el patrón de un **proxy del sistema** interceptando `127.0.0.1`.
+- **Arreglo**: la prueba de disponibilidad ahora va **sin proxy** (`WebRequest.Proxy = $null`) y, si
+  no, prueba un **TCP directo** al puerto; el plazo pasa de 60 s a **~3 minutos** con aviso de avance
+  cada 15 s; y si aun así falla, el guion **volca `docker compose ps` y `logs --tail 60`** en el
+  mismo log (antes solo decía "no respondió").
+- La versión visible en la UI es 0.7.9 (cabecera y título leen `src.__version__`).
+
 ## [Sin publicar]
 
 ### Elegir los modelos por rol (2026-11-05)
