@@ -41,16 +41,17 @@
 # ═══════════════════════════════════════════════════════════════
 import logging
 import time
-from typing import Optional, Dict, Any, Callable, Union
+from typing import Any, Callable, Dict, Optional, Union
 
-from nicegui import ui, app as nicegui_app
-
-from src.utils.degradation import log_degraded
+from nicegui import app as nicegui_app
+from nicegui import ui
 
 from config.paths import Paths
+from src.utils.degradation import log_degraded
+
 from ..components.health_badge import HealthBadge
+from .app_logic import _init_browser_storage, _log_error, _log_web_event
 from .states import get_current_session
-from .app_logic import _log_web_event, _log_error, _init_browser_storage
 
 logger = logging.getLogger(__name__)
 
@@ -329,6 +330,7 @@ def create_aviso_de_acceso() -> None:
 
 
 def create_header() -> None:
+    from src import __version__ as AXIOMA_VERSION
     """
     Crea header con logo y botones de navegación.
     Returns:
@@ -346,7 +348,7 @@ def create_header() -> None:
                 'error',
                 lambda e: e.source.set_text('📘') if hasattr(e, 'source') else None
             )
-            ui.label('AXIOMA v0.1.8').classes('text-xl font-bold')
+            ui.label(f'AXIOMA v{AXIOMA_VERSION}').classes('text-xl font-bold')
             # ✅ UI de usuarios (2026-08-31): muestra el usuario activo.
             _active_user = _browser_user_id()
             if _active_user:

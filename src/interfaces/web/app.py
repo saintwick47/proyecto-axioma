@@ -17,7 +17,8 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Any, List
+from typing import Any, List, Optional
+
 from nicegui import ui
 
 # ============================================================================
@@ -27,34 +28,36 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from config.acceso_web import host_expuesto, token_de_web  # ✅ token automático (0600)
 from config.paths import Paths
-from config.acceso_web import host_expuesto, token_de_web   # ✅ token automático (0600)
-from .sesion_segura import secreto_de_sesion   # ✅ secreto de sesión por equipo
 from src.domain.entities import Message
+
 # ✅ v0.1.6b: Import no utilizado eliminado
 from src.interfaces.components.chat import ChatComponent
-from ..components.modals import (
-    create_status_dialog,
-    create_settings_dialog,
-    create_exit_dialog,
-    create_file_dialog,
-    create_mi_hard_dialog,   # ✅ v0.6.9v (F1): vista read-only hardware/modelos
-)
+
 from ..components.export_dialog import create_export_dialog  # ✅ F3 (v0.6.9v)
 from ..components.health_badge import HealthBadge  # ✅ ISSUE-053: badge de salud
+from ..components.modals import (
+    create_exit_dialog,
+    create_file_dialog,
+    create_mi_hard_dialog,  # ✅ v0.6.9v (F1): vista read-only hardware/modelos
+    create_settings_dialog,
+    create_status_dialog,
+)
 from ..components.sessions_dialog import create_sessions_dialog  # ✅ ISSUE-054
-from .states import SessionState, get_current_session
 
 # ── Importar lógica extraída desde app_logic.py ─────────────────────────────
 from .app_logic import (
-    _log_web_event,
-    _log_error,
     _build_response_metadata,
-    compact_code_artifact,   # ✅ ISSUE-055: artefactos de código al estado
     _init_browser_storage,
-    load_settings,
+    _log_error,
     _log_extra,
+    _log_web_event,
+    compact_code_artifact,  # ✅ ISSUE-055: artefactos de código al estado
+    load_settings,
 )
+from .sesion_segura import secreto_de_sesion  # ✅ secreto de sesión por equipo
+from .states import SessionState, get_current_session
 
 logger = logging.getLogger(__name__)
 
@@ -66,29 +69,28 @@ logger = logging.getLogger(__name__)
 # pública (`app.create_header`, `app.clear_chat`, `app._dlog`, …) NO cambie.
 # ═══════════════════════════════════════════════════════════════
 from .app_ui import (  # noqa: F401 — re-export: API pública histórica
-    _dlog,
+    _JARVIS_MODE_LABELS,
+    _VALID_JARVIS_MODES,
     _browser_user_id,
-    _set_browser_user_id,
-    _stable_session_id,
-    _on_configurar_click,
+    _crear_barra_de_acciones,
+    _create_user_and_back,
+    _dlog,
     _nav_btn,
+    _on_configurar_click,
     _open_dialog,
-    _open_status_dialog,
-    _open_settings_dialog,
     _open_exit_dialog,
     _open_file_dialog,
-    _crear_barra_de_acciones,
-    create_header,
-    _VALID_JARVIS_MODES,
-    _JARVIS_MODE_LABELS,
-    _toggle_jarvis_from_header,
+    _open_settings_dialog,
+    _open_status_dialog,
     _select_user,
-    _create_user_and_back,
-    user_select_page,
-    user_new_page,
+    _set_browser_user_id,
+    _stable_session_id,
+    _toggle_jarvis_from_header,
     clear_chat,
+    create_header,
+    user_new_page,
+    user_select_page,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # ✅ v0.1.8: _CODE_PATTERNS — solo términos inequívocamente de código.
@@ -651,7 +653,10 @@ def main_page() -> None:
     # qué falta (y lo instala con un clic). Se marca en `data/`, así se muestra una única vez.
     try:
         from src.interfaces.components.configurar_axioma import (
-            abrir_configurar_axioma, es_primer_arranque, marcar_primer_arranque)
+            abrir_configurar_axioma,
+            es_primer_arranque,
+            marcar_primer_arranque,
+        )
         if es_primer_arranque():
             marcar_primer_arranque()
             # `once=True`: un único disparo cuando la página está armada (nada de sondeo — R7).
@@ -737,12 +742,14 @@ def start_server(
     if not Path(favicon).exists():
         favicon = None
 
+    from src import __version__ as AXIOMA_VERSION
+
     ui.run(
         host=host,
         port=port,
         reload=reload,
         show=False,
-        title='AXIOMA v0.1.8',
+        title=f'AXIOMA v{AXIOMA_VERSION}',
         favicon=favicon,
         storage_secret=secreto_de_sesion(),      # ✅ 2026-10-07: secreto propio del equipo
         reconnect_timeout=300

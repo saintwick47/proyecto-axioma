@@ -181,6 +181,9 @@ class _OllamaFalso:
                                      "message": {"role": "assistant",
                                                  "content": "respuesta del Ollama falso"},
                                      "done": True})
+                elif self.path.startswith("/api/delete"):
+                    # Ollama contesta 200 con `{}` cuando el modelo existía.
+                    self._responder({})
                 elif self.path.startswith("/api/pull"):
                     # Igual que Ollama: varios eventos y el último con el estado final.
                     self._responder([{"status": "pulling manifest"},

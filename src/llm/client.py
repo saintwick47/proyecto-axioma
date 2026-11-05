@@ -659,9 +659,9 @@ class OllamaClient(OllamaClientBase):
         session = None
         try:
             session = self._get_client(timeout=timeout)
-            with session.post(f"{self.base_url}/api/delete", json={"name": model},
-                              timeout=timeout) as response:
-                response.raise_for_status()
+            respuesta = session.post(f"{self.base_url}/api/delete", json={"name": model},
+                                     timeout=timeout)
+            respuesta.raise_for_status()
         except Exception as e:
             _log_error(e, "OllamaClient.delete_model", extra={"model": model})
             raise LLMError(f"Failed to delete model: {e}", model=model) from e

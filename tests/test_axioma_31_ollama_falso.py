@@ -104,3 +104,12 @@ def test_las_pruebas_no_dependen_de_que_haya_ollama_en_la_maquina():
     with pytest.raises(OSError):                     # y al pararlo, el puerto deja de responder
         with socket.create_connection((host, puerto), timeout=1):
             pass
+
+
+def test_borrar_modelo_llama_a_delete(ollama_falso):
+    """`delete_model` pega POST /api/delete con {"name": ...} (2026-11-05)."""
+    _cliente(ollama_falso.url).delete_model("falso:1b")
+    pedidos = [p for p in ollama_falso.pedidos if p[1].startswith("/api/delete")]
+    assert len(pedidos) == 1
+    assert pedidos[0][0] == "POST"
+    assert pedidos[0][2] == {"name": "falso:1b"}

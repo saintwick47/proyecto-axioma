@@ -72,3 +72,17 @@ def test_catalogo_avisa_que_el_9b_es_el_unico_con_vision():
     from config.model_catalog import cargar_catalogo
     modelo = cargar_catalogo().modelos["qwen3.5:9b"]
     assert "visión" in modelo.nota.lower()
+
+
+def test_la_ui_muestra_la_version_real_y_no_un_literal():
+    """2026-11-05 (medido en el navegador): la cabecera decía v0.1.8 con la versión en 0.7.8."""
+    import re
+    from src import __version__
+
+    base = Path(__file__).resolve().parent.parent / "src" / "interfaces" / "web"
+    for nombre in ("app_ui.py", "app.py"):
+        texto = (base / nombre).read_text(encoding="utf-8")
+        literales = re.findall(r"AXIOMA v[0-9]", texto)
+        assert not literales, f"{nombre}: versión hardcodeada {literales}"
+        assert "AXIOMA_VERSION" in texto, f"{nombre}: no usa la versión única"
+    assert __version__ == "0.7.8" or re.match(r"^\d+\.\d+\.\d+$", __version__)
