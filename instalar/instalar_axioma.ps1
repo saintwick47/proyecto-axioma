@@ -92,6 +92,27 @@ function Mostrar-Resumen {
 }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
+# 2026-11-05: log persistente de la instalación (antes sólo había un log de build en %TEMP%).
+$script:RutaLog = $null
+$script:TranscriptActivo = $false
+try {
+    $carpetaLogs = Join-Path $Raiz "logs"
+    [void](New-Item -ItemType Directory -Force -Path $carpetaLogs)
+    $script:RutaLog = Join-Path $carpetaLogs ("instalacion_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
+    Start-Transcript -Path $script:RutaLog -Append | Out-Null
+    $script:TranscriptActivo = $true
+} catch { $script:RutaLog = $null; $script:TranscriptActivo = $false }
+
+function Cerrar-Registro {
+    if ($script:TranscriptActivo) {
+        try { Stop-Transcript | Out-Null } catch { }
+        $script:TranscriptActivo = $false
+    }
+    if ($script:RutaLog -and (Test-Path -LiteralPath $script:RutaLog)) {
+        Write-Host ("`n  Log de esta instalación: " + $script:RutaLog) -ForegroundColor DarkGray
+    }
+}
+
 
 paso "AXIOMA — instalación en Windows (una sola vez)"
 Write-Host "   Carpeta del proyecto: $Raiz"
@@ -431,7 +452,7 @@ if ($Ensayo) {
             # executable file not found in %PATH%`. AXIOMA usa sólo imágenes PÚBLICAS (python:*-slim,
             # ollama/ollama), así que no necesita credenciales: si falla por eso, se reintenta con un
             # DOCKER_CONFIG temporal (sin credsStore) y se restaura el del usuario al salir.
-            $logBuild = Join-Path $env:TEMP "axioma-build.log"
+            $logBuild = Join-Path (Join-Path $Raiz "logs") "build_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
             function Invoke-Build {
                 $armado = $true
                 try { & docker compose build 2>&1 | Tee-Object -FilePath $logBuild } catch { $armado = $false }

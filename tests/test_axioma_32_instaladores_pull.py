@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 _GHCR = "ghcr.io/saintwick47/proyecto-axioma"
@@ -587,3 +589,18 @@ def test_el_baseline_tiene_la_seccion_de_calidad():
     calidad = datos.get("calidad") or {}
     assert isinstance(calidad.get("total"), int) and calidad["total"] > 0
     assert isinstance(calidad.get("por_regla"), dict) and calidad["por_regla"]
+
+
+def test_instaladores_dejan_un_log_de_ejecucion():
+    """2026-11-05: el usuario no tenía ningún log para revisar tras instalar/arrancar."""
+    base = Path(__file__).resolve().parent.parent / "instalar"
+    for nombre, patron in (("iniciar_axioma.ps1", "inicio_"),
+                           ("instalar_axioma.ps1", "instalacion_")):
+        ruta = base / nombre
+        if not ruta.exists():
+            pytest.skip(f"{nombre} no viaja en esta instalación")
+        texto = ruta.read_text(encoding="utf-8")
+        assert "Start-Transcript" in texto, f"{nombre}: no inicia el registro"
+        assert "Stop-Transcript" in texto, f"{nombre}: no cierra el registro"
+        assert patron in texto, f"{nombre}: el nombre del log no coincide"
+        assert "Log de esta" in texto, f"{nombre}: no muestra dónde quedó el log"

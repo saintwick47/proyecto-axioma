@@ -270,6 +270,15 @@ def _correr(args: list, cwd: Path = None, timeout: int = 20) -> str:
         return f"(no se pudo ejecutar {' '.join(args)}: {type(e).__name__}: {e})"
 
 
+
+def _ultimo_log(destino: Path) -> "Path | None":
+    """El log más reciente que dejó el instalador/lanzador (2026-11-05: el usuario no tenía ninguno)."""
+    carpeta = Path(destino) / "logs"
+    if not carpeta.is_dir():
+        return None
+    candidatos = sorted(carpeta.glob("*.log"), key=lambda r: r.stat().st_mtime, reverse=True)
+    return candidatos[0] if candidatos else None
+
 def escribir_diagnostico(destino: Path) -> "Path | None":
     """Escribe un archivo con todo lo necesario para diagnosticar un arranque fallido.
 
@@ -649,6 +658,9 @@ def main() -> int:
     except OSError as e:
         mal(f"No pude ejecutar el instalador: {e}")
         codigo = 4
+    log = _ultimo_log(destino)
+    if log:
+        print(f"\n   Log completo de esta ejecucion: {log}")
     if codigo != 0:
         # ✅ 2026-10-28 (pedido del usuario tras una instalación real fallida): junto con el error,
         # dejar un diagnóstico en un archivo para no adivinar. No incluye valores de claves.

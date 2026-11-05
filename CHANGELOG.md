@@ -7,6 +7,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Log de cada instalación y de cada arranque (2026-11-05)
+
+- **Problema**: tras instalar y usar AXIOMA no había **ningún** archivo donde mirar qué pasó; los
+  mensajes se cerraban con la ventana y el log de build quedaba en `%TEMP%`.
+- **Ahora**:
+  - `instalar_axioma.ps1` escribe `logs\instalacion_YYYYMMDD_HHMMSS.log` (transcript completo) y el
+    log de build pasa a `logs\build_*.log`.
+  - `iniciar_axioma.ps1` escribe `logs\inicio_YYYYMMDD_HHMMSS.log` en cada arranque (incluye el error
+    real de Docker/Compose si falla).
+  - El instalador PyME imprime al final **"Log completo de esta ejecucion: <ruta>"**, y cada script
+    muestra la ruta de su log al terminar (o al fallar).
+- Si `Start-Transcript` no está disponible, el guion sigue igual (best-effort).
+
 ### Hardware: iGPU/dGPU bien clasificadas y CPU en el perfil (2026-11-04)
 
 - **Medido en el equipo real** (Ryzen 5 8500G + **RX 460/560 de 2 GB** + iGPU Phoenix2 de 512 MB):

@@ -69,6 +69,7 @@ function Salir-Con-Pausa {
     # error se perdía y parecía que AXIOMA "no se ejecuta" (medido 2026-10-31). No pausa en ensayo ni
     # si la entrada/salida está redirigida (pruebas, instalador, tareas programadas).
     param([int]$Codigo)
+    Cerrar-Registro
     if (-not $Ensayo) {
         try {
             if (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
@@ -83,6 +84,29 @@ function Salir-Con-Pausa {
 $Raiz = Split-Path -Parent $PSScriptRoot
 $Puerto = 8080                     # el mapeo del servicio `axioma-puente` (Windows no tiene red de equipo)
 $Url = "http://127.0.0.1:$Puerto/"
+
+# 2026-11-05: registro en archivo de CADA arranque. Antes, si algo fallaba, el usuario no tenía
+# ningún log que mirar (sólo mensajes en pantalla que se cerraban). Start-Transcript escribe todo
+# lo que se imprime, incluido el error real. Best-effort: si el host no lo soporta, sigue igual.
+$script:RutaLog = $null
+$script:TranscriptActivo = $false
+try {
+    $carpetaLogs = Join-Path $Raiz "logs"
+    [void](New-Item -ItemType Directory -Force -Path $carpetaLogs)
+    $script:RutaLog = Join-Path $carpetaLogs ("inicio_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
+    Start-Transcript -Path $script:RutaLog -Append | Out-Null
+    $script:TranscriptActivo = $true
+} catch { $script:RutaLog = $null; $script:TranscriptActivo = $false }
+
+function Cerrar-Registro {
+    if ($script:TranscriptActivo) {
+        try { Stop-Transcript | Out-Null } catch { }
+        $script:TranscriptActivo = $false
+    }
+    if ($script:RutaLog -and (Test-Path -LiteralPath $script:RutaLog)) {
+        Write-Host ("`n  Log de esta ejecución: " + $script:RutaLog) -ForegroundColor DarkGray
+    }
+}
 
 function Probar-Docker {
     # Devuelve $true si Docker está instalado Y respondiendo.
@@ -401,6 +425,7 @@ for ($intento = 1; $intento -le 30; $intento++) {
         paso "Listo"
         Write-Host "  Si en la pantalla dice que falta algo (modelos, claves), AXIOMA mismo lo explica y lo instala."
         Write-Host "  Para apagarlo: .\instalar\iniciar_axioma.ps1 -Detener"
+        Cerrar-Registro
         exit 0
     }
     Start-Sleep -Seconds 2
