@@ -7,6 +7,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Elegir los modelos por rol (2026-11-05)
+
+- **El chat ya no se instala solo.** Sólo el modelo de **embeddings** (obligatorio para la memoria)
+  se administra automáticamente. Chat, código y visión se **eligen** en 🧠 Modelos.
+- La pantalla **🧩 Configurar AXIOMA** muestra el modelo de cada rol con su estado ("✅ en uso" o
+  "⚠️ falta X" **con la consecuencia** que trae el catálogo) y un botón directo a la elección.
+- En 🧠 Modelos: roles, tamaño, RAM, **en uso**, nota aclaratoria; botones **Usar para chat/código/
+  visión** (escriben `LLM_DEFAULT_MODEL`/`LLM_CODE_MODEL`/`LLM_VISION_MODEL` en el `.env` con respaldo,
+  avisando que hay que reiniciar) y **Eliminar** (con confirmación; el que está en uso no se deja
+  borrar hasta cambiarle el rol).
+- **Catálogo más largo**: se suman `llama3.1:8b`, `mistral:7b` y `llama3.2:1b` (con nota de que el
+  tamaño es aproximado y no medido en este equipo), además de las opciones que ya estaban
+  (`qwen2.5-coder:3b`, `gemma3:4b`, `deepseek-r1:7b`).
+- `OllamaClient.delete_model` (POST `/api/delete`) y `src/core/model_seleccion.py` (escritura segura
+  del `.env`, con copia y 0600).
+- Docs: se quita el número de commits hardcodeado (era distinto en cada repo y quedaba viejo).
+
 ### Log de cada instalación y de cada arranque (2026-11-05)
 
 - **Problema**: tras instalar y usar AXIOMA no había **ningún** archivo donde mirar qué pasó; los

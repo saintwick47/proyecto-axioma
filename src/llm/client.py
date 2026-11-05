@@ -648,6 +648,28 @@ class OllamaClient(OllamaClientBase):
             if session:
                 self._release_client(session)
 
+    def delete_model(self, model: str, timeout: float = 60.0) -> None:
+        """Borra un modelo del disco de Ollama (`POST /api/delete`).
+
+        ✅ 2026-11-05 (pedido del usuario): poder eliminar el modelo que descargó y no le
+        convenció, para liberar disco e instalar otro. La decisión de si se puede borrar
+        (p. ej. no borrar el que está en uso) la toma la interfaz, no este método.
+        """
+        _log_event("OLLAMA_CLIENT", f"Delete model started: {model}", extra={"model": model})
+        session = None
+        try:
+            session = self._get_client(timeout=timeout)
+            with session.post(f"{self.base_url}/api/delete", json={"name": model},
+                              timeout=timeout) as response:
+                response.raise_for_status()
+        except Exception as e:
+            _log_error(e, "OllamaClient.delete_model", extra={"model": model})
+            raise LLMError(f"Failed to delete model: {e}", model=model) from e
+        finally:
+            if session:
+                self._release_client(session)
+        _log_event("OLLAMA_CLIENT", f"Delete model finished: {model}", extra={"model": model})
+
     def close(self) -> None:
         """Cierra la sesión HTTP y libera recursos del pool."""
         _log_event("OLLAMA_CLIENT", "Closing client session", extra={

@@ -27,7 +27,7 @@ búsqueda web, archivos y memoria persistente por usuario.
    ```
 1. **Docker** instalado y en ejecución ([Docker Desktop](https://www.docker.com/products/docker-desktop));
    en **Windows** además **WSL 2**.
-2. **Bajar el instalador de la página de _Releases_** (versión **v0.7.7**, lo más simple):
+2. **Bajar el instalador de la página de _Releases_** (versión **v0.7.8**, lo más simple):
    - **Windows**: `AXIOMA-Setup.exe` — doble clic (necesita Docker Desktop con WSL 2).
      Si el arranque falla con `unknown flag`/`unknown shorthand flag`: comprobá
      `docker compose version` (si falla, falta el plugin Compose: actualizá Docker Desktop) y
@@ -63,9 +63,12 @@ suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en par
 
 - **Python** 3.10+ (el proyecto usa 3.14).
 - **Ollama** corriendo en `127.0.0.1:11434` con los modelos:
-  - `qwen3.5:9b` (chat + razonamiento + **visión**, multimodal nativo, 6,60 GB)
-  - `qwen2.5-coder:7b` (código, 4,68 GB) · `huihui_ai/qwen2.5-coder-abliterate:7b` (respaldo de
-    código, 4,68 GB) · `piper:es_AR-daniela-high` (voz, 0,11 GB)
+  - **Los elegís vos** en la pantalla **🧠 Modelos** (nada se instala solo salvo el de embeddings):
+    - Chat + visión: `qwen3.5:9b` (multimodal nativo, 6,60 GB) o alternativas como `llama3.1:8b`,
+      `mistral:7b`, `llama3.2:1b` (equipos justos).
+    - Código: `qwen2.5-coder:7b` (4,68 GB) o `qwen2.5-coder:3b` (2,60 GB).
+    - Respaldo de código: `huihui_ai/qwen2.5-coder-abliterate:7b` (4,68 GB).
+    - Voz: `piper:es_AR-daniela-high` (0,11 GB).
   - Fuente única de esta lista: `config/model_catalog.yaml` (tamaños **medidos**). Para saber qué
     conviene en tu equipo: `python -m src.core.preflight --recomendar` (y `--modelo NOMBRE` para
     consultar uno que no esté en el catálogo)
@@ -222,4 +225,4 @@ python -m tools.benchmark_calibration   # Calibración de hardware/modelos
 
 ---
 
-*AXIOMA v0.7.7*
+*AXIOMA v0.7.8*

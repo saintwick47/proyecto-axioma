@@ -7,11 +7,11 @@
 
 **AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
 
-> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.7"` (último tag `v0.7.7`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
+> ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.8"` (último tag `v0.7.8`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | 610 commits · `main` · último tag `v0.7.7` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | 610 |
+| 🟢 En desarrollo activo | `main` · último tag `v0.7.7` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | — |
 
 ---
 
@@ -73,6 +73,14 @@ declarado.
 | Respaldo de código | `huihui_ai/qwen2.5-coder-abliterate:7b` | 4,68 GB | 5,80 GB | no | cuando el de código se **niega** en prosa ante pedidos legítimos de laboratorio (en código común rinde menos: por eso es respaldo) |
 | Voz (TTS) | `piper:es_AR-daniela-high` | 0,11 GB | 0,10 GB | no | hablar sin internet (`data/piper/es_AR-daniela-high.onnx`); si falta, cae a `edge-tts` |
 | Embeddings | `codefuse-ai/F2LLM-v2-330M` (sentence-transformers) | 0,64 GB | ~1,0 GB | sí | memoria semántica (LanceDB), **896 dims**; no es de Ollama, se baja sola la primera vez |
+
+**Vos elegís los modelos.** Sólo el de **embeddings** se instala solo (es obligatorio para la
+memoria). El de **chat**, el de **código** y el de **visión** se eligen en **🧠 Modelos**, donde ves
+para qué sirve cada uno, cuánto ocupa y cuánta RAM pide; ahí mismo podés cambiar el modelo de un rol
+o **eliminar** el que no te convenció y bajar otro. El catálogo tiene alternativas (por ejemplo
+`llama3.1:8b`, `mistral:7b`, `llama3.2:1b` para equipos justos, `qwen2.5-coder:3b` para código). Si
+el modelo configurado para un rol falta, la pantalla de configuración lo dice **con nombre y
+consecuencia** ("falta X porque…") y te lleva a elegir otro.
 
 **Total medido en disco**: ~16,7 GB con todo (los dos obligatorios son ~11,3 GB); el contenedor suma 5,58 GB.
 Desde v0.7.6 **no hay un modelo aparte de visión**: `qwen3.5:9b` es multimodal nativo, así que chat y visión

@@ -22,13 +22,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, List, Optional
 from pathlib import Path
+from typing import Any, List, Optional
 
 from nicegui import ui
 
-from src.utils.degradation import log_degraded
 from config.settings import settings
+from src.utils.degradation import log_degraded
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,6 @@ def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
     """Abre la pantalla. Se llama desde el botón del encabezado (o sola, en el primer arranque)."""
     if primer_arranque is None:
         primer_arranque = es_primer_arranque()
-    estado: dict = {"trabajo": None, "temporizador": None}
 
     with ui.dialog() as dialogo, ui.card().classes('w-[46rem] max-w-full'):
         ui.label('🧩 Configurar AXIOMA').classes('text-lg font-bold')
@@ -164,47 +163,7 @@ def abrir_configurar_axioma(primer_arranque: Optional[bool] = None) -> None:
             ui.label('AXIOMA ' + ('puede responder.' if pre.puede_responder()
                                   else 'todavía NO puede responder.')).classes('text-sm font-bold')
 
-        faltantes = _modelos_faltantes(pre)
-        avance.clear()
-        with avance:
-            if not faltantes:
-                ui.label('No falta ningún modelo.').classes('text-sm')
-                return
-            modelos = ', '.join(str(r.datos.get('modelo')) for r in faltantes)
-            ui.label(f'Faltan {len(faltantes)}: {modelos}').classes('text-sm')
-
-            def arrancar() -> None:
-                from src.core.preflight import TrabajoDeDescarga
-                from src.llm.client import OllamaClient
-                estado["trabajo"] = TrabajoDeDescarga(pre, OllamaClient()).iniciar()
-                boton_detener.set_visibility(True)      # mientras dura, se puede cortar
-                temporizador.activate()                 # y recién ahí late (R7)
-
-            def actualizar() -> None:
-                trabajo = estado["trabajo"]
-                if trabajo is None:
-                    return
-                info = trabajo.estado()
-                etiqueta.set_text(f"{trabajo.resumen()} · {info['segundos']}s")
-                if not info["puede_detenerse"]:
-                    # El trabajo terminó: el temporizador se APAGA (nada de latido permanente).
-                    temporizador.deactivate()
-                    boton_detener.set_visibility(False)
-                    if info["estado"] == "terminado":
-                        ui.notify('✅ Listo: los modelos quedaron instalados', type='positive')
-
-            def detener() -> None:
-                trabajo = estado["trabajo"]
-                if trabajo is not None:
-                    trabajo.detener()
-                    ui.notify('⏹️ Descarga detenida', type='warning')
-
-            ui.button('⬇️ Descargar los que faltan', on_click=arrancar).props('dense color=primary')
-            boton_detener = ui.button('⏹️ DETENER', on_click=detener).props('dense flat')
-            boton_detener.set_visibility(False)
-            etiqueta = ui.label('').classes('text-xs opacity-70')
-            # Nace APAGADO: sólo late mientras hay una descarga en curso (R7: sin sondeo eterno).
-            temporizador = ui.timer(1.0, actualizar, active=False)
+        pintar_roles_elegibles()
 
     # ── claves del usuario ───────────────────────────────────────────────────
     def construir_claves() -> None:
@@ -259,6 +218,47 @@ _ROLES_DE_MODELO = (
     ("vision", "Leer imágenes (visión)"),
 )
 
+
+
+def pintar_roles_elegibles() -> None:
+    """✅ 2026-11-05: estado de chat/código/visión y acceso a 🧠 Modelos (nada se instala solo).
+
+    El embeddings es obligatorio y lo administra AXIOMA; los otros roles los elige el usuario.
+    Si el modelo configurado para un rol falta, se dice CUÁL falta y QUÉ se pierde.
+    """
+    from config.model_catalog import cargar_catalogo
+    from src.core import model_seleccion
+    from src.interfaces.components.catalogo_modelos import abrir_catalogo_modelos
+    from src.llm.client import OllamaClient
+
+    catalogo = cargar_catalogo()
+    actuales = model_seleccion.actuales()
+    try:
+        instalados = {m.get("name", "") for m in (OllamaClient().list_models() or [])}
+    except Exception as exc:  # noqa: BLE001 — si Ollama no responde se dice igual qué falta
+        logger.debug(f"[configurar] no se pudo listar modelos: {exc}")
+        instalados = set()
+
+    ui.separator()
+    ui.label('🧠 Modelos por rol (elegís vos; nada se instala solo)').classes('text-sm font-bold')
+    for rol in model_seleccion.ROLES:
+        modelo = actuales.get(rol, "")
+        del_catalogo = catalogo.modelo_de_rol(rol)
+        with ui.row().classes('items-center gap-2 w-full'):
+            ui.label(f'{model_seleccion.etiqueta(rol).capitalize()}:').classes('text-xs w-[4.5rem]')
+            if modelo and modelo in instalados:
+                ui.label(f'✅ {modelo}').classes('text-xs font-mono flex-1')
+            else:
+                falta = modelo or (del_catalogo.nombre if del_catalogo else '—')
+                ui.label(f'⚠️ falta {falta}').classes('text-xs font-mono flex-1 text-orange-700')
+                if del_catalogo and del_catalogo.si_falta:
+                    ui.label(del_catalogo.si_falta).classes('text-xs opacity-70')
+    ui.label('Las alternativas (con su rol, tamaño y RAM) están en 🧠 Modelos: ahí también podés '
+             'cambiar el modelo de un rol o eliminar uno que ya no uses.'
+             ).classes('text-xs opacity-70')
+    with ui.row().classes('w-full justify-end'):
+        ui.button('🧠 Elegir e instalar modelos', on_click=abrir_catalogo_modelos
+                  ).props('dense color=primary')
 
 def _seccion_modelos() -> None:
     """🎯 Elegir qué modelo usar en cada rol, entre los que ya tenés en Ollama.

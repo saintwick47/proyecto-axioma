@@ -44,6 +44,7 @@ class Modelo:
     si_falta: str
     instalar: str
     archivo: Optional[str] = None
+    nota: str = ""
 
     @property
     def rol_principal(self) -> str:
@@ -153,6 +154,7 @@ def _catalogo_desde_dict(datos: Dict[str, Any], ruta: Path) -> CatalogoDeModelos
             si_falta=str(m["si_falta"]),
             instalar=str(m["instalar"]),
             archivo=m.get("archivo"),
+            nota=str(m.get("nota", "") or ""),
         )
 
     # Todo rol declarado tiene que existir en 'modelos' (si no, el preflight no sabría

@@ -74,6 +74,7 @@ modelos:
     para: "conversar, razonar y leer imágenes (multimodal nativo)"
     si_falta: "AXIOMA no puede responder nada"
     instalar: "ollama pull qwen3.5:9b"
+    nota: "es el ÚNICO del catálogo que hace chat + visión: si lo borrás, la visión deja de funcionar"
 
   "qwen2.5-coder:7b":
     roles: [codigo]
@@ -88,6 +89,41 @@ modelos:
   # ── Otras opciones para ELEGIR (no obligatorias) ────────────────────────────
   # Pedido del usuario (2026-10-31): que la pantalla de configuración muestre una lista de modelos
   # para elegir según el equipo, con su rol y su tamaño, en vez de ofrecer sólo los ya instalados.
+  # ── Alternativas de chat (2026-11-05): el usuario ELIGE; el chat no se instala solo ──
+  # Tamaños APROXIMADOS de la librería de Ollama (no medidos en este equipo): lo dice `nota` (R8).
+  "llama3.1:8b":
+    roles: [chat]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 4.92
+    ram_gb: 6.10
+    para: "charla general equilibrada (alternativa a qwen3.5:9b, sin visión)"
+    si_falta: "no hay chat alternativo; con qwen3.5:9b alcanza"
+    instalar: "ollama pull llama3.1:8b"
+    nota: "tamaño aproximado de la librería; no medido en este equipo"
+
+  "mistral:7b":
+    roles: [chat]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 4.37
+    ram_gb: 5.40
+    para: "respuestas rápidas y directas, con menos memoria que el 9b"
+    si_falta: "no hay chat rápido alternativo"
+    instalar: "ollama pull mistral:7b"
+    nota: "tamaño aproximado de la librería; no medido en este equipo"
+
+  "llama3.2:1b":
+    roles: [chat]
+    obligatorio: false
+    tipo: ollama
+    disco_gb: 1.30
+    ram_gb: 1.70
+    para: "equipos muy justos de memoria: respuestas simples, muy rápido"
+    si_falta: "no hay opción para equipos de 8 GB"
+    instalar: "ollama pull llama3.2:1b"
+    nota: "tamaño aproximado de la librería; no medido en este equipo"
+
   "qwen2.5-coder:3b":
     roles: [codigo]
     obligatorio: false
