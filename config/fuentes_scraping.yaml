@@ -21,4 +21,14 @@
 #     patron: '(?P<valor>[0-9]{2,5})\s*(?:puntos|pts|bps)'
 #     nota: "EMBI+ Brasil"
 #
-fuentes: []
+fuentes:
+  # ── Ejemplo REAL y probado (2026-11-08) ──────────────────────────────────────────────
+  # Ámbito publica el número en el texto de la nota ("... rozó los 940 puntos"). Funciona
+  # (929/939 según el día), pero es FRÁGIL: si cambian la redacción, el patrón deja de matchear
+  # y el llamador recibe None (no se inventa nada). Para Argentina la fuente primaria sigue
+  # siendo la API; esta sirve como respaldo y como prueba de que el mecanismo funciona.
+  - nombre: "Ámbito — riesgo país (texto de la nota)"
+    pais: "argentina"
+    url: "https://www.ambito.com/contenidos/riesgo-pais.html"
+    patron: 'riesgo\s+pa[ií]s[^.]{0,140}?(?P<valor>[0-9]{2,5})\s*puntos'
+    nota: "frágil: depende de la redacción de la nota; verificar con tools/verificar_scraping.py"

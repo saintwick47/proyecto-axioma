@@ -303,3 +303,32 @@ def test_scraping_sin_match_devuelve_none(tmp_path, monkeypatch):
     monkeypatch.setattr(sf.httpx, "get", lambda *a, **k: _Respuesta())
     sf.limpiar_cache()
     assert sf.buscar("chile", ruta=config) is None
+
+
+def test_la_fuente_configurada_matchea_un_html_real():
+    """El patrón del YAML aplicado al texto real de Ámbito (sin red: HTML de muestra)."""
+    import re
+
+    from src.handlers.scraping_fuentes import cargar_fuentes
+
+    fuentes = [f for f in cargar_fuentes() if f.pais == "argentina"]
+    assert fuentes, "debe haber al menos una fuente de Argentina configurada"
+    html = ("<p>Mercados: los ADRs extendieron pérdidas, mientras el riesgo país "
+            "volvió a saltar y rozó los 940 puntos</p>")
+    m = re.search(fuentes[0].patron, html, re.S)
+    assert m and m.group("valor") == "940"
+
+
+def test_scraping_en_vivo_si_se_pide():
+    """Sólo con red: `AXIOMA_SCRAPING_LIVE=1 pytest ...` (por defecto se saltea)."""
+    import os
+
+    import pytest
+
+    from src.handlers.scraping_fuentes import buscar, limpiar_cache
+
+    if not os.getenv("AXIOMA_SCRAPING_LIVE"):
+        pytest.skip("prueba de red: usar AXIOMA_SCRAPING_LIVE=1")
+    limpiar_cache()
+    dato = buscar("argentina", timeout=10)
+    assert dato and dato["valor"].isdigit()

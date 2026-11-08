@@ -14,6 +14,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
   (puro y testeable), usado por `data_fetchers_weather` y por `researcher_sources`.
 - **Riesgo país**: una sola línea con el número (`📉 Riesgo país (Argentina): 939 puntos · fecha`).
   Si piden **dólar + riesgo país**, se combinan (antes la rama del dólar retornaba y se perdía el riesgo).
+- **Scraping verificado con una fuente real**: `config/fuentes_scraping.yaml` incluye Ámbito (riesgo
+  país de Argentina) como ejemplo probado (940 pts en **51 ms**, contra 939 de la API), con
+  `tools/verificar_scraping.py`, pruebas offline + una prueba de red opt-in (`AXIOMA_SCRAPING_LIVE=1`)
+  y documentación en `docs/FUENTES_SCRAPING.md`. **Sin dependencias nuevas** (`httpx`/`lxml`/`PyYAML`
+  ya estaban declarados en `requirements.txt` y `requirements-ci.txt`).
 - **Scraping opt-in** para datos sin API (`config/fuentes_scraping.yaml` + `scraping_fuentes.py`):
   `httpx` + `lxml`, timeout 5 s, caché 15 min, fuente declarada por YAML; si no hay fuente o no
   matchea, se avisa en vez de inventar. Para otros países que no tienen API (la serie EMBI de Brasil

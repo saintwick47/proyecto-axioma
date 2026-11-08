@@ -108,6 +108,15 @@ el catálogo ofrece variantes para equipos con poca memoria (`qwen2.5-coder:3b`,
 
 ---
 
+## 🕷️ Datos sin API (scraping opt-in)
+
+Para datos que las APIs gratuitas no dan (p. ej. **riesgo país de países distintos de Argentina**),
+AXIOMA puede leer una página pública y extraer el número: `config/fuentes_scraping.yaml` +
+`src/handlers/scraping_fuentes.py`. Usa `httpx`/`lxml`/`PyYAML`, **sin dependencias nuevas**, con
+timeout 5 s y caché 15 min. Se verifica con `tools/verificar_scraping.py` y el detalle está en
+[`FUENTES_SCRAPING.md`](FUENTES_SCRAPING.md). Si la fuente falla, el chat **avisa** en vez
+de inventar.
+
 ## 🖼️ Imágenes en el chat (v0.6.9p — canal de visión)
 
 Adjuntás una imagen con 📎, escribís tu pregunta (o nada → la describe) y responde el VLM local. Canal en `src/interfaces/web/`:
