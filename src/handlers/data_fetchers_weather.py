@@ -325,8 +325,10 @@ class WeatherFetcherMixin:
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
             f"latitude={lat}&longitude={lon}"
-            f"&current=temperature_2m,relative_humidity_2m,"
-            f"weather_code,wind_speed_10m&timezone=auto"
+            f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,"
+            f"precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+            f"&daily=weather_code,temperature_2m_max,temperature_2m_min,"
+            f"precipitation_probability_max&forecast_days=3&timezone=auto"
         )
 
         try:
@@ -340,18 +342,14 @@ class WeatherFetcherMixin:
                 data = resp.json()
 
                 current = data["current"]
-                temp = current["temperature_2m"]
-                humidity = current["relative_humidity_2m"]
-                wind = current["wind_speed_10m"]
                 weather_code = current["weather_code"]
                 weather_emoji = self.weather_code_to_emoji(weather_code)
 
-                content = (
-                    f"{weather_emoji} Clima en {city}:\n"
-                    f"• Temperatura: {temp}°C\n"
-                    f"• Humedad: {humidity}%\n"
-                    f"• Viento: {wind} km/h"
-                )
+                # ✅ 2026-11-08: dirección del viento (16 rumbos), sensación, ráfagas, lluvia y
+                # pronóstico de 3 días. El formato vive en `weather_formato` (puro y testeable).
+                from src.handlers.weather_formato import formatear_clima
+                content = formatear_clima(city, current, data.get("daily"), weather_emoji,
+                                          self.weather_code_to_emoji)
 
                 duration = time.time() - start
                 _log_api_call(

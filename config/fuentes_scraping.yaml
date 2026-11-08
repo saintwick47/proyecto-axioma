@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════
+# AXIOMA — fuentes de SCRAPING para datos sin API (2026-11-08)
+# ═══════════════════════════════════════════════════════════════
+# El riesgo país de Argentina sale de una API (argentinadatos). Para OTROS países no hay API
+# gratuita y estable (la serie EMBI de Brasil está inactiva y el BCB dejó de publicarla), así
+# que se ofrece este mecanismo: se declara la página y un patrón; `src/handlers/scraping_fuentes.py`
+# la baja (timeout 5 s), extrae el número, lo cachea 15 min y, si falla, el chat sigue con el aviso.
+#
+# Reglas:
+#   · `pais` en minúsculas, como se busca ("brasil", "chile", "uruguay"). "*" = sirve para todos.
+#   · `patron` es una regex; el número va en el grupo `(?P<valor>…)`.
+#   · Nunca se inventa: si no matchea, se devuelve None.
+#   · Agregar una fuente NO requiere tocar código.
+#
+# Ejemplo (descomentar y ajustar el patrón a la página real):
+#
+# fuentes:
+#   - nombre: "Brasil — sitio de ejemplo"
+#     pais: "brasil"
+#     url: "https://sitio.example/riesgo-pais/brasil"
+#     patron: '(?P<valor>[0-9]{2,5})\s*(?:puntos|pts|bps)'
+#     nota: "EMBI+ Brasil"
+#
+fuentes: []

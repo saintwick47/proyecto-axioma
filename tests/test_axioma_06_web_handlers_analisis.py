@@ -946,3 +946,46 @@ class TestFlujoDeTokens:
         assert meta.get("streamed") is True and recibidos == ["Ho", "la"], f"{meta} · {recibidos}"
 
 
+
+
+# ════════════════════════════════════════════════════════════════
+# Clima: dirección del viento y pronóstico (2026-11-08)
+# ════════════════════════════════════════════════════════════════
+
+def test_direccion_del_viento_en_16_rumbos():
+    from src.handlers.weather_formato import direccion_viento
+
+    assert direccion_viento(0) == "N (0°)"
+    assert direccion_viento(45) == "NE (45°)"
+    assert direccion_viento(90) == "E (90°)"
+    assert direccion_viento(180) == "S (180°)"
+    assert direccion_viento(270) == "O (270°)"
+    assert direccion_viento(315) == "NO (315°)"
+    assert direccion_viento(None) == ""
+    assert direccion_viento("no es número") == ""
+
+
+def test_formatear_clima_trae_direccion_y_pronostico():
+    from src.handlers.weather_formato import formatear_clima
+
+    actual = {"temperature_2m": 19.7, "apparent_temperature": 18.9, "relative_humidity_2m": 42,
+              "wind_speed_10m": 10.1, "wind_direction_10m": 315, "wind_gusts_10m": 15.2,
+              "precipitation": 0.0}
+    diario = {"time": ["a", "b", "c"], "temperature_2m_max": [22.4, 24.1, 21.0],
+              "temperature_2m_min": [10.9, 12.3, 11.5],
+              "precipitation_probability_max": [5, 10, 60], "weather_code": [0, 2, 61]}
+    texto = formatear_clima("Villa General Belgrano", actual, diario, "🌤️", lambda c: "☀️")
+    assert "del NO (315°)" in texto
+    assert "sensación 18.9" in texto
+    assert "ráfagas 15.2" in texto
+    assert "Hoy: 22.4° / 10.9°" in texto and "Mañana:" in texto
+    assert "lluvia 60%" in texto
+
+
+def test_formatear_clima_sin_datos_no_se_rompe():
+    from src.handlers.weather_formato import formatear_clima
+
+    texto = formatear_clima("Un pueblo", {}, None)
+    assert "Clima en Un pueblo" in texto
+    assert "—" in texto
+    assert "📅" not in texto

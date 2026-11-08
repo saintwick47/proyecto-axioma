@@ -136,6 +136,7 @@ class APIDetector:
         r'como\s+esta\s+la\s+bolsa', r'tasa\s+de\s+cambio',
         r'cuanto\s+vale\s+el\s+dolar', r'compra\s+venta\s+dolar',
         r'stock\s+price', r'bitcoin\s+(precio|valor|cuanto)',
+          r'riesgo\s+pa[ií]s',
         r'crypto', r'\bcripto', r'\bcriptomoneda', r'\bbolsa', r'\bmercado', r'\binversion',
     ]
 
@@ -144,7 +145,7 @@ class APIDetector:
         'blue', 'mep', 'ccl', 'argenpesos',
         'cotizacion', 'cotización',
         'bitcoin', 'crypto', 'cripto', 'usd', 'ars',
-        'bolsa', 'tasa de cambio', 'divisa',
+        'bolsa', 'tasa de cambio', 'divisa', 'riesgo país', 'riesgo pais',
     ]
 
     CODE_INDICATORS = [

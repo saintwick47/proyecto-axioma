@@ -198,7 +198,14 @@ class SemanticMemoryBase:
             # ✅ 2026-08-25: race-safe — inits concurrentes pueden fallar con
             # "Table already exists" en create_table → abrir la existente.
             try:
-                self._table = self._db.open_table(self.collection_name)
+                # ✅ 2026-11-08: si la tabla quedó en 1024 dims (modelo viejo) y el modelo actual
+                # da 896, las altas fallaban con "Cast error: Cannot cast to FixedSizeList(1024)".
+                # `asegurar_dimension` re-embebe el texto y recrea la tabla en la dimensión correcta.
+                from src.memory.migracion_dims import asegurar_dimension
+                self._table = asegurar_dimension(self._db, self.collection_name,
+                                                 EMBED_DIMENSION, self._get_embedding)
+                if self._table is None:
+                    raise RuntimeError("la tabla no existe")
                 logger.debug(f"LanceDB tabla existente abierta: {self.collection_name}")
             except Exception:
                 if MemoryRecord is not None:

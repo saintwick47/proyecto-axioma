@@ -572,7 +572,7 @@ class ResearcherSources:
                     f"https://api.open-meteo.com/v1/forecast"
                     f"?latitude={lat}&longitude={lon}"
                     f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,"
-                    f"precipitation,weather_code,wind_speed_10m,wind_gusts_10m"
+                    f"precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
                     f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,"
                     f"weather_code,precipitation_probability_max"
                     f"&timezone={urllib.parse.quote(tz)}&forecast_days=3"
@@ -604,11 +604,15 @@ class ResearcherSources:
                 tmax = daily.get("temperature_2m_max", [None])[0]
                 tmin = daily.get("temperature_2m_min", [None])[0]
                 precip_prob = daily.get("precipitation_probability_max", [None])[0]
+                from src.handlers.weather_formato import direccion_viento
+                _dir = direccion_viento(curr.get("wind_direction_10m"))
+                _viento = f"💨 Viento: {wind} km/h" + (f" del {_dir}" if _dir else "")
+                _viento += f" (ráfagas {gusts} km/h)"
                 lines_out = [
                     f"📍 {resolved_name} — {date_str}",
                     f"🌡 Ahora: {temp}°C (sensación {feels}°C) — {condition}",
                     f"📊 Máx/Mín: {tmax}°C / {tmin}°C",
-                    f"💧 Humedad: {humidity}% | 💨 Viento: {wind} km/h (ráfagas {gusts} km/h)",
+                    f"💧 Humedad: {humidity}% | {_viento}",
                     f"🌧 Precipitación: {precip} mm hoy | Prob: {precip_prob}%",
                 ]
                 self._api_stats["open_meteo_calls"] += 1

@@ -207,3 +207,99 @@ class TestScrubSecrets:
         monkeypatch.setattr(settings, "serpapi_api_key", "SECRETA-123")
         assert _scrub_secrets("error normal sin claves") == \
             "error normal sin claves"
+
+
+# ════════════════════════════════════════════════════════════════
+# Combinar dólar + riesgo país (2026-11-08, medido con logs del usuario)
+# ════════════════════════════════════════════════════════════════
+
+def _parchear(monkeypatch, f):
+    async def dolar():
+        return {"content": "DOLAR", "confidence": 0.9, "sources": []}
+
+    async def riesgo(_query=""):
+        return {"content": "RIESGO", "confidence": 0.9, "sources": []}
+
+    monkeypatch.setattr(f, "_fetch_dolar_arg", dolar)
+    monkeypatch.setattr(f, "_fetch_riesgo_pais", riesgo)
+
+
+def test_fetch_finance_combina_dolar_y_riesgo(monkeypatch):
+    import asyncio
+    from src.handlers.data_fetchers import DataFetchers
+
+    f = DataFetchers()
+    _parchear(monkeypatch, f)
+    r = asyncio.run(f.fetch_finance("dame la cotización del dólar y el riesgo país"))
+    assert "DOLAR" in r["content"] and "RIESGO" in r["content"]
+
+
+def test_fetch_finance_solo_riesgo_no_trae_dolar(monkeypatch):
+    import asyncio
+    from src.handlers.data_fetchers import DataFetchers
+
+    f = DataFetchers()
+    _parchear(monkeypatch, f)
+    r = asyncio.run(f.fetch_finance("te pedí riesgo país y no me lo diste"))
+    assert "RIESGO" in r["content"] and "DOLAR" not in r["content"]
+
+
+# ════════════════════════════════════════════════════════════════
+# Scraping opt-in para datos sin API (2026-11-08)
+# ════════════════════════════════════════════════════════════════
+
+def test_scraping_extrae_el_numero_y_cachea(tmp_path, monkeypatch):
+    import src.handlers.scraping_fuentes as sf
+
+    config = tmp_path / "fuentes.yaml"
+    config.write_text(
+        "fuentes:\n"
+        "  - nombre: 'Ejemplo'\n"
+        "    pais: brasil\n"
+        "    url: 'http://ejemplo.test/brasil'\n"
+        "    patron: '(?P<valor>[0-9]{2,5})\\s*puntos'\n",
+        encoding="utf-8",
+    )
+
+    class _Respuesta:
+        text = "<div>Riesgo país: 250 puntos</div>"
+
+        def raise_for_status(self):
+            return None
+
+    llamadas = []
+
+    def _get(*args, **kwargs):
+        llamadas.append(1)
+        return _Respuesta()
+
+    monkeypatch.setattr(sf.httpx, "get", _get)
+    sf.limpiar_cache()
+    dato = sf.buscar("brasil", ruta=config)
+    assert dato and dato["valor"] == "250"
+    assert sf.buscar("brasil", ruta=config)["valor"] == "250"
+    assert len(llamadas) == 1, "la segunda consulta debe salir de la caché"
+
+
+def test_scraping_sin_match_devuelve_none(tmp_path, monkeypatch):
+    import src.handlers.scraping_fuentes as sf
+
+    config = tmp_path / "fuentes.yaml"
+    config.write_text(
+        "fuentes:\n"
+        "  - nombre: 'Ejemplo'\n"
+        "    pais: chile\n"
+        "    url: 'http://ejemplo.test/chile'\n"
+        "    patron: '(?P<valor>[0-9]{3})\\s*EMBI'\n",
+        encoding="utf-8",
+    )
+
+    class _Respuesta:
+        text = "<div>sin el dato</div>"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(sf.httpx, "get", lambda *a, **k: _Respuesta())
+    sf.limpiar_cache()
+    assert sf.buscar("chile", ruta=config) is None

@@ -5,6 +5,24 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Sin publicar]
+
+### Clima, riesgo país y memoria semántica (2026-11-08)
+
+- **Clima más completo** (pedido del usuario): dirección del viento en **16 rumbos** (`del NO (315°)`),
+  sensación térmica, ráfagas, lluvia y **pronóstico de 3 días**. Formato en `weather_formato.py`
+  (puro y testeable), usado por `data_fetchers_weather` y por `researcher_sources`.
+- **Riesgo país**: una sola línea con el número (`📉 Riesgo país (Argentina): 939 puntos · fecha`).
+  Si piden **dólar + riesgo país**, se combinan (antes la rama del dólar retornaba y se perdía el riesgo).
+- **Scraping opt-in** para datos sin API (`config/fuentes_scraping.yaml` + `scraping_fuentes.py`):
+  `httpx` + `lxml`, timeout 5 s, caché 15 min, fuente declarada por YAML; si no hay fuente o no
+  matchea, se avisa en vez de inventar. Para otros países que no tienen API (la serie EMBI de Brasil
+  está inactiva y el BCB dejó de publicarla).
+- **Memoria semántica reparada**: la tabla `axioma_semantic` estaba en **1024 dims** (modelo viejo) y
+  el modelo actual da **896**; cada alta fallaba con `Cannot cast to FixedSizeList(1024)`.
+  `migracion_dims.py` detecta el desajuste, **re-embebe** el texto y recrea la tabla (probado sobre
+  una copia de los datos reales: 818 filas conservadas, ~35 s). LanceDB OSS no tiene `rename_table`.
+
 ## [0.7.9]
 
 ### Arranque en Windows: sin proxy, con más tiempo y con los logs del contenedor (2026-11-05)

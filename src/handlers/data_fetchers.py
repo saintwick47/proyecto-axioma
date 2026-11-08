@@ -101,11 +101,30 @@ class DataFetchers(WeatherFetcherMixin):
         # ✅ plan_rafael (2026-08-31): cotización del dólar SIN API key vía
         # dolarapi.com (Argentina, gratis). Antes, sin TAVILY_API_KEY, la
         # consulta fallaba con "TAVILY_API_KEY no configurado" y no daba valor.
-        if re.search(r"\bd[oó]lar(es)?\b", query.lower()):
+        # ✅ 2026-11-08 (medido con los logs del usuario):
+        #   · "dólar y riesgo país" devolvía SOLO el dólar (esta rama retornaba antes);
+        #   · "riesgo país de Argentina y Brasil" devolvía solo Argentina, sin aclarar nada.
+        # Ahora se combinan los pedidos y se avisa qué país no tiene fuente.
+        partes: List[str] = []
+        quiere_riesgo = bool(re.search(r"riesgo\s*pa[ií]s", query.lower()))
+        quiere_dolar = bool(re.search(r"\bd[oó]lar(es)?\b", query.lower()))
+        if quiere_riesgo:
             try:
-                return await self._fetch_dolar_arg()
+                partes.append((await self._fetch_riesgo_pais(query))["content"])
+            except Exception as e:
+                logger.warning(f"DataFetchers: riesgo país falló ({e})")
+        if quiere_dolar:
+            try:
+                partes.append((await self._fetch_dolar_arg())["content"])
             except Exception as e:
                 logger.warning(f"DataFetchers: dolarapi falló ({e}) — probando Tavily")
+        if partes:
+            return {
+                "content": "\n\n".join(partes),
+                "confidence": 0.95,
+                "sources": ["https://dolarapi.com/v1/dolares",
+                            "https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais"],
+            }
 
         if not settings.tavily_api_key:
             logger.error("Finance failed: TAVILY_API_KEY not configured")
@@ -217,6 +236,60 @@ class DataFetchers(WeatherFetcherMixin):
                 "dolarapi", "response", success=False,
                 duration=duration, error=str(e),
             )
+            raise
+
+    async def _fetch_riesgo_pais(self, query: str = "") -> Dict[str, Any]:
+        """Riesgo país argentino (EMBI) vía argentinadatos.com, en UNA línea.
+
+        Pedido del usuario (2026-11-08): *"lo que se busca es el número del riesgo país que tiene
+        Argentina nada más"*. La API devuelve la serie completa desde 1999; se toma la fecha más
+        reciente.
+        """
+        start = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    "https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais")
+                resp.raise_for_status()
+                datos = resp.json()
+
+            if not datos:
+                raise ValueError("la API de riesgo país no devolvió datos")
+            ultimo = max(datos, key=lambda d: str(d.get("fecha", "")))
+            valor = int(ultimo.get("valor"))
+            fecha = str(ultimo.get("fecha", ""))
+            content = f"📉 Riesgo país (Argentina): {valor:,} puntos · {fecha}".replace(",", ".")
+            # La fuente solo publica la serie de Argentina: si pidieron otros países, se dice.
+            otros = [pais for pais in (
+                "brasil", "brazil", "chile", "uruguay", "paraguay", "bolivia",
+                "perú", "peru", "venezuela", "méxico", "mexico", "colombia", "ecuador",
+            ) if re.search(rf"\b{re.escape(pais)}\b", query.lower())]
+            if otros:
+                # ✅ 2026-11-08: para los países sin API se intenta una fuente de scraping declarada
+                # en `config/fuentes_scraping.yaml` (opt-in, timeout 5 s, caché 15 min). Si no hay
+                # fuente o no matchea, se dice la verdad en vez de inventar un número.
+                from src.handlers.scraping_fuentes import buscar as _buscar_scraping
+                sin_fuente = []
+                for pais in sorted(set(otros)):
+                    dato = _buscar_scraping(pais)
+                    if dato:
+                        content += f"\n📉 Riesgo país ({pais.title()}): {dato['valor']} puntos · {dato['fuente']}"
+                    else:
+                        sin_fuente.append(pais.title())
+                if sin_fuente:
+                    content += ("\nNota: no hay fuente gratuita configurada para "
+                                + ", ".join(sin_fuente) + " (la API solo publica Argentina).")
+
+            duration = time.time() - start
+            _log_api_call("argentinadatos", "response", success=True,
+                          duration=duration, response_size=len(content))
+            return {
+                "content": content,
+                "confidence": 0.95,
+                "sources": ["https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais"],
+            }
+        except Exception as e:
+            _log_api_call("argentinadatos", "response", success=False, error=str(e))
             raise
 
     async def fetch_time(self, query: str) -> Dict[str, Any]:

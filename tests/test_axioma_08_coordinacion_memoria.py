@@ -934,3 +934,55 @@ def test_el_embedder_se_descarga_solo_si_esta_inactivo_y_falta_ram(monkeypatch):
     assert s.maybe_unload(ahora=120.0, ratio_ram=0.95) is False   # poco inactivo
     assert s.maybe_unload(ahora=200.0, ratio_ram=0.95) is True    # las dos ⇒ descarga
     assert descargas == [1]
+
+
+# ════════════════════════════════════════════════════════════════
+# Migración de dimensión de LanceDB (2026-11-08)
+# ════════════════════════════════════════════════════════════════
+
+def test_migra_tabla_de_1024_a_896_conservando_el_texto(tmp_path):
+    """El error real: 'Cannot cast to FixedSizeList(1024): value at index 0 has length 896'."""
+    lancedb = __import__("lancedb")
+    import pyarrow as pa
+    from src.memory.migracion_dims import asegurar_dimension, dimension_de_la_tabla
+
+    db = lancedb.connect(str(tmp_path))
+    esquema = pa.schema([
+        pa.field("vector", pa.list_(pa.float32(), 1024)),
+        pa.field("text", pa.utf8()),
+        pa.field("metadata", pa.utf8()),
+    ])
+    db.create_table("axioma_semantic", data=pa.Table.from_pydict({
+        "vector": [[0.0] * 1024, [1.0] * 1024],
+        "text": ["hola memoria", "otra fila"],
+        "metadata": ["{}", "{}"],
+    }, schema=esquema))
+
+    llamadas = []
+
+    def embed(texto):
+        llamadas.append(texto)
+        return [0.5] * 896
+
+    tabla = asegurar_dimension(db, "axioma_semantic", 896, embed)
+    assert dimension_de_la_tabla(tabla) == 896
+    assert sorted(f["text"] for f in tabla.to_arrow().to_pylist()) == ["hola memoria", "otra fila"]
+    assert llamadas == ["hola memoria", "otra fila"]
+
+
+def test_no_migra_si_la_dimension_ya_es_la_correcta(tmp_path):
+    lancedb = __import__("lancedb")
+    import pyarrow as pa
+    from src.memory.migracion_dims import asegurar_dimension
+
+    db = lancedb.connect(str(tmp_path))
+    esquema = pa.schema([pa.field("vector", pa.list_(pa.float32(), 896)),
+                         pa.field("text", pa.utf8())])
+    db.create_table("axioma_semantic", data=pa.Table.from_pydict(
+        {"vector": [[0.0] * 896], "text": ["x"]}, schema=esquema))
+
+    def embed(_texto):
+        raise AssertionError("no debería re-embeder")
+
+    tabla = asegurar_dimension(db, "axioma_semantic", 896, embed)
+    assert len(tabla.to_arrow().to_pylist()) == 1

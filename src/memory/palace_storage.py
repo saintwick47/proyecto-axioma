@@ -103,7 +103,13 @@ class Palace:
         self.db = _lancedb.connect(path)
         # ✅ 2026-08-25: race-safe (inits concurrentes → "Table already exists")
         try:
-            self.collection = self.db.open_table("axioma_semantic")
+            # ✅ 2026-11-08: misma guarda que `semantic_base` (tabla vieja en 1024 dims).
+            from src.memory.embedding_model_singleton import get_embedding_fn
+            from src.memory.migracion_dims import asegurar_dimension
+            self.collection = asegurar_dimension(self.db, "axioma_semantic",
+                                                 EMBED_DIMENSION, get_embedding_fn())
+            if self.collection is None:
+                raise RuntimeError("la tabla no existe")
             # ✅ Capa 2 (2026-08-31): migrar tablas creadas antes de las
             # columnas session_id/user_id (add_columns, lancedb ≥ 0.33).
             self._ensure_filter_columns()
