@@ -140,7 +140,7 @@ class SemanticCacheL3:
             logger.warning(f"[L3] LanceDB init error — L3 desactivado: {e}")
 
     def _load_model(self) -> bool:
-        """Usa singleton centralizado para cargar BGE-M3."""
+        """Usa singleton centralizado para cargar F2LLM."""
         model = get_embedding_model()
         if model is None:
             self._available = False
@@ -150,7 +150,7 @@ class SemanticCacheL3:
         return True
 
     def _embed(self, text: str) -> Optional[List[float]]:
-        """Genera embedding local via singleton BGE-M3."""
+        """Genera embedding local via singleton F2LLM."""
         model = get_embedding_model()
         vec = model.embed(text)
         if vec is None:
@@ -330,7 +330,7 @@ class SemanticCacheL3:
             if len(variants) <= 1:
                 return  # Sin variantes extra — nada que guardar
 
-            # UN solo batch BGE-M3 para todas las variantes
+            # UN solo batch F2LLM para todas las variantes
             model = get_embedding_model()
             if model is None:
                 return

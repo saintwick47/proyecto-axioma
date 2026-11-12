@@ -175,7 +175,7 @@ class RouterCache:
     Niveles:
     - L1 (Exact Match): Cache en memoria para queries exactas (OrderedDict LRU)
     - L2 (SQLite): Cache persistente en disco como backing store (v0.5.0)
-    - L3 (Semantic DB): LanceDB + BGE-M3 (extraído a cache_l3.py)
+    - L3 (Semantic DB): LanceDB + F2LLM (extraído a cache_l3.py)
 
     Flujo de lectura: L1 (RAM) → L2 SQLite (Disco) → L3 (Semántico) → Miss
     Flujo de escritura: L1 + L2 SQLite (async) + L3 (sync)

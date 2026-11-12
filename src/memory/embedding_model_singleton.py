@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════
-# AXIOMA v0.5.2 — Singleton Centralizado de Embeddings (BGE-M3)
+# AXIOMA v0.5.2 — Singleton Centralizado de Embeddings (F2LLM-v2-330M)
 # ═══════════════════════════════════════════════════════════════
 # Ruta: /ruta/a/axioma/src/memory/embedding_model_singleton.py
 # Autor: SaintWick

@@ -7,6 +7,29 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Diagnóstico del caché de prefijo en el chat (2026-11-12)
+
+- Con `AXIOMA_DEBUG_PROMPT=1` (o `settings.debug`), el chat loguea `[PROMPT]` (hash del system,
+  `msg_hashes` por mensaje, cabeza/cola del historial) y `[OLLAMA]` (mismo `msg_hashes`,
+  `prompt_eval_count`/`_duration`, `eval_count`/`_duration`, `reply_sha1`) para medir qué parte del
+  prefijo reutiliza Ollama. Cubre `chat` y `chat_stream`; si el log falla, no afecta la respuesta.
+- Sin la variable no se emite nada (queda en DEBUG). Ver [`RENDIMIENTO_MEDICIONES.md`](RENDIMIENTO_MEDICIONES.md) §7.
+
+### Limpieza de residuos de BGE-M3 y mediciones de rendimiento (2026-11-12)
+
+- **Código**: `OllamaClientBase.embed` ya **no** redirige por nombre `bge-m3` al singleton local;
+  sólo el modelo configurado (`EMBED_MODEL_NAME` = F2LLM-v2-330M) usa la vía local. El alias
+  devolvía vectores de **896 dims** con un nombre de **1024**.
+- **Comentarios de comportamiento actual** actualizados a F2LLM (`multi_query`, `gateway_ops`,
+  `gateway_retrieval`, `context_strategies`, `semantic_base`, `classifier_embedding`, `classifier`,
+  `cache_l3`, `cache`, `dispatcher`, `settings_memory`, `.env.example`, título del singleton).
+  Las menciones **históricas** (mediciones hechas con bge-m3) se conservan anotadas como
+  "(modelo anterior)".
+- **Mediciones** (ver [`RENDIMIENTO_MEDICIONES.md`](RENDIMIENTO_MEDICIONES.md)): prefill de 2.474
+  tokens = **49,6 s**; decode **5,4 tok/s**; embeddings 26,4 ms y +658 MB; coseno 168×896 11,06 ms
+  (Python) vs 0,013 ms (numpy). Conclusión: **no cambiar de lenguaje**; la palanca es el contexto
+  por turno y el tope de salida.
+
 ### Clima, riesgo país y memoria semántica (2026-11-08)
 
 - **Clima más completo** (pedido del usuario): dirección del viento en **16 rumbos** (`del NO (315°)`),

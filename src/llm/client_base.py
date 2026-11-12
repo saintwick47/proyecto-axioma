@@ -603,16 +603,18 @@ class OllamaClientBase:
         """
         Genera embeddings para texto.
 
-        v0.5.2: Si el modelo es BAAI/bge-m3, usa el singleton local
-        (sin HTTP, sin dependencia de Ollama). Para otros modelos,
-        usa la ruta HTTP normal.
+        Si el modelo es el local configurado (`EMBED_MODEL_NAME`, F2LLM-v2-330M),
+        usa el singleton local (sin HTTP, sin dependencia de Ollama). Para otros
+        modelos, usa la ruta HTTP normal.
         """
         start_time = time.time()
         embed_model = model or settings.llm_embed_model
         from src.memory.embedding_model_singleton import EMBED_MODEL_NAME as _EMBED_LOCAL_MODEL
 
-        # ✅ v0.5.2: Redirigir BGE-M3 al singleton local
-        if embed_model == _EMBED_LOCAL_MODEL or "bge-m3" in embed_model.lower():
+        # El singleton local sirve SOLO al modelo configurado. El alias histórico a
+        # "bge-m3" se quitó (2026-11-12): ese modelo ya no existe y redirigirlo al
+        # singleton devolvía vectores de 896 dims con nombres de 1024.
+        if embed_model == _EMBED_LOCAL_MODEL:
             try:
                 from src.memory.embedding_model_singleton import get_embedding_model
                 singleton = get_embedding_model()

@@ -17,7 +17,7 @@
 #
 # Qué hace:
 #   1. expand_query()        — genera 1-4 variantes determinísticas
-#   2. batch_embed_variants()— UN solo batch BGE-M3 (embed_batch)
+#   2. batch_embed_variants()— UN solo batch F2LLM (embed_batch)
 #   3. search_variants()     — 1 búsqueda LanceDB por variante
 #   4. rrf_fuse()            — fusión Reciprocal Rank Fusion + dedupe
 #   5. stats globales        — get_multi_query_stats()
@@ -159,7 +159,7 @@ def batch_embed_variants(
     Args:
         variants: Lista de variantes
         embed_batch_fn: Función batch (recibe List[str], devuelve List[vec]).
-            Si es None, usa el singleton BGE-M3 centralizado.
+            Si es None, usa el singleton F2LLM centralizado.
 
     Returns:
         Dict {variante: embedding o None si falló}
@@ -278,7 +278,7 @@ def multi_query_search(
         search_fn: Función que ejecuta UNA búsqueda vectorial por variante.
             Firma: (variant_text, variant_embedding_or_None) -> List[Dict].
             Cada dict debe tener al menos "text" y "similarity".
-        embed_batch_fn: Función batch (o None → singleton BGE-M3)
+        embed_batch_fn: Función batch (o None → singleton F2LLM)
         max_variants: Máximo de variantes a generar (incluye original)
         limit: Límite de resultados finales
         min_similarity: Umbral de similitud para filtrar (post-fusión)
@@ -421,7 +421,7 @@ if __name__ == "__main__":
     for f in fused:
         print(f"  rrf={f['rrf_score']:.4f} sim={f['similarity']:.2f} :: {f['text']}")
 
-    # --- Test 3: orquestación con mock (sin cargar BGE-M3) ------------
+    # --- Test 3: orquestación con mock (sin cargar F2LLM) ------------
     print("\n" + "=" * 60)
     print("TEST ORQUESTACIÓN CON MOCK EMBEDDER")
 
@@ -445,7 +445,7 @@ if __name__ == "__main__":
         return out[:5]
 
     def _mock_embed_batch(texts: List[str]) -> List[List[float]]:
-        # Firma idéntica a BGE-M3.embed_batch pero sin modelo real.
+        # Firma idéntica a F2LLM.embed_batch pero sin modelo real.
         return [[1.0] * 4 for _ in texts]
 
     results = multi_query_search(

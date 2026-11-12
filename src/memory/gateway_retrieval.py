@@ -439,7 +439,7 @@ class MemoryGatewayRetrievalMixin:
         ✅ v0.6.8: Batch de embeddings para multi-query ligero.
 
         Reutiliza el EmbeddingOptimizer (caché L1 + batch generator) cuando
-        está disponible; si no, cae al singleton BGE-M3 directo.
+        está disponible; si no, cae al singleton F2LLM directo.
         """
         import src.memory.gateway as _orig
         try:
@@ -524,7 +524,7 @@ class MemoryGatewayRetrievalMixin:
 
             # ✅ v0.6.8 MULTI-QUERY LIGERO: si está habilitado y la query es
             # suficientemente larga (mismo criterio que L3), la búsqueda
-            # semántica usa expansión determinística + batch BGE-M3 + RRF.
+            # semántica usa expansión determinística + batch F2LLM + RRF.
             # El costo extra es de +0-200ms (sin LLM) — ver src/memory/multi_query.py.
             _multi_enabled = (
                 settings.multi_query_enabled

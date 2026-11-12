@@ -12,6 +12,8 @@
 # ═══════════════════════════════════════════════════════════════
 import time
 import json
+import hashlib
+import os
 import logging
 import httpx
 from typing import Optional, Dict, Any, List, Generator, Callable
@@ -270,6 +272,8 @@ class OllamaClient(OllamaClientBase):
         y parseo de tool_calls en la respuesta de Ollama.
         """
         start_time = time.time()
+        if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
+            logger.info("[LLM_CALL] method=chat model=%s msgs=%d", self.model, len(messages))
         input_size = sum(len(m.get("content", "")) for m in messages)
         # ✅ CORREGIDO: Logging condicional a DEBUG para eliminar I/O síncrono en ruta crítica
         if logger.isEnabledFor(logging.DEBUG):
@@ -356,13 +360,39 @@ class OllamaClient(OllamaClientBase):
                 tool_calls=tool_calls,
                 message=message
             )
+            # Diagnóstico de caché de prefijo (2026-11-12): `msg_hashes` (uno por
+            # mensaje) permite calcular offline el prefijo común entre turnos y
+            # compararlo con `prompt_eval_count`. Nunca debe afectar la respuesta.
+            if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
+                try:
+                    _hashes = ",".join(
+                        hashlib.sha1(
+                            f"{m.get('role', '')}\x00{m.get('content', '')}".encode()
+                        ).hexdigest()[:6]
+                        for m in messages
+                    )
+                    logger.info(
+                        "[OLLAMA] method=chat msg_hashes=%s prompt_eval_count=%d "
+                        "prompt_eval_duration=%.2fs eval_count=%d eval_duration=%.2fs "
+                        "total=%.2fs load=%.2fs reply_sha1=%s",
+                        _hashes,
+                        int(data.get("prompt_eval_count") or 0),
+                        float(data.get("prompt_eval_duration") or 0) / 1e9,
+                        int(data.get("eval_count") or 0),
+                        float(data.get("eval_duration") or 0) / 1e9,
+                        float(data.get("total_duration") or 0) / 1e9,
+                        float(data.get("load_duration") or 0) / 1e9,
+                        hashlib.sha1(f"assistant\x00{ollama_response.content or ''}".encode()).hexdigest()[:6],
+                    )
+                except Exception as _e:
+                    logger.debug("[OLLAMA] no se pudo loguear el uso: %s", _e)
             # ✅ v0.7.5 (ISSUE-099): una respuesta VACÍA con `done_reason=length`
             # significa que el presupuesto se consumió sin llegar a escribir texto
             # (típico de los modelos con "thinking"). Antes salía como respuesta
             # vacía sin ninguna traza; ahora queda registrado.
             _dr = (data.get("done_reason") or "").lower()
-            if not (message.get("content") or "").strip():
-                if _dr == "length" or (ollama_response.eval_count or 0) > 0:
+            if (not (message.get("content") or "").strip()
+                    and (_dr == "length" or (ollama_response.eval_count or 0) > 0)):
                     logger.warning(
                         f"[ISSUE-099] respuesta VACÍA del modelo {self.model} "
                         f"(done_reason={_dr or '?'}, eval_count="
@@ -444,6 +474,8 @@ class OllamaClient(OllamaClientBase):
         la limpieza de httpx está garantizada igual que generate_stream().
         """
         start_time = time.time()
+        if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
+            logger.info("[LLM_CALL] method=chat_stream model=%s msgs=%d", self.model, len(messages))
         input_size = sum(len(m.get("content", "")) for m in messages)
         _log_event("OLLAMA_CLIENT", f"Chat stream started: {task_type}", extra={
             "model": self.model, "messages_count": len(messages),
@@ -506,6 +538,27 @@ class OllamaClient(OllamaClientBase):
                                 usage_sink["eval_count"] = int(
                                     data.get("eval_count") or 0)
                                 usage_sink["done_reason"] = data.get("done_reason")
+                        if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
+                            try:
+                                _hashes = ",".join(
+                                    hashlib.sha1(
+                                        f"{m.get('role', '')}\x00{m.get('content', '')}".encode()
+                                    ).hexdigest()[:6]
+                                    for m in messages
+                                )
+                                logger.info(
+                                    "[OLLAMA] method=chat_stream msg_hashes=%s "
+                                    "prompt_eval_count=%d prompt_eval_duration=%.2fs "
+                                    "eval_count=%d eval_duration=%.2fs reply_sha1=%s",
+                                    _hashes,
+                                    int(data.get("prompt_eval_count") or 0),
+                                    float(data.get("prompt_eval_duration") or 0) / 1e9,
+                                    int(data.get("eval_count") or 0),
+                                    float(data.get("eval_duration") or 0) / 1e9,
+                                    hashlib.sha1(f"assistant\x00{''.join(full_text)}".encode()).hexdigest()[:6],
+                                )
+                            except Exception as _e:
+                                logger.debug("[OLLAMA] no se pudo loguear el stream: %s", _e)
                             break
                 except GeneratorExit:
                     logger.debug(

@@ -107,7 +107,7 @@ class SettingsMemory(BaseModel):
     # ═══════════════════════════════════════════════════════════
     # === MULTI-QUERY LIGERO — v0.6.8 ===
     # Mejora de recall sin LLM (ver src/memory/multi_query.py).
-    # Expansión determinística + UN batch BGE-M3 + fusión RRF.
+    # Expansión determinística + UN batch F2LLM + fusión RRF.
     # Adaptado a CPU-only: costo extra +0-200ms por query.
     # ═══════════════════════════════════════════════════════════
     multi_query_enabled: bool = Field(

@@ -462,7 +462,7 @@ class IntentClassifier(ClassifierExternalDataMixin):
         return result
 
     # ═══════════════════════════════════════════════════════════════
-    # ✅ v0.6.9i: KNN embeddings (bge-m3) ANTES del LLM — quita los ~15 s
+    # ✅ v0.6.9i: KNN embeddings (F2LLM) ANTES del LLM — quita los ~15 s
     # del clasificador LLM en los keyword-miss. El LLM queda como FALLBACK
     # cuando el kNN no está seguro (best < 0.40 o sin margen) → cero pérdida
     # de calidad. Vectores de ejemplo precomputados en data/cache/

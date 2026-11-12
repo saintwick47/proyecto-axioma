@@ -31,7 +31,7 @@ class SettingsSecurity(BaseModel):
     # ✅ v0.6.9c (M1): retención de memoria — poda en background de sesiones
     # más viejas que N días (0 = off). Sesiones sin fecha en el id no se tocan.
     memory_retention_days: int = Field(default=0, ge=0, le=365)
-    # ✅ v0.6.9r (3a): búsqueda híbrida BM25. MEDIDO (gold real, bge-m3):
+    # ✅ v0.6.9r (3a): búsqueda híbrida BM25. MEDIDO (gold real, modelo anterior bge-m3):
     #   vectorial solo MRR 0.690 · +BM25 0.363 · +reranker 0.294
     # → en documentos reales el vectorial gana; BM25/reranker lo degradan.
     # Por eso quedan OPT-IN (OFF por defecto); activar solo por corpus

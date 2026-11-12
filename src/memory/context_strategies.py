@@ -500,7 +500,7 @@ class RelevanceSelector(BaseSelector):
 
     def _get_model_fn(self) -> Callable[[str], List[float]]:
         """
-        Retorna función de embedding: usa el MODELO REAL (BGE-M3) cuando está
+        Retorna función de embedding: usa el MODELO REAL (F2LLM) cuando está
         disponible y cae a hash SOLO si falla o no hay modelo.
 
         ✅ plan_memory (Fase 0, 2026-08-29): antes

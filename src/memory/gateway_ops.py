@@ -170,7 +170,7 @@ class MemoryGatewayOps:
                     logger.error(f"Long-term add failed: {e}")
 
             # Semantic (solo mensajes de usuario para embeddings)
-            # Ejecutado en background thread — genera embedding BGE-M3 (~50-200ms)
+            # Ejecutado en background thread — genera embedding F2LLM (~50-200ms)
             # sin bloquear el retorno al caller. success se marca True de inmediato
             # porque short/long-term ya confirmaron persistencia.
             if self._semantic is not None and role == "user":

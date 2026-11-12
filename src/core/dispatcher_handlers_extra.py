@@ -18,7 +18,9 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 import asyncio
+import hashlib
 import logging
+import os
 import re
 import time
 import base64
@@ -288,6 +290,30 @@ class DispatcherHandlersExtraMixin(DispatcherHandlersExtraCodeMixin, DispatcherP
             *_historial,
             {"role": "user", "content": message.content}
         ]
+        # Diagnóstico del prefijo (2026-11-12): dos turnos seguidos deben mostrar el
+        # MISMO `prefix_sha1`; si cambia, el caché de prefijo de Ollama no puede
+        # reutilizarse y se re-evalúa todo. Se activa con `AXIOMA_DEBUG_PROMPT=1`
+        # (o `settings.debug`); sin eso queda en DEBUG y no ensucia el log.
+        if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
+            _sis = json.dumps(system_prompt, ensure_ascii=False, sort_keys=True)
+            _h = _historial or []
+            _cola = str(_h[-1].get("content", ""))[:40] if _h else "-"
+            _cabeza = str(_h[0].get("content", ""))[:40] if _h else "-"
+            # Hash por mensaje (incluido el último user): offline se calcula el prefijo
+            # común entre turnos consecutivos y se compara con prompt_eval_count.
+            _hashes = ",".join(
+                hashlib.sha1(f"{m.get('role', '')}\x00{m.get('content', '')}".encode()).hexdigest()[:6]
+                for m in messages
+            )
+            (logger.info if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT")
+             else logger.debug)(
+                "[PROMPT] session=%s system_chars=%d system_sha1=%s msgs=%d roles=%s "
+                "msg_hashes=%s hist_head=%r hist_tail=%r",
+                session_id or "-", len(system_prompt),
+                hashlib.sha1(_sis.encode()).hexdigest()[:8], len(messages),
+                ",".join(str(m.get("role", "?"))[0] for m in messages),
+                _hashes, _cabeza, _cola,
+            )
 
         MAX_TOOL_ITERATIONS = 3
         tools_executed = 0

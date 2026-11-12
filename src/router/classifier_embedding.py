@@ -8,7 +8,7 @@
 #
 #   Qué se movió desde classifier_core.py (sin cambios de comportamiento):
 #     - `_classify_by_embeddings`   → similitud coseno contra training vectors
-#     - `_get_embedding`            → embedding BGE-M3 (singleton) con hash fallback
+#     - `_get_embedding`            → embedding F2LLM (singleton) con hash fallback
 #     - `_hash_embedding`           → fallback determinístico (md5 → [0,1])
 #     - `_cosine_similarity`        → similitud coseno pura
 #     - `_record_feature_std`       → varianza de scores (ajuste de threshold v4.8.0)
@@ -36,7 +36,7 @@ class ClassifierEmbeddingMixin:
     """Clasificación por embeddings (similitud coseno contra training vectors).
 
     Extraído de IntentClassifierCore (50/50): este mixin se ocupa de obtener
-    embeddings (BGE-M3 con hash fallback), compararlos por coseno y clasificar.
+    embeddings (F2LLM con hash fallback), compararlos por coseno y clasificar.
     Además registra la std de scores para el ajuste dinámico del threshold.
     El state compartido (self._training_vectors, self.threshold, self._stats,
     self._last_feature_std) lo define IntentClassifierCore.
@@ -52,7 +52,7 @@ class ClassifierEmbeddingMixin:
                 duration = time.perf_counter() - start
                 import logging
                 logging.getLogger(__name__).debug(
-                    f"Embedding via BGE-M3 singleton: {len(embedding)} dims in {duration:.4f}s")
+                    f"Embedding via F2LLM singleton: {len(embedding)} dims in {duration:.4f}s")
                 return embedding
         except Exception as e:
             duration = time.perf_counter() - start
@@ -66,7 +66,7 @@ class ClassifierEmbeddingMixin:
                 # `import logging` local más abajo → el nombre estaría sin ligar.
                 log_degraded(logger, _log_exc, "IntentClassifierCore._get_embedding (_log_error)")
             import logging
-            logging.getLogger(__name__).warning(f"BGE-M3 singleton failed, use hash fallback: {e}")
+            logging.getLogger(__name__).warning(f"F2LLM singleton failed, use hash fallback: {e}")
         return self._hash_embedding(text)
 
     def _hash_embedding(self, text: str) -> List[float]:

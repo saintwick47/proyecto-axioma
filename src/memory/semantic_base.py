@@ -104,7 +104,7 @@ class SemanticMemoryBase:
     """
     Base para memoria semántica — Infraestructura y operaciones write.
 
-    v0.6.3: Usa LanceDB como backend vectorial. BGE-M3 singleton para embeddings.
+    v0.6.3: Usa LanceDB como backend vectorial. F2LLM singleton para embeddings.
     """
 
     MAX_COLLECTION_NAME_LENGTH = 512
@@ -266,7 +266,7 @@ class SemanticMemoryBase:
 
     def _get_embedding(self, text: str) -> List[float]:
         """
-        Genera embedding usando BGE-M3 local (singleton compartido).
+        Genera embedding usando F2LLM local (singleton compartido).
 
         v0.5.2: Eliminado cascade Ollama → MiniLM → Hash.
         Razón: Incompatibilidad de dimensiones + duplicación de RAM.
@@ -299,7 +299,7 @@ class SemanticMemoryBase:
         except Exception as e:
             duration = time.time() - start
             _log_error(e, "SemanticMemoryBase._get_embedding", extra={"text_len": len(text)})
-            logger.warning(f"BGE-M3 singleton failed: {e}")
+            logger.warning(f"F2LLM singleton failed: {e}")
 
         result = self._hash_embedding(text)
         self._embedding_cache.set(text, result, model_name="hash_fallback")

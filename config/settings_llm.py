@@ -82,7 +82,7 @@ class SettingsLLM(BaseModel):
         default="",
         description="Modelo del validador factual (vacío = llm_fallback_1)",
     )
-    # ✅ v0.6.9i (clasificador kNN, MEDIDO): kNN bge-m3 antes del LLM.
+    # ✅ v0.6.9i (clasificador kNN, MEDIDO): kNN bge-m3 (modelo anterior) antes del LLM.
     # Medición: 14/20 (70%) con conf 0.72-0.90 y errores en tareas código
     # cercanas (cola→autonomous, optimizá→data_analysis) → aceptarlo degrada
     # el ruteo. Default OFF: el LLM sigue primario (calidad intacta).
@@ -110,7 +110,7 @@ class SettingsLLM(BaseModel):
     #  · La clave de la caché de respuesta en RAM era **sólo el texto de la
     #    pregunta** ⇒ con el historial inyectado desde ISSUE-130, el mismo texto en
     #    OTRA conversación devolvía la respuesta vieja (TTL de `general_chat`: 600 s).
-    #  · La caché semántica L3 usaba umbral **0.60**, y medido con bge-m3 dos
+    #  · La caché semántica L3 usaba umbral **0.60**, y medido con bge-m3 (modelo anterior) dos
     #    preguntas DISTINTAS puntúan 0.603 y 0.635 ("¿Qué es un índice en una base de
     #    datos?" ↔ "¿Cómo funciona una base de datos relacional?") ⇒ servía la
     #    respuesta de una pregunta para la otra. Un parafraseo real puntúa 0.933.

@@ -217,7 +217,7 @@ class Dispatcher(DispatcherDistributedMixin, DispatcherHandlersMixin, Dispatcher
         # response exitoso de alta confianza) lanzaba threading.Thread(daemon=True)
         # nuevo en CADA request que calificaba — sin pool, sin límite de threads
         # concurrentes. RouterCache.set() hace el write de L3 de forma síncrona
-        # (embedding BGE-M3, ~100ms) — bajo carga sostenida esto acumulaba threads
+        # (embedding F2LLM, ~100ms) — bajo carga sostenida esto acumulaba threads
         # sin límite. Mismo patrón ya usado en trace_store.py (L7).
         self._l3_write_executor = ThreadPoolExecutor(
             max_workers=2, thread_name_prefix="dispatcher-l3-write",
