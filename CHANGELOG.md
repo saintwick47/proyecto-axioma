@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Medición: `think:false` se queda (2026-11-12)
+
+- 3 brazos × 6 turnos encadenados (mismo guion): **A `think:false` 106,4 s total / 0 vacíos**;
+  B sin `think` 575,6 s / 3 vacíos; C `/no_think` 519,0 s / 4 vacíos (Qwen3.5 ignora el interruptor).
+  El pensamiento cuesta ~80 s/turno y consume `num_predict`; el caché perdido por `think:false`
+  cuesta solo ~5-10 s de prefill. **No se cambia el default.** Ver `RENDIMIENTO_MEDICIONES.md` §8.
+
 ### Corregido: `chat_stream` cortaba el stream (2026-11-12)
 
 - El bloque de diagnóstico quedó **fuera** de `if data.get("done")`: con `AXIOMA_DEBUG_PROMPT=1`

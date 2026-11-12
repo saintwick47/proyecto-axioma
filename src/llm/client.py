@@ -273,7 +273,7 @@ class OllamaClient(OllamaClientBase):
         """
         start_time = time.time()
         if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
-            logger.info("[LLM_CALL] method=chat model=%s msgs=%d", self.model, len(messages))
+            logger.warning("[LLM_CALL] method=chat model=%s msgs=%d", self.model, len(messages))
         input_size = sum(len(m.get("content", "")) for m in messages)
         # ✅ CORREGIDO: Logging condicional a DEBUG para eliminar I/O síncrono en ruta crítica
         if logger.isEnabledFor(logging.DEBUG):
@@ -371,11 +371,13 @@ class OllamaClient(OllamaClientBase):
                         ).hexdigest()[:6]
                         for m in messages
                     )
-                    logger.info(
-                        "[OLLAMA] method=chat msg_hashes=%s prompt_eval_count=%d "
+                    logger.warning(
+                        "[OLLAMA] method=chat msg_hashes=%s num_ctx=%s num_predict=%s prompt_eval_count=%d "
                         "prompt_eval_duration=%.2fs eval_count=%d eval_duration=%.2fs "
                         "total=%.2fs load=%.2fs reply_sha1=%s",
                         _hashes,
+                        (payload.get("options") or {}).get("num_ctx"),
+                        (payload.get("options") or {}).get("num_predict"),
                         int(data.get("prompt_eval_count") or 0),
                         float(data.get("prompt_eval_duration") or 0) / 1e9,
                         int(data.get("eval_count") or 0),
@@ -475,7 +477,7 @@ class OllamaClient(OllamaClientBase):
         """
         start_time = time.time()
         if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
-            logger.info("[LLM_CALL] method=chat_stream model=%s msgs=%d", self.model, len(messages))
+            logger.warning("[LLM_CALL] method=chat_stream model=%s msgs=%d", self.model, len(messages))
         input_size = sum(len(m.get("content", "")) for m in messages)
         _log_event("OLLAMA_CLIENT", f"Chat stream started: {task_type}", extra={
             "model": self.model, "messages_count": len(messages),
@@ -546,11 +548,13 @@ class OllamaClient(OllamaClientBase):
                                         ).hexdigest()[:6]
                                         for m in messages
                                     )
-                                    logger.info(
-                                        "[OLLAMA] method=chat_stream msg_hashes=%s "
+                                    logger.warning(
+                                        "[OLLAMA] method=chat_stream msg_hashes=%s num_ctx=%s num_predict=%s "
                                         "prompt_eval_count=%d prompt_eval_duration=%.2fs "
                                         "eval_count=%d eval_duration=%.2fs reply_sha1=%s",
                                         _hashes,
+                                        (payload.get("options") or {}).get("num_ctx"),
+                                        (payload.get("options") or {}).get("num_predict"),
                                         int(data.get("prompt_eval_count") or 0),
                                         float(data.get("prompt_eval_duration") or 0) / 1e9,
                                         int(data.get("eval_count") or 0),

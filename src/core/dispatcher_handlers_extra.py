@@ -305,8 +305,7 @@ class DispatcherHandlersExtraMixin(DispatcherHandlersExtraCodeMixin, DispatcherP
                 hashlib.sha1(f"{m.get('role', '')}\x00{m.get('content', '')}".encode()).hexdigest()[:6]
                 for m in messages
             )
-            (logger.info if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT")
-             else logger.debug)(
+            logger.warning(
                 "[PROMPT] session=%s system_chars=%d system_sha1=%s msgs=%d roles=%s "
                 "msg_hashes=%s hist_head=%r hist_tail=%r",
                 session_id or "-", len(system_prompt),

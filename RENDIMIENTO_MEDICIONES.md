@@ -105,3 +105,27 @@ AXIOMA_DEBUG_PROMPT=1 venv_axioma/bin/python main.py --web
 # 6 turnos sin herramientas + 2 con herramientas; después:
 grep -E "\[PROMPT\]|\[OLLAMA\]" logs/*.log | tail -20
 ```
+
+## 8. Tres brazos de `think` (2026-11-12): no cambiar el default
+
+Guion de 6 turnos encadenados, `num_ctx=2048`, `num_predict=512`, mismo system (con marca de brazo
+para aislar cachés), medido con `/api/chat` stream contra Ollama directo:
+
+| Brazo | `prompt_eval` (6) | `eval` (6) | `total` (6) | vacíos | pensamiento |
+|---|---|---|---|---|---|
+| **A: `think:false` (actual)** | 1.409 | 271 | **106,4 s** (17,7 s/turno) | **0** | 0 |
+| B: sin `think` | 781 | 2.879 | 575,6 s (95,9 s/turno) | **3** | 1.124-2.359 chars |
+| C: `/no_think` en el system | 644 | 2.717 | 519,0 s (86,5 s/turno) | **4** | 1.874-2.472 chars |
+
+**Conclusión:**
+
+- **No cambiar `think:false`.** Sin `think` (B) o con `/no_think` (C) el modelo **piensa igual**
+  (1-2,5 k chars), consume los 512 tokens de `num_predict`, tarda **~5× más** y devuelve respuestas
+  **vacías** en 3-4 de 6 turnos. Qwen3.5 en Ollama **no respeta `/no_think`**.
+- En A el caché de prefijo **no se reutiliza** (`prompt_eval` crece 89→403), pero el prefill (~5-10 s)
+  es menor que el decode del pensamiento (~80 s/turno). El caché queda como optimización aparte
+  (posible causa: plantilla Qwen que borra el bloque `<think>` vacío), no como palanca inmediata.
+- **Conflicto de `num_ctx` confirmado**: el turno 1 de A cargó el modelo en **15,7 s** porque la
+  instancia tenía `num_ctx=4096` y el request pedía 2048 → recarga y pérdida del KV. Conviene que
+  **todos** los caminos usen el mismo `num_ctx` (o fijarlo por modelo).
+
