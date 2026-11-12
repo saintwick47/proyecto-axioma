@@ -538,27 +538,27 @@ class OllamaClient(OllamaClientBase):
                                 usage_sink["eval_count"] = int(
                                     data.get("eval_count") or 0)
                                 usage_sink["done_reason"] = data.get("done_reason")
-                        if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
-                            try:
-                                _hashes = ",".join(
-                                    hashlib.sha1(
-                                        f"{m.get('role', '')}\x00{m.get('content', '')}".encode()
-                                    ).hexdigest()[:6]
-                                    for m in messages
-                                )
-                                logger.info(
-                                    "[OLLAMA] method=chat_stream msg_hashes=%s "
-                                    "prompt_eval_count=%d prompt_eval_duration=%.2fs "
-                                    "eval_count=%d eval_duration=%.2fs reply_sha1=%s",
-                                    _hashes,
-                                    int(data.get("prompt_eval_count") or 0),
-                                    float(data.get("prompt_eval_duration") or 0) / 1e9,
-                                    int(data.get("eval_count") or 0),
-                                    float(data.get("eval_duration") or 0) / 1e9,
-                                    hashlib.sha1(f"assistant\x00{''.join(full_text)}".encode()).hexdigest()[:6],
-                                )
-                            except Exception as _e:
-                                logger.debug("[OLLAMA] no se pudo loguear el stream: %s", _e)
+                            if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):
+                                try:
+                                    _hashes = ",".join(
+                                        hashlib.sha1(
+                                            f"{m.get('role', '')}\x00{m.get('content', '')}".encode()
+                                        ).hexdigest()[:6]
+                                        for m in messages
+                                    )
+                                    logger.info(
+                                        "[OLLAMA] method=chat_stream msg_hashes=%s "
+                                        "prompt_eval_count=%d prompt_eval_duration=%.2fs "
+                                        "eval_count=%d eval_duration=%.2fs reply_sha1=%s",
+                                        _hashes,
+                                        int(data.get("prompt_eval_count") or 0),
+                                        float(data.get("prompt_eval_duration") or 0) / 1e9,
+                                        int(data.get("eval_count") or 0),
+                                        float(data.get("eval_duration") or 0) / 1e9,
+                                        hashlib.sha1(f"assistant\x00{''.join(full_text)}".encode()).hexdigest()[:6],
+                                    )
+                                except Exception as _e:
+                                    logger.debug("[OLLAMA] no se pudo loguear el stream: %s", _e)
                             break
                 except GeneratorExit:
                     logger.debug(

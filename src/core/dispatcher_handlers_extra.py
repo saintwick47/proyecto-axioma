@@ -291,7 +291,7 @@ class DispatcherHandlersExtraMixin(DispatcherHandlersExtraCodeMixin, DispatcherP
             {"role": "user", "content": message.content}
         ]
         # Diagnóstico del prefijo (2026-11-12): dos turnos seguidos deben mostrar el
-        # MISMO `prefix_sha1`; si cambia, el caché de prefijo de Ollama no puede
+        # MISMO `msg_hashes`; si cambia, el caché de prefijo de Ollama no puede
         # reutilizarse y se re-evalúa todo. Se activa con `AXIOMA_DEBUG_PROMPT=1`
         # (o `settings.debug`); sin eso queda en DEBUG y no ensucia el log.
         if settings.debug or os.environ.get("AXIOMA_DEBUG_PROMPT"):

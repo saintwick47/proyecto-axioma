@@ -3,6 +3,7 @@
 # Autor: SaintWick — AXIOMA, suite integral (archivo 3/6): LLM, router y memoria
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 try:
@@ -103,6 +104,35 @@ class TestOllamaClient:
 
 
 class TestLLMConfig:
+    def test_chat_stream_no_trunca_con_debug(self, monkeypatch):
+        """Un stream de 3 chunks debe devolver los 3, también con el log de debug."""
+        monkeypatch.setenv("AXIOMA_DEBUG_PROMPT", "1")
+        with patch("src.llm.client.httpx"):
+            from src.llm.client import OllamaClient
+            client = OllamaClient(model="test-model", timeout=5, base_url="http://x")
+            class _Resp:
+                def raise_for_status(self):
+                    pass
+                def iter_lines(self):
+                    yield json.dumps({"message": {"content": "uno"}, "done": False})
+                    yield json.dumps({"message": {"content": "dos"}, "done": False})
+                    yield json.dumps({"message": {"content": "tres"}, "done": True,
+                                      "prompt_eval_count": 3, "eval_count": 3})
+            class _CM:
+                def __enter__(self):
+                    return _Resp()
+                def __exit__(self, *args):
+                    return False
+            class _Sesion:
+                def stream(self, *args, **kwargs):
+                    return _CM()
+            monkeypatch.setattr(client, "_get_client", lambda timeout=None: _Sesion())
+            monkeypatch.setattr(client, "_release_client", lambda session: None)
+            trozos = list(client.chat_stream([{"role": "user", "content": "hola"}]))
+            check("chat_stream devuelve los 3 chunks (con debug)",
+                  trozos == ["uno", "dos", "tres"], f"{len(trozos)} chunks", SECTION)
+            assert trozos == ["uno", "dos", "tres"], f"stream truncado: {trozos}"
+
     def test_model_config(self):
         from src.llm.config import ModelConfig, CODE_MODEL, DEFAULT_MODEL
         mc = ModelConfig(name="qwen3:8b", task_types=["code_generation"])

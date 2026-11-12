@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Corregido: `chat_stream` cortaba el stream (2026-11-12)
+
+- El bloque de diagnóstico quedó **fuera** de `if data.get("done")`: con `AXIOMA_DEBUG_PROMPT=1`
+  el `break` cortaba tras el **primer chunk**; sin debug el `break` no se ejecutaba. Se reindentó
+  dentro de `done` y se agregó `test_chat_stream_no_trunca_con_debug` (3 chunks → 3 trozos).
+
 ### Diagnóstico del caché de prefijo en el chat (2026-11-12)
 
 - Con `AXIOMA_DEBUG_PROMPT=1` (o `settings.debug`), el chat loguea `[PROMPT]` (hash del system,
