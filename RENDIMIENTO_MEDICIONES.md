@@ -129,6 +129,22 @@ para aislar cachés), medido con `/api/chat` stream contra Ollama directo:
   instancia tenía `num_ctx=4096` y el request pedía 2048 → recarga y pérdida del KV. Conviene que
   **todos** los caminos usen el mismo `num_ctx` (o fijarlo por modelo).
 
+## 8-bis. Corrección (2026-11-13): en 0.40 no hay caché para llama.cpp
+
+Con Ollama **0.40.16** la re-evaluación es **siempre el prompt completo**, con o sin `think`:
+
+| System largo (~790 tok) | turno 1 | turno 2 | turno 3 |
+|---|---|---|---|
+| `think:false` | 798 | 814 | 830 |
+| sin `think` | 796 | 812 | 828 |
+
+Si el caché funcionara, los turnos 2-3 evaluarían solo la cola (~16 tok). **No es la plantilla**:
+el renderer `qwen3.5` agrega un bloque `<think>` vacío **estable** (`alwaysRenderAssistantThinkBlock`).
+La causa es que **0.40 quitó el caché KV de Go** que tenía 0.30 (`kvcache/`); en 0.40 solo existe
+`mlxrunner/cache` (Apple MLX), no para el runner llama.cpp de Linux. No hay flag de cliente que lo
+active. Con `think:false` (lo que usa AXIOMA) 0.30 tampoco cacheaba, así que **no hay regresión
+funcional** para AXIOMA; el caché no es recuperable sin un fix aguas arriba o volver a 0.30.
+
 ## 9. Cambios aplicados (2026-11-13)
 
 - **`num_ctx` monotónico por modelo**: el cálculo por buckets sigue igual, pero nunca baja del máximo
