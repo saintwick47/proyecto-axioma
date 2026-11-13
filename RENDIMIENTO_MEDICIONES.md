@@ -138,3 +138,32 @@ para aislar cachés), medido con `/api/chat` stream contra Ollama directo:
 - **Cómo verificarlo**: en los logs, `load=0` después del primer turno y `msg_hashes` con el mismo
   prefijo hasta el salto (n=17). El caché de prefijo con `think:false` sigue sin reutilizarse (tema
   de plantilla, §8), pero el prefill ya no paga recargas.
+
+## 10. Verificación en vivo de 9 turnos (2026-11-13)
+
+Instancia aparte, `AXIOMA_DEBUG_PROMPT=1`, sesión nueva, 9 turnos encadenados por la UI:
+
+| Turno | msgs | prefijo común | num_ctx | load | prompt_eval | prefill |
+|---|---|---|---|---|---|---|
+| 1 | 2 | – | 2048 | 0,0 | 92 | 3,65 s |
+| 2 | 4 | 2 | 2048 | 0,0 | 135 | 4,65 s |
+| 3 | 6 | 4 | 2048 | 0,0 | 220 | 5,59 s |
+| 4 | 8 | 6 | 2048 | 0,0 | 300 | 6,86 s |
+| 5 | 10 | 8 | 2048 | 0,0 | 390 | 8,93 s |
+| 6 | 12 | 10 | 2048 | 0,0 | 463 | 10,28 s |
+| 7 | 14 | 12 | 2048 | 0,0 | 549 | 12,52 s |
+| 8 | 16 | 14 | 2048 | 0,0 | 645 | 14,54 s |
+| 9 | 18 | 16 | 2048 | 0,0 | 734 | 15,78 s |
+
+**Resultado:**
+
+- **`num_ctx=2048` estable y `load=0,0` en todos los turnos**: la recarga de ~15 s desapareció
+  (D-75). La instancia ya estaba cargada en 2048 y nunca se le pidió menos.
+- **El prefijo crece de a 2 por turno hasta el 9 (16 mensajes)**: la ventana por bloques mantiene el
+  comienzo estable; el primer salto (`_inicio_bloque(17)=8`) cae en el **turno 10** (por eso 9 turnos
+  no lo muestran). Al saltar, el prefijo se rompe una vez y se re-evalúa todo (tradeoff de D-74).
+- **El caché sigue sin reutilizarse** (`prompt_eval` 92→734, ~el prompt completo): es el tema de
+  plantilla/`think:false` (§8), independiente de estos cambios. El prefill crece con el prompt
+  (3,6→15,8 s), pero ya no hay recargas.
+- Duraciones de turno en la UI: 36 s el primero, 82-92 s los siguientes (respuestas breves + prefill).
+
