@@ -55,6 +55,13 @@ from src.llm.client_base_infra import (  # noqa: E402, F401 — re-export: API p
 )
 
 
+# num_ctx monotónico por modelo (2026-11-13): una vez que un modelo cargó con un
+# contexto, todos los requests usan ese valor o uno mayor. Antes el mismo modelo
+# bailaba entre 2048/4096/8192/16384 según el prompt y **cada cambio recargaba el
+# modelo y descartaba el KV** (ISSUE-086; medido: 15,7 s de recarga).
+_NUM_CTX_POR_MODELO: Dict[str, int] = {}
+_NUM_CTX_LOCK = threading.Lock()
+
 class OllamaClientBase:
     """Base para cliente Ollama — Infraestructura y operaciones write."""
     _request_cache: Dict[str, RequestCache] = {}
@@ -197,10 +204,25 @@ class OllamaClientBase:
         """
         estimated_input_tokens = max(prompt_len // CHARS_PER_TOKEN, 512)
         required_ctx = estimated_input_tokens + num_predict + CTX_BUFFER
-        num_ctx = NUM_CTX_MIN
-        while num_ctx < required_ctx and num_ctx < NUM_CTX_MAX:
-            num_ctx *= 2
-        return min(num_ctx, NUM_CTX_MAX)
+        bucket = NUM_CTX_MIN
+        while bucket < required_ctx and bucket < NUM_CTX_MAX:
+            bucket *= 2
+        return min(bucket, NUM_CTX_MAX)
+
+    def _num_ctx_monotonico(self, prompt_len: int, num_predict: int) -> int:
+        """Bucket puro + piso por modelo: nunca por debajo de lo ya cargado."""
+        bucket = self._calculate_num_ctx(prompt_len, num_predict)
+        with _NUM_CTX_LOCK:
+            actual = _NUM_CTX_POR_MODELO.get(self.model, NUM_CTX_MIN)
+            if bucket < actual:
+                bucket = actual
+            _NUM_CTX_POR_MODELO[self.model] = bucket
+        return bucket
+
+    def _num_ctx_actual(self) -> int:
+        """Contexto con el que el modelo ya cargó (o el mínimo si todavía no cargó)."""
+        with _NUM_CTX_LOCK:
+            return _NUM_CTX_POR_MODELO.get(self.model, NUM_CTX_MIN)
 
     def health_check(self, timeout: float = 5.0) -> bool:
         start = time.time()
@@ -251,7 +273,7 @@ class OllamaClientBase:
                 "model": self.model,
                 "prompt": "ready",
                 "stream": False,
-                "options": {"num_predict": 1, "temperature": 0.1, "num_ctx": NUM_CTX_MIN}
+                "options": {"num_predict": 1, "temperature": 0.1, "num_ctx": self._num_ctx_actual()}
             }
             response = session.post("/api/generate", json=payload, timeout=timeout)
             response.raise_for_status()
@@ -472,7 +494,7 @@ class OllamaClientBase:
                 # **cada cambio descarta TODO el KV cacheado** (ISSUE-086) ⇒ se perdía
                 # la reutilización del prefijo común y la RAM del KV se movía en cada
                 # llamada.
-                num_ctx = int(kwargs.get("num_ctx") or 0) or self._calculate_num_ctx(
+                num_ctx = int(kwargs.get("num_ctx") or 0) or self._num_ctx_monotonico(
                     prompt_len, effective_max_tokens)
 
                 payload = {

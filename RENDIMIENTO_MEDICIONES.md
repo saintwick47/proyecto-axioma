@@ -129,3 +129,12 @@ para aislar cachés), medido con `/api/chat` stream contra Ollama directo:
   instancia tenía `num_ctx=4096` y el request pedía 2048 → recarga y pérdida del KV. Conviene que
   **todos** los caminos usen el mismo `num_ctx` (o fijarlo por modelo).
 
+## 9. Cambios aplicados (2026-11-13)
+
+- **`num_ctx` monotónico por modelo**: el cálculo por buckets sigue igual, pero nunca baja del máximo
+  ya usado por ese modelo (evita la recarga de ~15 s y la pérdida de KV del ISSUE-086).
+- **Historial por bloques de 8**: la ventana se corre de a 8 mensajes alineados (antes 1 por turno).
+  Con el guion medido, el primer salto pasa del turno 6 al 9; entre saltos el prefijo es estable.
+- **Cómo verificarlo**: en los logs, `load=0` después del primer turno y `msg_hashes` con el mismo
+  prefijo hasta el salto (n=17). El caché de prefijo con `think:false` sigue sin reutilizarse (tema
+  de plantilla, §8), pero el prefill ya no paga recargas.

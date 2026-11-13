@@ -134,7 +134,7 @@ class OllamaClient(OllamaClientBase):
         return {
             "temperature": temperature if temperature is not None else settings.default_temperature,
             "num_predict": num_predict,
-            "num_ctx": self._calculate_num_ctx(texto_len, num_predict),
+            "num_ctx": self._num_ctx_monotonico(texto_len, num_predict),
         }
 
     def generate_stream(self, prompt: str, system: Optional[str] = None,

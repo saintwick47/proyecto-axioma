@@ -41,6 +41,19 @@ logger = logging.getLogger(__name__)
 # coma la ventana de los turnos siguientes.
 HISTORIAL_TURNOS_MAX = 4
 HISTORIAL_CHARS_POR_MENSAJE = 400
+# Ventana por BLOQUES (2026-11-13): soltar de a 2 turnos (8 mensajes) en vez de
+# corrimiento por turno. Un corrimiento de 1 mensaje cambia el comienzo del prompt
+# y rompe el prefijo cacheado (ISSUE-086); con bloques, el prefijo se mantiene
+# estable entre saltos y el caché sobrevive.
+HISTORIAL_BLOQUE = HISTORIAL_TURNOS_MAX * 2
+HISTORIAL_LECTURA = HISTORIAL_BLOQUE * 16   # margen para alinear el bloque
+
+
+def _inicio_bloque(n: int, bloque: int) -> int:
+    """Comienzo de la ventana, alineado a múltiplos de `bloque`."""
+    if n <= bloque * 2:
+        return 0
+    return ((n - 1) // bloque) * bloque - bloque
 
 
 # Techo cuando la consulta pedía un DATO verificable y la respuesta no trae
@@ -249,7 +262,7 @@ class DispatcherProcessGuardMixin:
             if gw is None:
                 return []
             crudos = gw.get_context(
-                limit=HISTORIAL_TURNOS_MAX * 2, include_system=False,
+                limit=HISTORIAL_LECTURA, include_system=False,
             )
         except Exception as e:
             log_degraded(logger, e, "Dispatcher._historial_para_prompt",
@@ -280,7 +293,9 @@ class DispatcherProcessGuardMixin:
         if actual and historial and historial[-1]["role"] == "user" \
                 and historial[-1]["content"] == actual:
             historial.pop()
-        return historial
+        # Recorte por bloques: el comienzo solo cambia al cruzar un múltiplo.
+        inicio = _inicio_bloque(len(historial), HISTORIAL_BLOQUE)
+        return historial[inicio:]
 
     def _firma_contexto(self, session_id: Optional[str],
                         texto_actual: Optional[str] = None) -> str:

@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Rendimiento: `num_ctx` monotónico y ventana de historial por bloques (2026-11-13)
+
+- **`num_ctx` nunca baja por modelo** (`_num_ctx_monotonico`): pedir un contexto menor al que el
+  modelo ya cargó lo recarga y descarta el KV (ISSUE-086). El RAC alternaba 2048/4096/8192/16384;
+  ahora el valor es un piso por modelo. El cálculo puro por buckets sigue igual (testeado).
+- **Historial en bloques**: `_historial_para_prompt` recorta de a 8 mensajes alineados, no de a uno
+  por turno. El prefijo se mantiene estable entre saltos (la ventana pasa de 8 a 8-16 mensajes; el
+  primer salto se corre del turno 6 al 9).
+- Tests: `test_num_ctx_monotonico_por_modelo`, `test_historial_ventana_por_bloques`.
+
 ### Medición: `think:false` se queda (2026-11-12)
 
 - 3 brazos × 6 turnos encadenados (mismo guion): **A `think:false` 106,4 s total / 0 vacíos**;

@@ -85,6 +85,27 @@ class TestOllamaClient:
             client.close()
             check("OllamaClient.close()", True, "OK", SECTION)
 
+    def test_num_ctx_monotonico_por_modelo(self):
+        """El num_ctx de un modelo nunca baja: bajar recarga el modelo y pierde el KV."""
+        with patch("src.llm.client.httpx"):
+            from src.llm.client import OllamaClient
+            c = OllamaClient(model="modelo-ctx-test", timeout=5, base_url="http://x")
+            chico = c._num_ctx_monotonico(100, 64)
+            grande = c._num_ctx_monotonico(10 ** 7, 32768)
+            otra_vez = c._num_ctx_monotonico(100, 64)
+            check("num_ctx no baja", grande >= chico and otra_vez == grande,
+                  f"{chico}->{grande}->{otra_vez}", SECTION)
+            assert otra_vez == grande, f"num_ctx bajó: {grande} -> {otra_vez}"
+
+    def test_historial_ventana_por_bloques(self):
+        """El recorte del historial salta de a bloques, no de a un mensaje por turno."""
+        from src.core.dispatcher_process_guard import _inicio_bloque
+        casos = {6: 0, 8: 0, 16: 0, 17: 8, 24: 8, 25: 16, 32: 16, 33: 24}
+        for n, esperado in casos.items():
+            obtenido = _inicio_bloque(n, 8)
+            check(f"ventana n={n}", obtenido == esperado, f"{obtenido} (esperado {esperado})", SECTION)
+            assert obtenido == esperado, f"n={n}: {obtenido} != {esperado}"
+
     def test_context_manager(self):
         with patch("src.llm.client.httpx"):
             from src.llm.client import OllamaClient
