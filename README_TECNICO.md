@@ -11,7 +11,10 @@
 
 | Estado | Git | Licencia | Arquitectura | LLM Core | Commits |
 | :---: | :---: | :---: | :---: | :---: | :---: |
-| 🟢 En desarrollo activo | `main` · último tag `v0.7.7` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | — |
+| 🟢 En desarrollo activo | `main` · último tag `v0.7.9` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | — |
+
+> **Ollama:** probado con **0.40.16** (y 0.30.0); se instala aparte, no se versiona con el
+> código. Mediciones y decisiones de rendimiento: [`RENDIMIENTO_MEDICIONES.md`](RENDIMIENTO_MEDICIONES.md).
 
 ---
 
@@ -100,7 +103,7 @@ el catálogo ofrece variantes para equipos con poca memoria (`qwen2.5-coder:3b`,
 `llm_judge_model` y `llm_fallback_2` están desactivados; el juez externo fue eliminado — la validación de respuestas la hace el `ValidatorAgent` local (single-pass).
 
 **Comandos del chat:**
-- `/plan <consulta compleja>` — pipeline multi-paso opt-in: rol principal (coder/researcher) + validador final, cap `settings.plan_max_steps=2`. Auto-opcional con `plan_pipeline_enabled=true` (default OFF). Detalles en `COMANDOS_AXIOMA.txt` §1.1.
+- `/plan <consulta compleja>` — pipeline multi-paso opt-in: rol principal (coder/researcher) + validador final, cap `settings.plan_max_steps=2`. Auto-opcional con `plan_pipeline_enabled=true` (default OFF). Detalle en la sección «Comandos» de este README.
 - 🖼️ **Adjuntar imágenes al chat**: PNG/JPG/WebP/GIF/BMP → `qwen3.5:9b` (el mismo modelo del chat, multimodal nativo); OCR híbrido con **Tesseract local** al pedir leer/transcribir texto y **preprocesado adaptativo** (autocontraste/upscale). Ver *🖼️ Imágenes en el chat* más abajo.
 - 📎 **Fuentes/citas**: respuestas grounded (fs_search/folder-analysis) muestran el bloque *📎 Fuentes* en la Web y la lista en el CLI.
 - 🧮 **Calculadora**: tool MCP determinística y segura (AST, sin `eval()`) en el agent loop.
@@ -138,7 +141,7 @@ Settings: `vision_num_predict` (512) · `vision_preprocess_enabled` · `vision_o
 
 ---
 
-## 🚀 Comandos (fuente: `COMANDOS_AXIOMA.txt`)
+## 🚀 Comandos
 
 ```bash
 # Entry point

@@ -32,7 +32,7 @@ modelos.
 
 1. **Instalá Docker** desde [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
    y abrilo una vez para que arranque.
-2. **Bajá el instalador desde la página de _Releases_ de este repositorio** (versión **v0.7.7**):
+2. **Bajá el instalador desde la página de _Releases_ de este repositorio** (versión **v0.7.9**):
    - **Windows**: `AXIOMA-Setup.exe` — **doble clic** (necesita Docker Desktop con WSL 2).
    - **Linux y macOS**: `axioma-instalar.sh` — desde una consola, `bash axioma-instalar.sh`.
 3. **Ejecutalo y esperá**: comprueba Docker, **baja la imagen ya compilada desde GHCR** (GitHub Container
@@ -114,9 +114,9 @@ del sistema: `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\raf
 | Documento | Para qué |
 |---|---|
 | **`MANUAL_USUARIO.md`** | **Empezá por acá si es tu primera vez**: paso a paso con lo que vas a ver |
-| `COMANDOS_AXIOMA.txt` | Todos los comandos (contenedor y desarrollo) |
 | `MANUAL_AXIOMA.md`, `MANUAL_RAFAEL.md`, `README_TECNICO.md` | Manuales técnicos |
 | `CHANGELOG.md` | Qué cambió en cada versión |
+| `RENDIMIENTO_MEDICIONES.md` | Mediciones de rendimiento y decisiones |
 
 ## Licencia
 
