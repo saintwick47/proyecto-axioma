@@ -45,7 +45,7 @@ class SettingsLLM(BaseModel):
     llm_default_model: str = "qwen3.5:9b"
     llm_code_model: str = "qwen2.5-coder:7b"
     # ✅ 2026-10-27: MEDIDO — qwen3.5:9b es multimodal NATIVO (6,6 GB, familia qwen35):
-    # chat y visión son el MISMO modelo y se elimina qwen3-vl:4b (3,3 GB). Velocidad
+    # chat y visión son el MISMO modelo (se eliminó el VLM aparte). Velocidad
     # igual a qwen3:8b (6,4 vs 6,5 tok/s) y visión mejor (describe formas y colores).
     llm_vision_model: str = "qwen3.5:9b"
     llm_vision_fallback_model: str = ""  # Sin fallback — un solo VLM activo a la vez

@@ -85,4 +85,4 @@ def test_la_ui_muestra_la_version_real_y_no_un_literal():
         literales = re.findall(r"AXIOMA v[0-9]", texto)
         assert not literales, f"{nombre}: versión hardcodeada {literales}"
         assert "AXIOMA_VERSION" in texto, f"{nombre}: no usa la versión única"
-    assert __version__ == "0.7.8" or re.match(r"^\d+\.\d+\.\d+$", __version__)
+    assert __version__ == "0.7.9" or re.match(r"^\d+\.\d+\.\d+$", __version__)

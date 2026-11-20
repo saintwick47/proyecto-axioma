@@ -90,7 +90,7 @@ Todo está en `config/multimodal.yaml` y `.env`:
 
 ---
 
-*Rafael — AXIOMA v0.7.5*
+*Rafael — AXIOMA v0.7.9*
 
 
 ---

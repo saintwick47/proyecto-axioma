@@ -3,6 +3,8 @@
 > Objetivo: decidir con números si conviene cambiar de lenguaje, optimizar Python o atacar el LLM.
 > Equipo: **CPU-only** (Ryzen 5 8500G), `qwen3.5:9b`, embeddings `codefuse-ai/F2LLM-v2-330M` (896 dims).
 > Todo lo de abajo está **medido**, no estimado. Reproducible al final.
+> **Nota de versión**: las mediciones de §1-§7 se hicieron con **Ollama 0.30.0**; §8-bis actualiza
+> el comportamiento con **0.40.16** (sin caché de prefijo para llama.cpp).
 
 ## 1. Resultados
 

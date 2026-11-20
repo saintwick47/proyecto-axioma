@@ -138,7 +138,7 @@ Botón **📁** en la barra superior — diálogo con dos formas de encontrar ar
 ### 3.4 Adjuntar archivos e imágenes (📎 en el chat)
 - **Texto / PDF / DOCX**: se adjuntan y su contenido se lee al enviar (PDF y
   DOCX se parsean; tope ~150K caracteres con aviso si se trunca).
-- **Imágenes** (PNG/JPG/WebP/GIF/BMP): AXIOMA las analiza con `qwen3-vl` —
+- **Imágenes** (PNG/JPG/WebP/GIF/BMP): AXIOMA las analiza con `qwen3.5:9b` (multimodal) —
   describe la imagen, responde preguntas sobre ella y **lee texto** (OCR):
   si pedís "copiá/transcribí el texto" usa Tesseract local (instantáneo) y si
   no, el modelo. Primera imagen tarda ~45-55 s en CPU (carga el modelo).

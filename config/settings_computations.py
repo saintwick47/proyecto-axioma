@@ -14,11 +14,11 @@
 #   Settings(BaseSettings, SettingsComputations) hereda este mixin.
 # ═══════════════════════════════════════════════════════════════
 # ✅ v0.1.5: Agregado get_vision_model_with_fallback()
-# ✅ v0.1.6: ELIMINADO soporte moondream:v2 — Solo gemma4:e4b
+# ✅ v0.1.6: ELIMINADO soporte de VLM separado — hoy el VLM es qwen3.5:9b
 #            get_vision_model_with_fallback simplificado a modelo único.
 # ✅ v0.1.6: FIX getattr() con sintaxis correcta (self, "attr", default)
 # ✅ v0.1.6: get_vision_fallback_config() retorna string vacío (sin fallback)
-# ✅ v0.1.6: get_timeout_for_model() detecta "gemma4" directamente
+# ✅ v0.1.6: get_timeout_for_model() resuelve por modelo configurado/rol
 # ✅ v0.1.6b: Ajustado a timeout 150s (coincide con settings.py)
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
@@ -111,7 +111,7 @@ class SettingsComputations:
         if model_lower and model_lower == embed_cfg:
             return self.get_timeout_for_scenario("embed", is_first)
         # Respaldo por nombre, para modelos que el usuario configure a mano.
-        if "gemma4" in model_lower or "vl" in model_lower or "vision" in model_lower:
+        if "vl" in model_lower or "vision" in model_lower:
             return self.get_timeout_for_scenario("vision", is_first)
         if "embed" in model_lower or "bge" in model_lower:
             return self.get_timeout_for_scenario("embed", is_first)
@@ -186,13 +186,13 @@ class SettingsComputations:
     def get_vision_model_with_fallback(self) -> Tuple[str, int, bool]:
         """
         Retorna el modelo de visión a usar.
-        ✅ v0.1.6: Simplificado para arquitectura de modelo único (gemma4:e4b).
+        ✅ v0.1.6: Simplificado para arquitectura de modelo único (hoy qwen3.5:9b).
         ✅ v0.1.6: FIX getattr(self, "attr", default) — sintaxis corregida.
         ✅ v0.1.6b: Timeout default 150s (coincide con settings.py).
 
         Returns:
             Tuple[str, int, bool]: (model_name, timeout, is_fallback)
-            - model_name: 'gemma4:e4b' (único modelo válido)
+            - model_name: 'qwen3.5:9b' (modelo configurado)
             - timeout: Timeout en segundos (leído de settings)
             - is_fallback: False (siempre principal, no hay segundo modelo)
         """
@@ -225,7 +225,7 @@ class SettingsComputations:
     def get_available_vision_models(self) -> List[str]:
         """
         Retorna lista de modelos de visión disponibles para selector de UI.
-        ✅ v0.1.6: Filtra cadenas vacías. Solo gemma4:e4b en práctica.
+        ✅ v0.1.6: Filtra cadenas vacías. Hoy el VLM es qwen3.5:9b.
 
         Returns:
             List[str]: Lista de nombres de modelos no vacíos
