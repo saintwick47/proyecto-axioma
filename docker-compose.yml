@@ -71,7 +71,7 @@ services:
       # Los datos del usuario (memoria, cachés, modelo de voz) viven en el equipo, no en la imagen.
       - ./data:/app/data
       - ./logs:/app/logs
-      # ✅ 2026-10-08: el modelo de embeddings (medido: **4,3 GB** para `BAAI/bge-m3`) también vive en el
+      # ✅ 2026-10-08: el modelo de embeddings (hoy `codefuse-ai/F2LLM-v2-330M`, **~638 MB**, 896 dims) también vive en el
       # equipo. Sin esto quedaba dentro del contenedor y se VOLVÍA A BAJAR cada vez que se recreaba (y el
       # primer arranque tardaba minutos: medido, la copia no respondía en un minuto). Con el volumen se
       # baja una sola vez.
@@ -200,8 +200,9 @@ services:
   ollama:
     # ✅ 2026-10-10: versión FIJA, no `latest`. Con `latest`, dos personas (o la misma, en dos meses)
     # bajan versiones distintas del motor y AXIOMA se comporta distinto sin que nadie haya cambiado nada.
-    # 0.30.0 es la versión MEDIDA en este equipo (`ollama --version`) y la etiqueta se comprobó contra
-    # Docker Hub (`docker manifest inspect ollama/ollama:0.30.0`) antes de fijarla.
+    # 0.30.0 es la versión del CONTENEDOR (etiqueta comprobada contra Docker Hub); el host
+    # está en 0.40.16 desde 2026-11-13 y el compose se mantiene en 0.30.0 hasta un
+    # A/B en contenedor (para `think:false` el caché es equivalente).
     image: ollama/ollama:0.30.0
     container_name: axioma-ollama
     profiles: ["ollama-local"]

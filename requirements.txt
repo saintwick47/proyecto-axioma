@@ -154,7 +154,7 @@ attrs==26.1.0
 binaryornot==0.4.4
 chardet==5.2.0
 cookiecutter==2.7.1
-duckduckgo_search==8.1.1
+ddgs==9.16.1
 idna==3.20
 pathvalidate==3.3.1
 pipdeptree==3.1.0

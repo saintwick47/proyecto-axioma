@@ -48,8 +48,8 @@ COPY requirements.txt requirements-ci.txt ./
 #   1. torch/torchaudio del índice CPU   2. el resto de las dependencias
 #   3. sentence-transformers al final (su dependencia de torch ya está satisfecha)
 # ✅ 2026-10-25: PIN explícito. Antes se instalaba SIN versión y, como
-# `requirements-ci.txt` la excluye, Docker resolvía la última de PyPI mientras
-# `requirements.txt:88` y el CI fijan 5.4.1. Las tres fuentes dicen lo mismo.
+# `requirements-ci.txt` la excluye, Docker resolvía la última de PyPI. Hoy la
+# fuente es `requirements.txt` (6.2.0) y acá se instala la misma versión.
 RUN pip install --upgrade pip \
     && pip install --index-url https://download.pytorch.org/whl/cpu \
            torch==2.14.1+cpu torchaudio==2.11.0+cpu \

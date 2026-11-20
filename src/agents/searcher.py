@@ -65,11 +65,16 @@ except ImportError:
 
 # ✅ v0.1.0: DuckDuckGo — import seguro, sin API key requerida
 try:
-    from duckduckgo_search import DDGS
+    # El paquete se renombró a `ddgs` (2026); se mantiene el nombre viejo como fallback.
+    from ddgs import DDGS
     _DDG_AVAILABLE = True
 except ImportError:
-    _DDG_AVAILABLE = False
-    DDGS = None
+    try:
+        from duckduckgo_search import DDGS
+        _DDG_AVAILABLE = True
+    except ImportError:
+        _DDG_AVAILABLE = False
+        DDGS = None
 
 logger = logging.getLogger(__name__)
 

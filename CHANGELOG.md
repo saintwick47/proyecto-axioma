@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Mejoras 2026-11-20: `ddgs`, visión 1080p y comentarios
+
+- **Búsqueda web**: `duckduckgo_search` → **`ddgs`** (el paquete se renombró), con fallback al nombre
+  viejo en el import; requirements actualizados a `ddgs==9.16.1`. Probado en vivo (title/href/body).
+- **Visión**: el default baja de 3840×2160 a **1920×1080**. Medido con qwen3.5:9b: 4K = 4.118 tokens
+  de imagen / **186,5 s** (supera el timeout de 150 s); 1080p = 2.078 / 71,6 s; 720p = 918 / 26,7 s.
+  El texto de prueba se leyó en las tres. Se puede subir por `.env` si hace falta más detalle.
+- **Comentarios stale**: Dockerfile (6.2.0, no 5.4.1) y compose (F2LLM ~638 MB, no bge-m3 4,3 GB);
+  el compose de Ollama **sigue en 0.30.0** (host 0.40.16; sin ganancia de caché para `think:false`).
+
 ### Rendimiento: `num_ctx` monotónico y ventana de historial por bloques (2026-11-13)
 
 - **`num_ctx` nunca baja por modelo** (`_num_ctx_monotonico`): pedir un contexto menor al que el

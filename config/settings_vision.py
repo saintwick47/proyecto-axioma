@@ -37,16 +37,19 @@ class SettingsVision(BaseModel):
         default="auto",
         description="Backend de captura: auto | grim | scrot | import_magick | pil"
     )
-    # ✅ v0.1.6b: RESTAURADO a resolución ORIGINAL (3840×2160 para soportar 4K/HiDPI)
-    # El resize a 800px destruía legibilidad de texto en IDEs, múltiples monitores, HiDPI
-    # gemma4:e4b probado exitosamente en 1920×1080 (111s, 1004 tokens) — resolución nativa funciona
+    # ✅ 2026-11-20 (MEDIDO, qwen3.5:9b): el prefill de la imagen domina la latencia.
+    #   · 3840x2160: 4.118 tokens de imagen, **186,5 s** de prefill (supera el timeout de 150 s)
+    #   · 1920x1080: 2.078 tokens, 71,6 s · 1280x720: 918 tokens, 26,7 s
+    #   · el identificador de prueba se leyó bien en las tres; 1080p es el equilibrio.
+    # Se baja el default a 1920x1080 para no agotar el timeout en pantallas 4K/HiDPI. Si hace
+    # falta más detalle, subir por `.env` (VISION_CAPTURE_MAX_WIDTH/HEIGHT).
     vision_capture_max_width: int = Field(
-        default=3840, ge=640, le=7680,
-        description="Ancho máximo del frame enviado al VisionModel (3840 soporta 4K nativo, resize deshabilitado)"
+        default=1920, ge=640, le=7680,
+        description="Ancho máximo del frame enviado al VisionModel (1920x1080 por costo de prefill)"
     )
     vision_capture_max_height: int = Field(
-        default=2160, ge=480, le=4320,
-        description="Alto máximo del frame enviado al VisionModel (2160 soporta 4K nativo, resize deshabilitado)"
+        default=1080, ge=480, le=4320,
+        description="Alto máximo del frame enviado al VisionModel (1920x1080 por costo de prefill)"
     )
     vision_jpeg_quality: int = Field(
         default=82, ge=50, le=95,
