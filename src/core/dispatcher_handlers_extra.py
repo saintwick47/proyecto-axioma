@@ -228,6 +228,9 @@ class DispatcherHandlersExtraMixin(DispatcherHandlersExtraCodeMixin, DispatcherP
             "archivo", "carpeta", "directorio", "leé", "lee", "leer",
             "mostrame", "mostrá", "fs_", "hablan de", "mencion", "contiene",
             "contenido de", "fuente", "fuentes",
+            # ✅ 2026-11-21: link/sitio web (aunque el verbo no esté en la lista).
+            "link", "enlace", "url de", "la web de", "sitio web",
+            "pagina web", "página web", "sitio oficial",
         )
         _q = (message.content or "").lower()
         # ✅ v0.7.5 (ISSUE-073): una consulta de DATO verificable activa las tools

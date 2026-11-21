@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from src.domain.entities import Message, Response
@@ -182,6 +183,39 @@ class DispatcherProcessGuardMixin:
                 )
                 self._memory_gateways[session_id] = gw
             return gw
+
+    def record_user_correction(self, session_id: str, text: str) -> bool:
+        """Guarda una corrección explícita del usuario en la memoria de la sesión.
+
+        El feedback (rating + comentario) se registraba en el FeedbackLoop y en
+        `feedback_log.jsonl`, pero **no llegaba al historial del chat**: el turno
+        siguiente no veía la corrección y repetía el error. Acá se agrega como un
+        mensaje `user` de la sesión cuando el comentario parece una corrección
+        (trae URL/dominio o palabras como link/enlace/correcto/real).
+        """
+        texto = (text or "").strip()
+        if not session_id or not texto:
+            return False
+        if not re.search(r"https?://|www\.|link|enlace|correct|real", texto.lower()):
+            return False
+        try:
+            gw = self._get_session_gateway(session_id)
+            if gw is None:
+                return False
+            ok = gw.add_message(
+                "user",
+                f"Corrección del usuario a la respuesta anterior: {texto}",
+                {"task_type": "general_chat", "source_type": "feedback"},
+            )
+            logger.info(
+                "[FEEDBACK] Corrección guardada en memoria (session=%s, chars=%d, ok=%s)",
+                session_id, len(texto), bool(ok),
+            )
+            return bool(ok)
+        except Exception as e:
+            log_degraded(logger, e, "Dispatcher.record_user_correction",
+                         extra={"session_id": session_id})
+            return False
 
     def _record_exchange(
         self,

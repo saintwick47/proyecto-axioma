@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Corrección: links/sitios web y correcciones del feedback (2026-11-21)
+
+- **Router**: frases como "la web de", "sitio oficial", "página web", "muéstrame el link" ahora
+  clasifican **WEB_SEARCH** (antes `general_chat` con 0 fuentes; caso real: municipalidad de Villa
+  General Belgrano, dominio inventado).
+- **Feedback**: si el comentario trae una URL/dominio o palabras de corrección, se guarda como
+  mensaje `user` en la memoria de la sesión (`Dispatcher.record_user_correction`). Antes solo iba a
+  `feedback_log.jsonl` y el turno siguiente repetía el error.
+- Tests: ruteo del link y guardado de la corrección. **Residual**: una respuesta factual corta sin
+  fuentes todavía puede saltar la validación A1 (se documenta para el próximo paso).
+
 ### Mejoras 2026-11-20: `ddgs`, visión 1080p y comentarios
 
 - **Búsqueda web**: `duckduckgo_search` → **`ddgs`** (el paquete se renombró), con fallback al nombre

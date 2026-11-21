@@ -945,3 +945,29 @@ def test_estado_de_validacion_en_curso_no_miente():
                                      "validation_failed": True}) == "fallida"
     assert _validation_state(False, {"validation_skipped_short": True}) == "omitida"
 
+
+
+def test_la_correccion_del_feedback_se_guarda_en_la_sesion():
+    """2026-11-21: la corrección con link no llegaba al historial; debe guardarse como user."""
+    from src.core.dispatcher_process_guard import DispatcherProcessGuardMixin
+
+    guardado = {}
+
+    class _GW:
+        def add_message(self, role, content, metadata=None):
+            guardado.update(role=role, content=content, metadata=metadata or {})
+            return True
+
+    class _Fake:
+        def _get_session_gateway(self, session_id):
+            return _GW()
+
+    ok = DispatcherProcessGuardMixin.record_user_correction(
+        _Fake(), "s1", "información falsa; el link real es https://municipalidadvgb.gob.ar/")
+    check("corrección con link se guarda", ok, "ok", "feedback")
+    assert ok and guardado["role"] == "user"
+    assert "https://municipalidadvgb.gob.ar/" in guardado["content"]
+
+    no_ok = DispatcherProcessGuardMixin.record_user_correction(_Fake(), "s1", "muy corto")
+    check("comentario genérico no se guarda", no_ok is False, "filtrado", "feedback")
+    assert no_ok is False

@@ -152,6 +152,10 @@ _FACTUAL_MARKERS = (
     "cual es la capital", "cuál es la capital", "capital de",
     "cuanto mide", "cuánto mide", "cuanto cuesta", "cuánto cuesta",
     "precio de", "cotizacion de", "cotización de",
+    # ✅ 2026-11-21: pedidos de link/sitio oficial.
+    "la web de", "el sitio web", "la pagina web", "la página web",
+    "sitio oficial", "pagina oficial", "página oficial",
+    "el link de", "el enlace de", "muestrame el link", "mostrame el link",
     "historia de", "origen de", "definicion de", "definición de",
     # ✅ v0.7.5 (ISSUE-073, medido en la corrida real del 2026-09-28 17:06):
     # "quien sera el proximo gobernador de cordoba? hay candidatos para

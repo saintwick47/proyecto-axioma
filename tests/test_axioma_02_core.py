@@ -994,3 +994,7 @@ def test_hardware_informa_el_cpu():
     hw = detect_hardware()
     assert hw.cpu_model and len(hw.cpu_model) > 3
     assert hw.cpu_cores == 0 or hw.cpu_cores <= hw.cpu_threads
+
+def test_link_web_se_routea_a_web_search():
+    from src.router.classifier_core import IntentClassifierCore
+    assert IntentClassifierCore().classify("cual es la web de la municipalidad? muestrame el link")[0].value == "web_search"

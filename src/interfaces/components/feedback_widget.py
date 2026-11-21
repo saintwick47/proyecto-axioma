@@ -208,6 +208,14 @@ class FeedbackWidget:
                     'source_count': len(meta.get('sources') or []),
                 },
             )
+            # ✅ 2026-11-21: la corrección también va a la memoria de la sesión;
+            # antes solo quedaba en feedback_log y el turno siguiente la ignoraba.
+            _disp = getattr(self.session_state, "dispatcher", None)
+            if comment.strip() and _disp is not None:
+                try:
+                    _disp.record_user_correction(session_id, comment)
+                except Exception as _ce:  # nunca rompe la UI
+                    logger.warning(f"No se pudo guardar la corrección: {_ce}")
             return True
         except Exception as e:  # noqa: BLE001 — el feedback nunca rompe la UI
             log_degraded(logger, e, "FeedbackWidget.record_explicit")
