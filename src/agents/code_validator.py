@@ -50,7 +50,9 @@ _RUNNER_SCRIPT = (
     "except ImportError:\n"
     "    print('AXIOMA_NO_PYTEST: pytest no está disponible en este entorno')\n"
     "    sys.exit(3)\n"
-    "sys.exit(pytest.main(['-v', '--tb=short']))\n"
+    "# asyncio_mode=auto: los tests generados usan async def sin marker; sin esto\n"
+    "# pytest los marca 'async def functions are not natively supported'.\n"
+    "sys.exit(pytest.main(['-v', '--tb=short', '-o', 'asyncio_mode=auto']))\n"
 )
 _RUNNER_FILENAME = "_axioma_run_tests.py"
 

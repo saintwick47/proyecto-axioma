@@ -348,6 +348,38 @@ def test_dynamic_validation_sandbox_real() -> str:
     return "pytest real corrió en el sandbox real de esta PC y pasó"
 
 
+def test_dynamic_validation_async_tests() -> str:
+    """Los tests generados con `async def` deben correr (asyncio_mode=auto)."""
+    from src.agents.code_contract import parse_code_contract
+    from src.agents.code_validator import CodeValidator
+    from src.tools_mcp.sandbox import get_sandbox_executor
+    from config.settings import settings
+
+    class _S:
+        code_require_dependencies = False
+        code_require_tests = False
+        code_require_commands = False
+        code_require_expected_output = False
+
+    resp = (
+        "CÓDIGO:\nARCHIVO: doble.py\n```python\n"
+        "async def doble(n: int) -> int:\n"
+        "    return n * 2\n```\n\n"
+        "TESTS:\nARCHIVO: test_doble.py\n```python\n"
+        "from doble import doble\n\n"
+        "async def test_doble_async():\n"
+        "    assert await doble(3) == 6\n```\n"
+    )
+    contract = parse_code_contract(resp, _S(), query="doble")
+    validator = CodeValidator(
+        sandbox=get_sandbox_executor(timeout=settings.code_validation_timeout),
+        settings=settings)
+    report = validator.validate(contract)
+    assert report.passed, (
+        f"un test async válido no debería fallar — "
+        f"{[(layer.layer, layer.passed, layer.errors) for layer in report.layers]}")
+    return "pytest corrió un test async generado y pasó"
+
 def test_dynamic_validation_test_que_falla() -> str:
     """Mismo mecanismo que el anterior, pero con un bug real a propósito."""
     from src.agents.code_contract import parse_code_contract
@@ -660,6 +692,7 @@ def main() -> int:
         suite.run("CodeValidator — SyntaxError detectado", test_static_validation_syntax_error)
         suite.run("CodeValidator — pytest real en sandbox real (pasa)", test_dynamic_validation_sandbox_real)
         suite.run("CodeValidator — pytest real en sandbox real (falla)", test_dynamic_validation_test_que_falla)
+        suite.run("CodeValidator — test async generado", test_dynamic_validation_async_tests)
         suite.run("classifier_api — falsos positivos de clima corregidos", test_classifier_weather_false_positives)
         suite.run("data_fetchers — TTL de cache negativo configurado", test_geocoding_negative_cache_ttl)
 

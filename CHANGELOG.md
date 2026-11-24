@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Corrección: el validador de código marcaba FAIL los tests async (2026-11-24)
+
+- `CodeValidator` corre pytest con **`-o asyncio_mode=auto`**. Antes, un test generado con
+  `async def` fallaba con *"async def functions are not natively supported"* y la tarea se reportaba
+  como FAIL aunque el código fuera correcto.
+- Test e2e: contrato con test async generado → pasa en el sandbox real.
+
 ### Corrección: links/sitios web y correcciones del feedback (2026-11-21)
 
 - **Router**: frases como "la web de", "sitio oficial", "página web", "muéstrame el link" ahora
