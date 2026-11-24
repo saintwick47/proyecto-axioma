@@ -732,3 +732,78 @@ class ResearcherSources:
 # EXPORTS
 # ============================================================================
 __all__ = ["ResearcherSources"]
+
+
+_URL_RE = re.compile(r"https?://[^\s)\]<>\"']+", re.IGNORECASE)
+
+
+def _normalizar_url(url: str) -> str:
+    return (url or "").strip().rstrip("/").lower()
+
+
+def _pide_sitio_oficial(query: str) -> bool:
+    """True si la consulta pide la web/sitio oficial de una entidad."""
+    q = re.sub(r"\s+", " ", (query or "").lower())
+    pide_web = any(x in q for x in ("web", "sitio", "página", "pagina", "link", "enlace"))
+    pide_oficial = any(x in q for x in ("oficial", "municipal", "gobierno", "intendencia"))
+    return pide_web and pide_oficial
+
+
+def _puntaje_fuente(query: str, r: dict[str, Any]) -> int:
+    """Puntúa una fuente para 'sitio oficial', desambiguando por entidad."""
+    url = str(r.get("url") or "").lower()
+    titulo = str(r.get("title") or "").lower()
+    texto = f"{url} {titulo}"
+    q = (query or "").lower()
+    s = 0
+    if ".gob.ar" in url or ".gov" in url:
+        s += 100
+    if "municipal" in texto:
+        s += 50
+    if "oficial" in texto:
+        s += 20
+    if any(x in url for x in ("instagram", "facebook", "twitter", "x.com",
+                              "tavily.com", "youtube", "linkedin")):
+        s -= 100
+    # Desambiguar "Villa General Belgrano" vs "General Belgrano" (otro municipio).
+    if "villa general belgrano" in q or "vgb" in q:
+        if "villa general belgrano" in texto or "vgb" in texto:
+            s += 200
+        elif "general belgrano" in texto:
+            s -= 150
+    return s
+
+
+def _url_oficial(search_results: list[dict[str, Any]],
+                 query: str = "") -> Optional[dict[str, Any]]:
+    """Elige una fuente oficial .gob.ar/.gov de la entidad consultada."""
+    candidatos = [r for r in search_results if r.get("url")]
+    candidatos = [r for r in candidatos if _puntaje_fuente(query, r) > 0]
+    if not candidatos:
+        return None
+    mejor = max(candidatos, key=lambda r: _puntaje_fuente(query, r))
+    url = str(mejor.get("url") or "").lower()
+    if ".gob.ar" not in url and ".gov" not in url:
+        return None
+    return mejor
+
+
+def _anclar_link_oficial(query: str, respuesta: str,
+                         search_results: list[dict[str, Any]]) -> str:
+    """Si pidió sitio oficial, reemplaza un dominio inventado por la URL de la fuente.
+
+    Caso real 2026-11-24: el modelo respondió `villageneralbelgrano.gob.ar` aunque
+    la fuente correcta (`municipalidadvgb.gob.ar`) estaba entre los resultados.
+    """
+    if not _pide_sitio_oficial(query):
+        return respuesta or ""
+    fuente = _url_oficial(search_results, query)
+    if fuente is None:
+        return ("No encontré una fuente que confirme el sitio oficial; "
+                "no invento el link.")
+    url = str(fuente.get("url") or "").strip()
+    titulo = str(fuente.get("title") or "").strip()
+    urls_respuesta = [_normalizar_url(u) for u in _URL_RE.findall(respuesta or "")]
+    if _normalizar_url(url) in urls_respuesta:
+        return respuesta or ""
+    return f"La web oficial es {url} (fuente: {titulo or url})."

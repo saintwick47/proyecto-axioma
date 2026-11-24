@@ -311,8 +311,9 @@ def test_la_fuente_configurada_matchea_un_html_real():
 
     from src.handlers.scraping_fuentes import cargar_fuentes
 
-    fuentes = [f for f in cargar_fuentes() if f.pais == "argentina"]
-    assert fuentes, "debe haber al menos una fuente de Argentina configurada"
+    fuentes = [f for f in cargar_fuentes()
+               if f.pais == "argentina" and "Ámbito" in f.nombre]
+    assert fuentes, "debe estar la fuente de Ámbito (texto de la nota)"
     html = ("<p>Mercados: los ADRs extendieron pérdidas, mientras el riesgo país "
             "volvió a saltar y rozó los 940 puntos</p>")
     m = re.search(fuentes[0].patron, html, re.S)
@@ -332,3 +333,12 @@ def test_scraping_en_vivo_si_se_pide():
     limpiar_cache()
     dato = buscar("argentina", timeout=10)
     assert dato and dato["valor"].isdigit()
+
+
+def test_fuente_intradiaria_de_riesgo_pais_extrae_current_value():
+    """2026-11-24: la API diaria puede venir atrasada; Infobae trae el valor del día."""
+    from src.handlers.scraping_fuentes import _extraer, cargar_fuentes
+    fuente = next(f for f in cargar_fuentes() if "Infobae" in f.nombre)
+    assert fuente.pais == "argentina"
+    html = '...,"currentValue":1108,"diff":7.4,...'
+    assert _extraer(html, fuente.patron) == "1108"

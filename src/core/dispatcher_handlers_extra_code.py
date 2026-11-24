@@ -556,6 +556,10 @@ class DispatcherHandlersExtraCodeMixin:
             r"[\"'“”‘’]([^\"'“”‘’]{0,120})[\"'“”‘’]", " ", (query or "").lower()
         )
         q = q_no_quotes
+        # ✅ 2026-11-24: si pide el CONTRATO (código/tests/archivos), es generación
+        # normal, no ejecución autónoma aunque diga "ejecutá la validación".
+        if re.search(r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|contrato)", q, re.I):
+            return False
         keywords = [
             "ejecuta", "ejecutá", "ejecutar", "ejecútalo", "ejecutalo",
             "corre", "corré", "correr", "correlo", "corrélo",

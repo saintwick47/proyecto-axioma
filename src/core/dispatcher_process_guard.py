@@ -50,6 +50,26 @@ HISTORIAL_BLOQUE = HISTORIAL_TURNOS_MAX * 2
 HISTORIAL_LECTURA = HISTORIAL_BLOQUE * 16   # margen para alinear el bloque
 
 
+_SCRIPT_NO_LATINA = re.compile(
+    r"[\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u0900-\u097F"
+    r"\u0E00-\u0E7F\u3040-\u30FF\u4E00-\u9FFF]")
+
+
+def _texto_degenerado(texto: str) -> bool:
+    """Heurística para descartar respuestas basura (mezcla de scripts sin sentido).
+
+    Caso real 2026-11-24: qwen3.5 devolvió ~1.2 KB de tokens multi-escritura en un
+    chat normal. No fue reproducible, pero ese mensaje queda en el historial y
+    contamina los turnos siguientes; se filtra al armar el prompt.
+    """
+    if not texto or len(texto) < 80:
+        return False
+    letras = sum(1 for ch in texto if ch.isalpha())
+    if letras == 0:
+        return False
+    return len(_SCRIPT_NO_LATINA.findall(texto)) / letras > 0.20
+
+
 def _inicio_bloque(n: int, bloque: int) -> int:
     """Comienzo de la ventana, alineado a múltiplos de `bloque`."""
     if n <= bloque * 2:
@@ -313,6 +333,12 @@ class DispatcherProcessGuardMixin:
                 continue
             texto = (contenido if isinstance(contenido, str) else str(contenido)).strip()
             if not texto:
+                continue
+            if rol == "assistant" and _texto_degenerado(texto):
+                logger.warning(
+                    "Historial: se descarta una respuesta degenerada (session=%s)",
+                    session_id,
+                )
                 continue
             historial.append({
                 "role": rol,

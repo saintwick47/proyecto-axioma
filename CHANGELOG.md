@@ -7,6 +7,24 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Corrección: búsqueda de links, riesgo país intradiario y falsos positivos de código (2026-11-24)
+
+- **Búsqueda de links**: `web_search` sintetiza con **qwen3.5:9b** (antes caía en
+  `qwen2.5-coder:7b`), usa hasta **5 fuentes/8 resultados**, agrega “sitio oficial” a la consulta y
+  rankea por entidad (Villa General Belgrano ≠ General Belgrano). Si el modelo inventa un dominio,
+  se ancla a la URL oficial `.gob.ar` de la fuente; si no hay fuente oficial, **no inventa**.
+- **Riesgo país**: la API diaria publica al cierre. Si no tiene la fecha de hoy, se usa el valor
+  **intradiario** declarado en `config/fuentes_scraping.yaml` (Infobae, `currentValue`), mostrando
+  fecha, fuente y cierre anterior. Verificado: **1.108 · 2026-11-24** (antes 1.035 del 23/11).
+- **Código**: detección de complejidad con **palabras completas** (“devuelve” ya no matchea “vue”) y
+  bypass si el pedido trae `CÓDIGO:`/`TESTS:`/`ARCHIVO:`. Un contrato explícito ya no entra en modo
+  autónomo por decir “ejecutá la validación”. El prompt pide tests cuando el usuario los pide.
+- **Memoria**: se filtran respuestas degeneradas (mezcla de scripts sin sentido) al armar el historial.
+- **UI**: el engranaje del header usa el icono Material `settings` en blanco (antes emoji gris sobre azul).
+- Tests: link/entidad, riesgo intradiario, falsos positivos de complejidad, contrato explícito y
+  respuesta degenerada. **Pendiente conocido**: `qwen2.5-coder:7b` puede omitir los tests aunque se le
+  pidan; el validador async no se ejecuta en ese caso.
+
 ### Corrección: el validador de código marcaba FAIL los tests async (2026-11-24)
 
 - `CodeValidator` corre pytest con **`-o asyncio_mode=auto`**. Antes, un test generado con

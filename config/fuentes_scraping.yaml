@@ -22,6 +22,14 @@
 #     nota: "EMBI+ Brasil"
 #
 fuentes:
+  # ── Argentina: dato INTRADIARIO (la API diaria publica recién al cierre) ──
+  # Infobae embebe el JSON del índice en la página; `currentValue` es el valor del día.
+  # Se usa solo si la API de argentinadatos todavía no tiene la fecha de hoy.
+  - nombre: "Infobae — riesgo país (intradiario)"
+    pais: "argentina"
+    url: "https://www.infobae.com/economia/indicador/riesgo-pais"
+    patron: '"currentValue":(?P<valor>[0-9]{3,5})'
+    nota: "JSON embebido; valor del día (puede cambiar hasta el cierre)"
   # ── Ejemplo REAL y probado (2026-11-08) ──────────────────────────────────────────────
   # Ámbito publica el número en el texto de la nota ("... rozó los 940 puntos"). Funciona
   # (929/939 según el día), pero es FRÁGIL: si cambian la redacción, el patrón deja de matchear

@@ -151,7 +151,7 @@ def _nav_btn(icon: str, action: Union[str, Callable[[], None]], tooltip: str) ->
         else:
             action()
 
-    ui.button(icon, on_click=handler).props('flat dense').tooltip(tooltip)
+    ui.button(icon, on_click=handler).props('flat dense color=white').tooltip(tooltip)
 
 
 def _open_dialog(dialog: Optional[ui.dialog]) -> None:
@@ -238,24 +238,25 @@ def _crear_barra_de_acciones() -> None:
         # ✅ v0.6.8jj: "Estado" con on_click ASYNC — abre y refresca
         # (dialog.on('open') nunca disparaba en NiceGUI → diálogo vacío).
         ui.button('🏥', on_click=_app._on_estado_click).props(
-            'flat dense').tooltip('Estado')
+            'flat dense color=white').tooltip('Estado')
         # ✅ F1 "Mi Hard": hardware + qué modelos entran (read-only)
         ui.button('🖥️', on_click=_app._on_mi_hard_click).props(
-            'flat dense').tooltip('Mi Hard')
+            'flat dense color=white').tooltip('Mi Hard')
         # ✅ Fase 1 de contenedores: pantalla "Configurar AXIOMA" (estado + descarga de modelos + claves)
         ui.button('🧩', on_click=_on_configurar_click).props(
-            'flat dense').tooltip('Configurar AXIOMA (qué falta y qué instalar)')
+            'flat dense color=white').tooltip('Configurar AXIOMA (qué falta y qué instalar)')
         # ✅ F3: exportar la investigación de la sesión (MD/HTML)
         ui.button('📄', on_click=_app._on_export_click).props(
-            'flat dense').tooltip('Exportar investigación')
+            'flat dense color=white').tooltip('Exportar investigación')
         # ✅ ISSUE-054: listar / buscar / exportar / borrar sesiones
         ui.button('🗂️', on_click=_app._on_sessions_click).props(
-            'flat dense').tooltip('Sesiones')
-        _nav_btn('⚙️', _open_settings_dialog, 'Configuración')
+            'flat dense color=white').tooltip('Sesiones')
+        ui.button(icon='settings', on_click=_open_settings_dialog).props(
+            'flat dense color=white').tooltip('Configuración')
 
         # ✅ FIX v0.0.13: Botón Modo Jarvis — on_click directo
         ui.button('🤖', on_click=_toggle_jarvis_from_header).props(
-            'flat dense').tooltip('Modo Jarvis')
+            'flat dense color=white').tooltip('Modo Jarvis')
 
         # ✅ Fase 2: la pantalla de usuarios sigue accesible (se elige sola
         # cuando hay un único usuario).
@@ -263,8 +264,8 @@ def _crear_barra_de_acciones() -> None:
         _nav_btn('🚪', _open_exit_dialog, 'Salir')
 
     _nav_btn('🗑️', clear_chat, 'Limpiar chat')
-    _btn_avanzado = ui.button('⚙️ Avanzado', on_click=_toggle_avanzado).props(
-        'flat dense').tooltip('Mostrar/ocultar las funciones avanzadas')
+    _btn_avanzado = ui.button('Avanzado', icon='settings', on_click=_toggle_avanzado).props(
+        'flat dense color=white').tooltip('Mostrar/ocultar las funciones avanzadas')
 
 
 def _pasos_para_volver_a_solo_esta_computadora() -> None:

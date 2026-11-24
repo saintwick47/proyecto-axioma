@@ -11,6 +11,7 @@
 # está delegada a coder_core.py.
 # ═══════════════════════════════════════════════════════════════
 import logging
+import re
 import time
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -721,7 +722,9 @@ class CoderAgent(CoderPromptMixin, BaseAgent):
                 # explicación/revisión) aunque code_require_tests esté False.
                 # Refuerza la capa dinámica real (pytest en sandbox).
                 if (
-                    settings.code_require_tests_auto
+                    (settings.code_require_tests_auto or bool(re.search(
+                        r"\b(test|tests|pytest|prueba|pruebas|validaci[oó]n)\b",
+                        (input_msg.content or ""), re.I)))
                     and not contract.test_files
                     and "tests" not in contract.missing
                 ):

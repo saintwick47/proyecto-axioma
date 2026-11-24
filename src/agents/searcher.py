@@ -52,6 +52,7 @@ from src.domain.types import TaskType, Searchable
 from src.domain.entities import Message
 from src.domain.exceptions import LLMError
 from .base import BaseAgent, AgentResult
+from .researcher_sources import _anclar_link_oficial, _pide_sitio_oficial
 from src.utils.degradation import log_degraded
 
 # ============================================================================
@@ -238,6 +239,7 @@ def _destino_publico(url: str) -> str | None:
     return url
 
 
+
 class SearcherAgent(BaseAgent, Searchable):
     """
     Agente especializado en búsqueda web con APIs reales.
@@ -274,12 +276,14 @@ REGLAS ESTRICTAS:
         max_retries: int = 2,
         system_prompt: Optional[str] = None,
         max_tokens: int = 300,
-        max_sources: int = 3,
+        max_sources: int = 5,
     ):
         """Inicializa agente searcher."""
         start_init = time.time()
         super().__init__(
-            model=model or settings.llm_fallback_1,
+            # ✅ 2026-11-24: la síntesis de búsqueda es chat, no código (antes
+            # caía en llm_fallback_1 = qwen2.5-coder y alucinaba dominios).
+            model=model or settings.llm_default_model,
             temperature=temperature,
             timeout=timeout or settings.ollama_timeout_standard,
             enable_memory=enable_memory,
@@ -730,6 +734,10 @@ REGLAS ESTRICTAS:
             f"CONSULTA: {query}\n"
             f"FUENTES WEB RECIENTES:{sources_context}\n"
             f"{grounding_note}\n"
+            "Si la consulta pide un link, URL o sitio web, copiá la URL EXACTA de "
+            "una de las fuentes; NUNCA inventes un dominio. Preferí el sitio "
+            "oficial (por ejemplo, un dominio .gob.ar municipal) sobre redes "
+            "sociales o agregadores.\n"
             f"RESPUESTA (máximo 3 párrafos, cita las fuentes al final):"
         )
 
@@ -759,7 +767,10 @@ REGLAS ESTRICTAS:
             self._start_execution(task_type=task, input_summary=input_msg.content[:200])
 
             search_start = time.time()
-            search_results = self._search_web(input_msg.content, max_results=5)
+            _query_busqueda = input_msg.content
+            if _pide_sitio_oficial(_query_busqueda):
+                _query_busqueda += " sitio oficial"
+            search_results = self._search_web(_query_busqueda, max_results=8)
             # ✅ 2026-09-29: descartar redes sociales/agregadores ANTES de armar el
             # prompt y la lista de fuentes ⇒ no se inyectan ni se citan.
             search_results = _filtrar_fuentes_no_citables(search_results)
@@ -846,6 +857,13 @@ REGLAS ESTRICTAS:
             )
             llm_duration = time.time() - llm_start
             self._search_stats["llm_synthesis_calls"] += 1
+            _antes_anclaje = response_content
+            response_content = _anclar_link_oficial(
+                input_msg.content, response_content, search_results)
+            if response_content != _antes_anclaje:
+                logger.warning(
+                    "[Searcher] URL oficial anclada a la fuente (el modelo había "
+                    "respondido otra): %s", response_content[:120])
 
             # ✅ v0.6.8kk: sin caracteres como "tokens" — el generate interno ya
             # emite el evento MODEL canónico con tokens reales de Ollama. Este

@@ -18,6 +18,7 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 import asyncio
+import re
 import logging
 import time
 from typing import Optional, Dict, Any, List
@@ -408,8 +409,12 @@ class DispatcherPlanMixin:
         if any(kw in q for kw in defensive_kw):
             return False, ""
 
-        has_complex = any(kw in q for kw in complex_kw)
-        has_tool = any(t in q for t in large_tools)
+        # ✅ 2026-11-24: si ya trae el contrato explícito (archivos/tests), no preguntar.
+        if re.search(r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|```|async\s+def|def\s+test_)", query, re.I):
+            return False, ""
+        # Palabras completas: "devuelve" NO matchea el framework "vue".
+        has_complex = any(re.search(rf"(?<!\w){re.escape(kw)}(?!\w)", q) for kw in complex_kw)
+        has_tool = any(re.search(rf"(?<!\w){re.escape(t)}(?!\w)", q) for t in large_tools)
 
         logger.debug(f"[DISPATCHER] complexity: complex={has_complex}, tool={has_tool}")
 

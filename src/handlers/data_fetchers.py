@@ -258,7 +258,29 @@ class DataFetchers(WeatherFetcherMixin):
             ultimo = max(datos, key=lambda d: str(d.get("fecha", "")))
             valor = int(ultimo.get("valor"))
             fecha = str(ultimo.get("fecha", ""))
+            hoy = datetime.now().date().isoformat()
+            fuentes = ["https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais"]
             content = f"📉 Riesgo país (Argentina): {valor:,} puntos · {fecha}".replace(",", ".")
+            # ✅ 2026-11-24: la API publica al cierre; si todavía no tiene la fecha de hoy,
+            # usar el valor intradiario de una fuente declarada (Infobae) en vez de dar
+            # un dato de ayer como si fuera el actual.
+            if fecha < hoy:
+                from src.handlers.scraping_fuentes import buscar as _buscar_scraping
+                live = _buscar_scraping("argentina")
+                if live:
+                    digitos = re.sub(r"\D", "", str(live.get("valor", "")))
+                    if digitos:
+                        valor_live = int(digitos)
+                        live_txt = f"{valor_live:,}".replace(",", ".")
+                        cierre_txt = f"{valor:,}".replace(",", ".")
+                        content = (
+                            f"📉 Riesgo país (Argentina): {live_txt} puntos · {hoy} "
+                            f"(intradiario, fuente: {live.get('fuente')}; "
+                            f"cierre anterior {cierre_txt} del {fecha})"
+                        )
+                        url_live = str(live.get("url") or "")
+                        if url_live and url_live not in fuentes:
+                            fuentes.append(url_live)
             # La fuente solo publica la serie de Argentina: si pidieron otros países, se dice.
             otros = [pais for pais in (
                 "brasil", "brazil", "chile", "uruguay", "paraguay", "bolivia",
@@ -286,7 +308,7 @@ class DataFetchers(WeatherFetcherMixin):
             return {
                 "content": content,
                 "confidence": 0.95,
-                "sources": ["https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais"],
+                "sources": fuentes,
             }
         except Exception as e:
             _log_api_call("argentinadatos", "response", success=False, error=str(e))

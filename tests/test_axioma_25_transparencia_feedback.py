@@ -971,3 +971,11 @@ def test_la_correccion_del_feedback_se_guarda_en_la_sesion():
     no_ok = DispatcherProcessGuardMixin.record_user_correction(_Fake(), "s1", "muy corto")
     check("comentario genérico no se guarda", no_ok is False, "filtrado", "feedback")
     assert no_ok is False
+
+
+def test_texto_degenerado_se_detecta():
+    """2026-11-24: una respuesta basura multi-escritura no debe entrar al historial."""
+    from src.core.dispatcher_process_guard import _texto_degenerado
+    assert _texto_degenerado("AXIOMA es un asistente local y usa Ollama.") is False
+    salad = "urretjョ克斯adgeelingen功夫شمadólyph敏neh昊 sofrshinees蟬挺ibat" * 4
+    assert _texto_degenerado(salad) is True

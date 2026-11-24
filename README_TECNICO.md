@@ -1,11 +1,23 @@
 # 🧠 AXIOMA — Sistema Multi-Agente de IA Local-First
 
 > **Autor:** `saintwick` · **Repositorio:** [github.com/saintwick47/axioma](https://github.com/saintwick47/axioma)
-> **Documentación actualizada:** 2026-10-25 (código fuente + suite completa + compuerta de calidad)
+> **Documentación actualizada:** 2026-11-24 (código fuente + suite completa + compuerta de calidad)
 >
 > **Para quien instala** (sin saber programar): [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) · **decisiones y
 
 **AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
+
+## 🆕 Novedades 0.7.9 (2026-11-24)
+
+- **Links oficiales**: la búsqueda usa el modelo de chat, prioriza fuentes oficiales y ancla la URL
+  `.gob.ar` de la fuente; si no hay fuente oficial, no inventa el dominio.
+- **Riesgo país**: valor **intradiario** cuando la API diaria viene atrasada (1.108 al 24/11), con
+  fuente y cierre anterior.
+- **Código**: el detector de complejidad ya no confunde “devuelve” con el framework “vue”; un contrato
+  con `CÓDIGO:`/`TESTS:` no se desvía a modo autónomo.
+- **UI**: engranaje del header con icono Material blanco, visible sobre el fondo azul.
+
+---
 
 > ✅ **Sobre la versión:** hay **una sola fuente**: `src/__init__.py` declara `__version__ = "0.7.9"` (último tag `v0.7.9`). La leen `/v1/health`, `/v1/status`, `FastAPI(version=...)` y el banner de `main.py`; no se repite en otro archivo.
 
@@ -27,7 +39,7 @@ fuera de la copia pública). Los comandos para generarla son:
   completo; FlowMapper activo por defecto e **IA opt-in** con `--ollama`; `--validate` mide la
   cobertura real contra el AST y falla con exit 1 si baja del umbral).
 - `docs/AGENT_GUIDE.md` es una guía de trabajo interna que **no se distribuye**; las reglas que cita
-  este README (por ejemplo R13: ≤950 líneas por archivo de tests) están explicadas acá mismo.
+  este README (por ejemplo R13: ≤1000 líneas por archivo de tests) están explicadas acá mismo.
 
 ---
 

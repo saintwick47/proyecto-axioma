@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from config.settings import settings
@@ -79,6 +80,13 @@ class CoderPromptMixin:
             + f"Entrada: {base_query}\n"
             + (f"Lenguaje: {self.language}\n" if self.language else "")
         )
+        if re.search(r"\b(test|tests|pytest|prueba|pruebas|validaci[oó]n)\b",
+                     base_query, re.I):
+            prompt += (
+                "\nIMPORTANTE: además del código, incluí un archivo de tests con pytest "
+                "en la sección TESTS: (ARCHIVO: test_....py). Si el código usa async def, "
+                "los tests deben ser async def y correr con asyncio_mode=auto."
+            )
         if search_context:
             ctx_limit = min(len(search_context), 2000)
             prompt += (

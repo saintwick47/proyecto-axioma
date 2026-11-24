@@ -495,6 +495,7 @@ class TestTaskTemperatureWiring:
             "code_explanation": "qwen2.5-coder:7b",
             "general_chat": _DEFAULT,
             "complex_reasoning": _DEFAULT,
+            "web_search": _DEFAULT,
         }
         check("mapeos de modelo intactos", got == expected, str(got), SECTION)
 

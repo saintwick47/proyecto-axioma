@@ -310,8 +310,12 @@ def is_complex_request(query: str) -> Tuple[bool, str]:
     if any(p.search(q) for p in _SINGLE_FUNCTION_PATTERNS):
         return False, ""
 
-    has_complex = any(kw in q for kw in _COMPLEX_KEYWORDS)
-    has_tool    = any(t  in q for t  in _LARGE_TOOLS)
+    # ✅ 2026-11-24: si ya trae contrato explícito (archivos/tests), no preguntar.
+    if re.search(r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|```|async\s+def|def\s+test_)", query, re.I):
+        return False, ""
+    # Palabras completas: "devuelve" NO matchea el framework "vue".
+    has_complex = any(re.search(rf"(?<!\w){re.escape(kw)}(?!\w)", q) for kw in _COMPLEX_KEYWORDS)
+    has_tool = any(re.search(rf"(?<!\w){re.escape(t)}(?!\w)", q) for t in _LARGE_TOOLS)
 
     if has_complex and has_tool:
         return True, (

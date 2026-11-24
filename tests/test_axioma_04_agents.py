@@ -947,3 +947,52 @@ class TestThinkFlagEnElCaminoDeAgentes:
         check("un modelo sin thinking no recibe el flag en generate()",
               "think" not in payload, str(sorted(payload)), SECTION)
         assert "think" not in payload
+
+
+def test_anclar_link_oficial_usa_la_fuente():
+    """El modelo inventó un dominio aunque la fuente oficial estaba en los resultados."""
+    from src.agents.searcher import _anclar_link_oficial
+    resultados = [
+        {"url": "https://www.instagram.com/municipalidadvgb", "title": "Instagram"},
+        {"url": "https://municipalidadvgb.gob.ar/", "title": "Municipalidad VGB"},
+    ]
+    out = _anclar_link_oficial(
+        "¿Cuál es la web oficial de la municipalidad? Mostrame el link.",
+        "La web es https://villageneralbelgrano.gob.ar", resultados)
+    assert "municipalidadvgb.gob.ar" in out
+    assert "villageneralbelgrano" not in out
+    # Otro municipio homónimo no debe ganar: "General Belgrano" ≠ "Villa General Belgrano".
+    homonimo = [
+        {"url": "https://generalbelgrano.gob.ar", "title": "Municipalidad de General Belgrano"},
+        {"url": "https://instagram.com/vgb", "title": "IG"},
+    ]
+    out2 = _anclar_link_oficial(
+        "¿Cuál es la web oficial de la municipalidad de Villa General Belgrano?",
+        "La web es https://generalbelgrano.gob.ar", homonimo)
+    assert "No encontré" in out2
+    sin_oficial = _anclar_link_oficial(
+        "web oficial de X", "https://inventado.gob.ar",
+        [{"url": "https://instagram.com/x", "title": "IG"}])
+    assert "No encontré" in sin_oficial
+
+
+def test_no_confunde_devuelve_con_el_framework_vue():
+    """2026-11-24: "devuelve" matcheaba "vue" y pedía aclaración en vez de codificar."""
+    from src.agents.coder_core import is_complex_request
+    from src.core.dispatcher_plan import DispatcherPlanMixin
+    prompt = ("Tarea de código: creá async_cache.py con AsyncTTLCache; get devuelve None; "
+              "devolvé el contrato completo con TESTS: y ejecutá la validación.")
+    assert is_complex_request(prompt)[0] is False
+    assert DispatcherPlanMixin._check_code_complexity(object(), prompt)[0] is False
+
+
+def test_un_proyecto_complejo_real_sigue_pidiendo_alcance():
+    from src.agents.coder_core import is_complex_request
+    assert is_complex_request("hacé un programa completo con vue")[0] is True
+
+
+def test_contrato_explicito_no_entra_en_modo_autonomo():
+    """2026-11-24: "ejecutá la validación" no debe saltar el contrato y devolver un resumen."""
+    from src.core.dispatcher_handlers_extra_code import DispatcherHandlersExtraCodeMixin
+    prompt = ("Tarea de código: devolvé CÓDIGO: y TESTS:, y ejecutá la validación en el sandbox.")
+    assert DispatcherHandlersExtraCodeMixin._should_use_autonomous_mode(object(), prompt) is False

@@ -158,6 +158,7 @@ task_mappings:
   # Valores originales; etiquetas corregidas a las canónicas de TaskType
   # (`analysis` → data_analysis, `validation` → quality_validation).
   web_search:
+    preferred_model: "qwen3.5:9b"
     temperature: 0.30
   data_analysis:
     temperature: 0.30
