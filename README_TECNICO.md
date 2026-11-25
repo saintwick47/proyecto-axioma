@@ -1,13 +1,13 @@
 # 🧠 AXIOMA — Sistema Multi-Agente de IA Local-First
 
 > **Autor:** `saintwick` · **Repositorio:** [github.com/saintwick47/axioma](https://github.com/saintwick47/axioma)
-> **Documentación actualizada:** 2026-11-24 (código fuente + suite completa + compuerta de calidad)
+> **Documentación actualizada:** 2026-11-25 (código fuente + suite completa + compuerta de calidad)
 >
 > **Para quien instala** (sin saber programar): [`MANUAL_USUARIO.md`](MANUAL_USUARIO.md) · **decisiones y
 
 **AXIOMA** es un ecosistema de agentes de IA modulares y resilientes, orquestado localmente sobre **Ollama** (filosofía *Local-First*): enrutamiento inteligente de intenciones, memoria persistente multicapa, pipeline de voz/visión, ejecución segura de código (Sandbox + MCP) y gestión estricta de VRAM.
 
-## 🆕 Novedades 0.7.9 (2026-11-24)
+## 🆕 Novedades 0.7.9 (2026-11-25)
 
 - **Links oficiales**: la búsqueda usa el modelo de chat, prioriza fuentes oficiales y ancla la URL
   `.gob.ar` de la fuente; si no hay fuente oficial, no inventa el dominio.
@@ -15,7 +15,15 @@
   fuente y cierre anterior.
 - **Código**: el detector de complejidad ya no confunde “devuelve” con el framework “vue”; un contrato
   con `CÓDIGO:`/`TESTS:` no se desvía a modo autónomo.
+- **Tests de código**: si el pedido trae `CÓDIGO:`/`TESTS:` se evita el modo chunked y, cuando
+  hacen falta, los tests se generan en una **segunda etapa** para que `CodeValidator` los ejecute.
 - **UI**: engranaje del header con icono Material blanco, visible sobre el fondo azul.
+- **Caché versionada**: `CACHE_SCHEMA_VERSION` invalida L1/L2 y la respuesta cuando cambia el ruteo.
+  Corrige que una consulta repetida devolviera la respuesta vieja (p. ej. “VGB Córdoba” como Córdoba).
+- **Ruteo por entidad**: “VGB Córdoba” prioriza Villa General Belgrano; riesgo país no-Argentina y
+  noticias con tema van a `web_search`; noticias genéricas siguen por la API de noticias.
+- **Código E2E**: corrida real **192,5 s**, tests reparados y capas structural/static/dynamic OK.
+- **Cobertura**: gold **150 casos** + holdout **20**; suite **28 archivos / 1294 tests**.
 
 ---
 
@@ -320,12 +328,12 @@ otros proyectos que puedan estar adentro del árbol de trabajo y no tengan nada 
 | LOC Python | **≈ 117.400** |
 | Clases (incl. anidadas) | **≈ 678** |
 | Funciones (incl. métodos) | **≈ 4.471** |
-| Archivos de test | **26** `test_axioma_*.py` en `tests/` (la suite del proyecto) |
+| Archivos de test | **28** `test_axioma_*.py` + tests de contrato en `tests/` (suite de **1294 tests**) |
 
-> **2026-10-27:** suite en verde con **27 archivos** `test_axioma_*.py` (**1206 tests**,
+> **2026-11-25:** suite en verde con **28 archivos / 1294 tests**,
 SCORE AXIOMA **100/100**, MEDIUM 0) y **gate de calidad** en CI. Los archivos de
-test se **fusionan por tema** (no se multiplican) y ninguno supera las 950 líneas
-(regla R13 del proyecto: ≤950 líneas por archivo de tests). Se sumaron el canal de imágenes (visión +
+test se **fusionan por tema** (no se multiplican) y ninguno supera las 1000 líneas
+(regla R13 del proyecto: ≤1000 líneas por archivo de tests). Se sumaron el canal de imágenes (visión +
 OCR híbrido, `tests/test_axioma_11_vision_imagenes.py`), calculadora y
 fuentes/citas (hoy dentro de `test_axioma_10_plan_v2.py`), el health report v2 y
 las pruebas de seguridad web y audio opcional — regenerar estructura con

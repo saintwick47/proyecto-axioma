@@ -87,6 +87,14 @@ class CoderPromptMixin:
                 "en la sección TESTS: (ARCHIVO: test_....py). Si el código usa async def, "
                 "los tests deben ser async def y correr con asyncio_mode=auto."
             )
+        if (input_msg.metadata or {}).get("autonomous_mode"):
+            prompt += (
+                "\nMODO AUTÓNOMO: el programa se ejecuta en un sandbox sin red y sin "
+                "rutas externas. Hacelo autocontenido: si no recibe argumentos, corré un "
+                "self-test con datos temporales y salí 0; aceptá --path/--target para uso "
+                "real. No uses rutas placeholder (/path/to/...), no escanees la red en el "
+                "self-test y poné las IPs entre comillas."
+            )
         if search_context:
             ctx_limit = min(len(search_context), 2000)
             prompt += (

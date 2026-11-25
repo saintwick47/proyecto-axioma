@@ -311,7 +311,10 @@ def is_complex_request(query: str) -> Tuple[bool, str]:
         return False, ""
 
     # ✅ 2026-11-24: si ya trae contrato explícito (archivos/tests), no preguntar.
-    if re.search(r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|```|async\s+def|def\s+test_)", query, re.I):
+    if re.search(
+            r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|```|async\s+def|def\s+test_|"
+            r"self-test|--path|--target|probalo|probar hasta|hasta que pase)",
+            query, re.I):
         return False, ""
     # Palabras completas: "devuelve" NO matchea el framework "vue".
     has_complex = any(re.search(rf"(?<!\w){re.escape(kw)}(?!\w)", q) for kw in _COMPLEX_KEYWORDS)
@@ -328,7 +331,7 @@ def is_complex_request(query: str) -> Tuple[bool, str]:
             "Especificá qué opción preferís o qué funcionalidad necesitás primero."
         )
 
-    if len(query.split()) > 50 or any(w in q for w in ["varios", "múltiples", "diferentes"]):
+    if any(w in q for w in ["varios", "múltiples", "diferentes"]):
         return True, (
             "Este request tiene varias partes. Para darte código de mejor calidad:\n"
             "**¿Podrías especificar cuál es la funcionalidad más importante primero?**\n"

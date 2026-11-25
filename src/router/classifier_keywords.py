@@ -87,6 +87,7 @@ KEYWORD_MAP: Dict[str, str] = {
     #   que disparan WEB_SEARCH en preguntas no relacionadas.
     "buscar": TaskType.WEB_SEARCH.value,
     "busca": TaskType.WEB_SEARCH.value,
+    "buscá": TaskType.WEB_SEARCH.value,
     "buscame": TaskType.WEB_SEARCH.value,
     "buscáme": TaskType.WEB_SEARCH.value,
     "investigar": TaskType.WEB_SEARCH.value,
@@ -231,11 +232,9 @@ KEYWORD_MAP: Dict[str, str] = {
     "resumir": TaskType.SUMMARIZATION.value,
     "resumen": TaskType.SUMMARIZATION.value,
     # ── WEATHER_QUERY ────────────────────────────────────────
-    "clima": TaskType.WEATHER_QUERY.value,
     "pronóstico": TaskType.WEATHER_QUERY.value,
     "pronostico": TaskType.WEATHER_QUERY.value,
     "temperatura": TaskType.WEATHER_QUERY.value,
-    "tiempo": TaskType.WEATHER_QUERY.value,
     # ── TIME_QUERY ───────────────────────────────────────────
     "hora": TaskType.TIME_QUERY.value,
     # ── FINANCE_QUERY ────────────────────────────────────────
@@ -344,11 +343,10 @@ KEYWORD_MAP: Dict[str, str] = {
 }
 
 FINANCE_KEYWORDS: Set[str] = {
-    'dolar', 'dólar', 'euro', 'peso', 'libra', 'yen',
-    'blue', 'mep', 'ccl', 'argenpesos',
-    'cotizacion', 'cotización', 'bolsa',
-    'bitcoin', 'crypto', 'cripto', 'usd', 'ars',
-    'tasa', 'cambio', 'divisa',
+    # ✅ Plan ruteo Fase 1: monedas ambiguas (peso/libra/euro/blue/bolsa) fuera;
+    # las resuelve el detector de co-ocurrencia (clima/finanzas).
+    'dolar', 'dólar', 'argenpesos', 'cotizacion', 'cotización',
+    'bitcoin', 'crypto', 'cripto', 'usd', 'ars', 'tasa', 'cambio', 'divisa',
 }
 
 # v4.6.0: "articulo" eliminado (ya no está en KEYWORD_MAP)

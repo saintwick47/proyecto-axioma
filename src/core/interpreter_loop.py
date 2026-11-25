@@ -154,6 +154,8 @@ class InterpreterResult:
                     f"{'s' if self.total_attempts != 1 else ''}]\n\n"
                     f"{self.final_output}"
                 )
+                if self.final_code:
+                    content += f"\n\nCódigo final:\n```python\n{self.final_code[:6000]}\n```"
             else:
                 content = (
                     f"❌ [Rafael Engine — intentos agotados]\n\n"
@@ -258,7 +260,11 @@ class InterpreterLoop:
                     role=MessageRole.USER,
                     metadata={"autonomous_mode": True, "attempt": attempt},
                 )
-                kwargs = {"input_msg": msg, "task_type": "code_generation"}
+                # ✅ 2026-11-24: memoria aislada por intento para no contaminar el fix
+                # con código de tareas anteriores (caso real: async_cache en un scanner).
+                _mem_session = f"autonomous_{id(self)}_{attempt}"
+                kwargs = {"input_msg": msg, "task_type": "code_generation",
+                          "session_id": _mem_session}
                 if attempt > 1 and last_error:
                     kwargs["previous_critique"] = last_error
                     kwargs["attempt"] = attempt

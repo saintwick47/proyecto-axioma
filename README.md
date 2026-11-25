@@ -9,6 +9,16 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 
 ---
 
+## Novedades recientes
+
+- **Clima y datos:** “VGB Córdoba” ahora se interpreta como **Villa General Belgrano**, no Córdoba.
+- **Riesgo país:** si pedís otro país, AXIOMA **no devuelve el de Argentina**; busca fuentes o avisa que no tiene el dato.
+- **Noticias:** las noticias con un tema concreto se buscan en la web; las genéricas siguen por la API.
+- **Caché:** se invalida cuando cambia el esquema de ruteo, para no repetir respuestas viejas.
+- **Código:** los tests se generan y validan; la corrida E2E de referencia pasó en **192,5 s**.
+
+---
+
 ## ¿Qué necesitás?
 
 | | Mínimo | Recomendado |

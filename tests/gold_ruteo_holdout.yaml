@@ -1,0 +1,42 @@
+# Holdout de ruteo — no se usa para ajustar reglas; solo para medir generalización.
+cases:
+  - query: "escribime un script en bash que haga backup"
+    expect: code_generation
+  - query: "necesito una función en python que valide un email"
+    expect: code_generation
+  - query: "haceme una clase en java para un carrito"
+    expect: code_generation
+  - query: "necesito paraguas hoy"
+    expect: weather_query
+  - query: "llueve mañana"
+    expect: weather_query
+  - query: "¿qué temperatura hay afuera?"
+    expect: weather_query
+  - query: "tengamos una lluvia de ideas para el negocio"
+    expect: [general_chat, brainstorming]
+  - query: "no tengo tiempo para estudiar"
+    expect: general_chat
+  - query: "el tiempo de ejecución de esta función"
+    expect: general_chat
+  - query: "cuánto está el dólar blue"
+    expect: finance_query
+  - query: "cotización del dólar oficial"
+    expect: finance_query
+  - query: "a cuánto cotiza el euro"
+    expect: finance_query
+  - query: "cómo hago para bajar de peso"
+    expect: general_chat
+  - query: "la bolsa de mi mochila se rompió"
+    expect: general_chat
+  - query: "soy libra, qué dice mi horóscopo"
+    expect: general_chat
+  - query: "buscá la web oficial de la municipalidad de Villa General Belgrano"
+    expect: web_search
+  - query: "dame el link de la municipalidad de Villa General Belgrano"
+    expect: web_search
+  - query: "contame algo interesante"
+    expect: [general_chat, brainstorming]
+  - query: "dame un consejo"
+    expect: general_chat
+  - query: "hola, ¿cómo estás?"
+    expect: general_chat

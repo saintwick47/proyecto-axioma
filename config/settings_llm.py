@@ -34,6 +34,20 @@ class SettingsLLM(BaseModel):
     """
 
     # ═══════════════════════════════════════════════════════════
+    # === VALIDACIÓN DE CHAT ===
+    # Plan ruteo Fase 4: la validación factual en segundo plano no cambia la
+    # respuesta y en CPU cambia de modelo (9B→7B). Apagada por defecto; se
+    # puede muestrear por .env (AXIOMA_CHAT_VALIDATION_ENABLED=1).
+    chat_validation_enabled: bool = Field(
+        default=False,
+        description="Validar respuestas de chat en segundo plano (costo de modelo; OFF por defecto)",
+    )
+    router_shadow_mode: bool = Field(
+        default=False,
+        description="Loguear ruta shadow (no cambia el ruteo) para comparar antes de activar",
+    )
+
+    # ═══════════════════════════════════════════════════════════
     # === MODELOS LLM ===
     # ═══════════════════════════════════════════════════════════
     # ✅ FIX: modelos migrados a qwen3:8b (chat), qwen2.5-coder:7b (código), qwen3-vl:4b (visión)

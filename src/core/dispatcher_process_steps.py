@@ -408,6 +408,20 @@ class DispatcherProcessStepsMixin:
         (`grounding_missing`) y **no** la manda al validador (el pipeline repetiría el mismo error).
         El resto del camino (skip A1 y single-pass) vive en `_validar_a1`.
         """
+        # ✅ Plan ruteo Fase 4: validación OFF por defecto (no cambia la
+        # respuesta y hace swap 9B→7B en CPU). Se habilita por .env.
+        if not getattr(settings, "chat_validation_enabled", False):
+            try:
+                if not isinstance(response.metadata, dict):
+                    response.metadata = {}
+                response.metadata["validation_disabled_by_flag"] = True
+            except Exception as _ve:
+                log_degraded(logger, _ve, "src/core/dispatcher_process_steps.py:validation_flag")
+            _log_event("DISPATCHER", "Chat validation DISABLED (flag)", extra={
+                "task_type": task_type,
+                "content_len": len(response.content or ""),
+            })
+            return
         if (
             task_type in _CHAT_VALIDATION_TASKS
             and response.error is None

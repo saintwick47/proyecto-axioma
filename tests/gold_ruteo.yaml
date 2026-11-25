@@ -1,0 +1,418 @@
+# Gold set de ruteo (Plan ruteo, Fase 0)
+# Cada caso: query + ruta esperada. Acepta una lista cuando un subtipo de chat
+# es equivalente (p. ej. brainstorming) para no sobreajustar el test.
+cases:
+  # ── Código: creación explícita, incluso con "en busca de" o siglas ──
+  - query: "crea un programa que escanee la red en busca de nodos en vgb"
+    expect: code_generation
+  - query: "Creá contar_txt.py que cuente archivos .txt, con self-test y probalo hasta que pase"
+    expect: code_generation
+  - query: "escribime un script en bash que haga backup"
+    expect: code_generation
+  - query: "necesito una función en python que valide un email"
+    expect: code_generation
+  - query: "haceme una clase en java para un carrito"
+    expect: code_generation
+  - query: "creá una función que sume dos números"
+    expect: code_generation
+
+  # ── Clima: positivos y negativos idiomáticos ─────────────────────────
+  - query: "necesito paraguas hoy"
+    expect: weather_query
+  - query: "llueve mañana"
+    expect: weather_query
+  - query: "¿qué clima hace hoy en Villa General Belgrano?"
+    expect: weather_query
+  - query: "¿qué temperatura hay afuera?"
+    expect: weather_query
+  - query: "va a hacer frío esta noche en Córdoba"
+    expect: weather_query
+  - query: "tengamos una lluvia de ideas para el negocio"
+    expect: [general_chat, brainstorming]
+  - query: "no tengo tiempo para estudiar"
+    expect: general_chat
+  - query: "el tiempo de ejecución de esta función"
+    expect: general_chat
+  - query: "el clima de esta reunión estaba tenso"
+    expect: general_chat
+
+  # ── Finanzas: moneda con señal vs. palabras ambiguas ────────────────
+  - query: "cuánto está el dólar blue"
+    expect: finance_query
+  - query: "cotización del dólar oficial"
+    expect: finance_query
+  - query: "a cuánto cotiza el euro"
+    expect: finance_query
+  - query: "¿cuál es el riesgo país de Argentina hoy?"
+    expect: finance_query
+  - query: "cómo hago para bajar de peso"
+    expect: general_chat
+  - query: "la bolsa de mi mochila se rompió"
+    expect: general_chat
+  - query: "soy libra, qué dice mi horóscopo"
+    expect: general_chat
+  - query: "mi perro pesa 20 kilos"
+    expect: general_chat
+
+  # ── Búsqueda explícita y link ───────────────────────────────────────
+  - query: "buscá la web oficial de la municipalidad de Villa General Belgrano"
+    expect: web_search
+  - query: "dame el link de la municipalidad de Villa General Belgrano"
+    expect: web_search
+
+  # ── Chat / paráfrasis ───────────────────────────────────────────────
+  - query: "contame algo interesante"
+    expect: [general_chat, brainstorming]
+  - query: "¿qué sabés de los dinosaurios?"
+    expect: [general_chat, brainstorming, web_search]
+  - query: "dame un consejo"
+    expect: general_chat
+  - query: "hola, ¿cómo estás?"
+    expect: general_chat
+  - query: "¿qué clima hace hoy en Villa General Belgrano?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Villa General Belgrano?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Villa General Belgrano"
+    expect: weather_query
+
+  - query: "hace frío en Villa General Belgrano"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Córdoba?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Córdoba?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Córdoba"
+    expect: weather_query
+
+  - query: "hace frío en Córdoba"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Salta?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Salta?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Salta"
+    expect: weather_query
+
+  - query: "hace frío en Salta"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Buenos Aires?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Buenos Aires?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Buenos Aires"
+    expect: weather_query
+
+  - query: "hace frío en Buenos Aires"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Rosario?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Rosario?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Rosario"
+    expect: weather_query
+
+  - query: "hace frío en Rosario"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Mendoza?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Mendoza?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Mendoza"
+    expect: weather_query
+
+  - query: "hace frío en Mendoza"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en La Plata?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en La Plata?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en La Plata"
+    expect: weather_query
+
+  - query: "hace frío en La Plata"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Tucumán?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Tucumán?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Tucumán"
+    expect: weather_query
+
+  - query: "hace frío en Tucumán"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Bariloche?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Bariloche?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Bariloche"
+    expect: weather_query
+
+  - query: "hace frío en Bariloche"
+    expect: weather_query
+
+  - query: "¿qué clima hace hoy en Mar del Plata?"
+    expect: weather_query
+
+  - query: "¿va a llover mañana en Mar del Plata?"
+    expect: weather_query
+
+  - query: "necesito paraguas hoy en Mar del Plata"
+    expect: weather_query
+
+  - query: "hace frío en Mar del Plata"
+    expect: weather_query
+
+  - query: "¿cuánto está el dólar oficial?"
+    expect: finance_query
+
+  - query: "¿cuánto está el dólar blue?"
+    expect: finance_query
+
+  - query: "¿cuánto está el dólar MEP?"
+    expect: finance_query
+
+  - query: "¿cuánto está el dólar CCL?"
+    expect: finance_query
+
+  - query: "¿cuánto está el euro?"
+    expect: finance_query
+
+  - query: "¿cuánto está el real?"
+    expect: finance_query
+
+  - query: "¿cuánto está el yen?"
+    expect: finance_query
+
+  - query: "¿cuánto está el libra esterlina?"
+    expect: finance_query
+
+  - query: "¿cuánto está el bitcoin?"
+    expect: finance_query
+
+  - query: "¿cuánto está el ethereum?"
+    expect: finance_query
+
+  - query: "cotización del dólar hoy"
+    expect: finance_query
+
+  - query: "cotización del euro hoy"
+    expect: finance_query
+
+  - query: "cotización del bitcoin hoy"
+    expect: finance_query
+
+  - query: "cotización del real hoy"
+    expect: finance_query
+
+  - query: "cotización del yen hoy"
+    expect: finance_query
+
+  - query: "precio del dólar"
+    expect: finance_query
+
+  - query: "precio del euro"
+    expect: finance_query
+
+  - query: "precio del bitcoin"
+    expect: finance_query
+
+  - query: "precio del real"
+    expect: finance_query
+
+  - query: "¿cuántos pesos son 100 dólares?"
+    expect: finance_query
+
+  - query: "creá un programa que sume dos números"
+    expect: code_generation
+
+  - query: "creá un programa que cuente archivos .txt"
+    expect: code_generation
+
+  - query: "creá un programa que lea un CSV"
+    expect: code_generation
+
+  - query: "creá un programa que ordene una lista"
+    expect: code_generation
+
+  - query: "creá un programa que valide un email"
+    expect: code_generation
+
+  - query: "creá un programa que escanee una red"
+    expect: code_generation
+
+  - query: "creá un programa que calcule un promedio"
+    expect: code_generation
+
+  - query: "creá un programa que genere un backup"
+    expect: code_generation
+
+  - query: "escribime un script en bash"
+    expect: code_generation
+
+  - query: "escribime una función en python"
+    expect: code_generation
+
+  - query: "escribime una clase en java"
+    expect: code_generation
+
+  - query: "escribime un programa en python"
+    expect: code_generation
+
+  - query: "necesito una función en python"
+    expect: code_generation
+
+  - query: "necesito un script en bash"
+    expect: code_generation
+
+  - query: "necesito una clase en java"
+    expect: code_generation
+
+  - query: "hola"
+    expect: [general_chat, brainstorming]
+
+  - query: "buenas tardes"
+    expect: [general_chat, brainstorming]
+
+  - query: "contame algo interesante"
+    expect: [general_chat, brainstorming]
+
+  - query: "dame un consejo"
+    expect: [general_chat, brainstorming]
+
+  - query: "¿cómo estás?"
+    expect: [general_chat, brainstorming]
+
+  - query: "gracias"
+    expect: [general_chat, brainstorming]
+
+  - query: "¿qué sabés de los dinosaurios?"
+    expect: [general_chat, brainstorming]
+
+  - query: "me aburro, qué hago"
+    expect: [general_chat, brainstorming]
+
+  - query: "dame técnicas de estudio"
+    expect: [general_chat, brainstorming, academic_search]
+
+  - query: "armame un plan de estudio"
+    expect: [general_chat, brainstorming, academic_search]
+
+  - query: "¿qué opinás de la noticia?"
+    expect: [general_chat, brainstorming, news_search]
+
+  - query: "contame un chiste"
+    expect: [general_chat, brainstorming]
+
+  - query: "decime algo sobre Roma"
+    expect: [general_chat, brainstorming]
+
+  - query: "¿para qué sirve un journaling?"
+    expect: [general_chat, brainstorming]
+
+  - query: "explicame el clima laboral"
+    expect: [general_chat, brainstorming]
+
+  - query: "no tengo tiempo para estudiar"
+    expect: [general_chat, brainstorming]
+
+  - query: "lluvia de ideas para el negocio"
+    expect: [general_chat, brainstorming]
+
+  - query: "hace tiempo que no te veo"
+    expect: [general_chat, brainstorming]
+
+  - query: "¿cuánto tiempo tarda?"
+    expect: [general_chat, brainstorming]
+
+  - query: "el tiempo pasa volando"
+    expect: [general_chat, brainstorming]
+
+  - query: "buscá la capital de Australia"
+    expect: web_search
+
+  - query: "buscame el precio del dólar"
+    expect: [web_search, finance_query]
+
+  - query: "dame el link de la municipalidad"
+    expect: web_search
+
+  - query: "buscá noticias de hoy"
+    expect: [web_search, news_query]
+
+  - query: "buscá la web de AXIOMA"
+    expect: web_search
+
+  - query: "buscame información de Python"
+    expect: web_search
+
+  - query: "dame el enlace de la RAE"
+    expect: web_search
+
+  - query: "buscá el clima de mañana"
+    expect: [web_search, weather_query]
+
+  - query: "buscá la historia de Roma"
+    expect: web_search
+
+  - query: "buscame el estado del dólar"
+    expect: [web_search, finance_query]
+
+  - query: "¿qué clima hace ahora en Salta?"
+    expect: weather_query
+  - query: "¿qué clima hace ahora en Mendoza?"
+    expect: weather_query
+  - query: "¿qué clima hace ahora en Rosario?"
+    expect: weather_query
+  - query: "¿qué clima hace ahora en Bariloche?"
+    expect: weather_query
+  - query: "¿cuánto vale el bitcoin?"
+    expect: finance_query
+  - query: "cotización del ethereum"
+    expect: finance_query
+  - query: "precio del dólar MEP"
+    expect: finance_query
+  - query: "riesgo país Argentina"
+    expect: finance_query
+  - query: "creá un programa que sume dos números"
+    expect: code_generation
+  - query: "escribime un script en bash"
+    expect: code_generation
+  - query: "necesito una función en python"
+    expect: code_generation
+  - query: "haceme una clase en java"
+    expect: code_generation
+  - query: "hola, buenas"
+    expect: general_chat
+  - query: "dame un consejo"
+    expect: general_chat
+  - query: "contame algo"
+    expect: [general_chat, brainstorming]
+  - query: "gracias"
+    expect: general_chat

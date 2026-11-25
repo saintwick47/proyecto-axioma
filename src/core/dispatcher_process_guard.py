@@ -118,6 +118,14 @@ def calibrate_response_confidence(response: Any,
         before = getattr(response, "confidence", None)
         after = apply_calibration(response, validator_score=score,
                                   validation_failed=validation_failed)
+        # ✅ Plan ruteo Fase 4: si la validación está apagada por flag, no
+        # presentar la respuesta como "Alto"; queda explícitamente sin validar.
+        _md = getattr(response, "metadata", None) or {}
+        if _md.get("validation_disabled_by_flag"):
+            capped = min(after if after is not None else 0.5, 0.79)
+            response.confidence = capped
+            response.confidence_label = "Sin validar"
+            return capped
         # ✅ ISSUE-063: consulta de DATO sin ninguna fuente → no se muestra como
         # muy confiable (el panel igual aclara "sin citas").
         if expects_grounding and after is not None and not validation_failed:

@@ -35,6 +35,7 @@
 #   - MIN_FLOOR_THRESHOLD=0.3 preserva el comportamiento del floor original.
 # ═══════════════════════════════════════════════════════════════
 import logging
+import re
 import time
 import json
 from typing import Optional, Dict, Any, List, Tuple
@@ -153,6 +154,28 @@ try:
 except ImportError:
     _LOGGER_AVAILABLE = False
 
+def _shadow_route(query: str) -> str:
+    """Ruta shadow (solo para comparar; no decide)."""
+    import unicodedata
+    q = unicodedata.normalize("NFD", (query or "").lower())
+    q = "".join(c for c in q if not unicodedata.combining(c))
+    if re.search(
+        r"\b(crea|creá|genera|generá|escribí|escribe|escribime|haceme|necesito)\b.*"
+        r"\b(programa|script|funci[oó]n|clase|c[oó]digo)\b|\.py\b", q):
+        return "code_generation"
+    try:
+        from .classifier_api import _is_finance_normalized, _is_weather_normalized
+        if _is_weather_normalized(q):
+            return "weather_query"
+        if _is_finance_normalized(q):
+            return "finance_query"
+    except Exception as _se:
+        logging.getLogger(__name__).debug("[ROUTE_SHADOW] %s", _se)
+    if re.search(r"\b(busca|buscá|buscame|link|url)\b", q):
+        return "web_search"
+    return "general_chat"
+
+
 def _log_router(query: str, task_type: str, model_selected: str,
                 confidence: float, cache_hit: bool = False,
                 duration: float = None, api_required: bool = False):
@@ -163,6 +186,26 @@ def _log_router(query: str, task_type: str, model_selected: str,
         if getattr(log, "is_initialized", False):
             log.log_router_decision(query, task_type, model_selected,
                                     confidence, cache_hit, duration, api_required)
+            # ✅ Fase 7: una línea única por turno para shadow/observabilidad.
+            log.log_event("ROUTE",
+                          f"{task_type} | method={model_selected} | conf={confidence:.2f}",
+                          level="INFO",
+                          extra={"query_preview": query[:60], "task_type": task_type,
+                                 "method": model_selected, "confidence": confidence})
+            try:
+                from config.settings import settings as _rs
+                if (getattr(_rs, "router_shadow_mode", False)
+                        and task_type not in ("INIT", "FACADE", "CORE", "PENDING", "UNKNOWN")):
+                    _shadow = _shadow_route(query)
+                    if _shadow != task_type:
+                        log.log_event("ROUTE_SHADOW",
+                                      f"old={task_type} shadow={_shadow}",
+                                      level="INFO",
+                                      extra={"task_type": task_type,
+                                             "shadow": _shadow,
+                                             "query_preview": query[:60]})
+            except Exception as _se:
+                logging.getLogger(__name__).debug("[ROUTE_SHADOW] %s", _se)
     except Exception as _d2e:
         logging.getLogger(__name__).debug(f"[D2 classifier_core.py:161] excepción degradada (intencional): {_d2e}")
 

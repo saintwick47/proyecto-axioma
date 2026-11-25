@@ -256,6 +256,9 @@ class WeatherFetcherMixin:
         "santa fe": "Santa Fe",
         "mar del plata": "Mar del Plata",
         "villa general belgrano": "Villa General Belgrano",
+        # ✅ 2026-11-25: "VGB Córdoba" debe ganar a "Córdoba" (caso real).
+        "vgb cordoba": "Villa General Belgrano",
+        "vgb córdoba": "Villa General Belgrano",
         # ✅ 2026-08-25: abreviaturas comunes (fallaban con "no se encontró ubicación")
         "vgb": "Villa General Belgrano",
         "cordoba vgb": "Villa General Belgrano",

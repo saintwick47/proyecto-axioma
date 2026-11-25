@@ -56,6 +56,66 @@ def _log_classifier_api(event: str, detected: bool, method: str, text: str, extr
         logging.getLogger(__name__).debug(f"[D2 classifier_api.py:56] excepción degradada (intencional): {_d2e}")
 
 
+# ═══════════════════════════════════════════════════════════════
+# ✅ Plan ruteo Fase 1: clima/finanzas con co-ocurrencia y negativos
+# (texto normalizado sin acentos)
+# ═══════════════════════════════════════════════════════════════
+_W_IDIOM = re.compile(
+    r"lluvia de ideas|no tengo tiempo|hace tiempo|tiempo (libre|de ejecucion|que tarda|de coccion)"
+    r"|cuanto tiempo|mucho tiempo|poco tiempo|a tiempo|tiempo y forma|viento en popa"
+    r"|humedad en (la )?(pared|techo|casa)|cambio de viento"
+)
+_W_STRONG = re.compile(
+    r"\b(como (va a estar|esta|estara) el (dia|finde)|pronostico|temperatura|llueve|llover|lloviendo"
+    r"|paraguas|nublado|soleado|helada|granizo|tormenta|weather|forecast)\b"
+)
+_W_WEAK = re.compile(r"\b(clima|tiempo|frio|calor|viento|lluvia|humedad|nieve)\b")
+_W_CTX = re.compile(
+    r"\b(hoy|manana|ahora|esta noche|esta tarde|esta semana|afuera|pasado manana|fin de semana)\b"
+    r"|\b(en|para|de) [a-z]{3,}|va a (hacer|estar|llover)"
+    r"|que (clima|tiempo) (hace|hay)|hace (mucho |bastante )?(frio|calor|sol)"
+)
+_W_NO = re.compile(r"\b(reunion|ambiente|clima laboral|equipo)\b")
+
+_F_UNI = re.compile(r"\b(dolar(es)?|bitcoin|ethereum|cripto(moneda)?s?|riesgo pais|cotizacion|cotiza(r|n)?)\b")
+_F_CUR = re.compile(r"\b(euro(s)?|peso(s)?|libra(s)?|yen|real(es)?|blue|mep|ccl|usd|ars|bolsa|merval|acciones)\b")
+_F_SIG = re.compile(
+    r"\b(cotiz\w*|precio|cuanto (vale|cuesta|esta|sale|cotiza)|a cuanto|valor del|tasa|cambio"
+    r"|convert\w*|equivale\w*|\d+ (dolares|euros|pesos))\b|cuantos (pesos|dolares|euros) son"
+)
+_F_NO = re.compile(
+    r"\b(peso|pesa|kilos?|kg|horoscopo|camiseta|mochila|equipo)\b.*\b(peso|libra|blue|bolsa|euro)\b"
+    r"|\b(bajar|subir|perder|ganar) de peso\b|\bsoy libra\b|euro 20\d\d|bolsa de (mi|la|un|una)"
+)
+
+
+_PAISES = ("china", "colombia", "brasil", "brazil", "chile", "uruguay",
+           "paraguay", "bolivia", "peru", "venezuela", "mexico", "ecuador")
+
+
+def _pais_no_argentina(t: str) -> str | None:
+    for pais in _PAISES:
+        if re.search(rf"\b{re.escape(pais)}\b", t, re.I):
+            return pais
+    return None
+
+
+def _is_weather_normalized(t: str) -> bool:
+    if _W_IDIOM.search(t):
+        return False
+    if _W_STRONG.search(t):
+        return True
+    return bool(_W_WEAK.search(t) and _W_CTX.search(t) and not _W_NO.search(t))
+
+
+def _is_finance_normalized(t: str) -> bool:
+    if _F_NO.search(t):
+        return False
+    if _F_UNI.search(t):
+        return True
+    return bool(_F_CUR.search(t) and _F_SIG.search(t))
+
+
 class APIDetector:
     """
     Detector de consultas especiales con integración de APIs externas.
@@ -286,13 +346,22 @@ class APIDetector:
         text_normalized = ''.join(c for c in text_normalized if not unicodedata.combining(c))
         return text_normalized
 
+    def _is_code_creation_request(self, text: str) -> bool:
+        """True si pide CREAR un programa/script/función (aunque diga "en busca de")."""
+        t = text.lower()
+        verbo = (r"\b(crea|creá|genera|generá|escribí|escribe|arma|armá|implementa|"
+                 r"desarrolla|escribime|haceme|necesito|creame|generame|armame|programame)\b")
+        sustantivo = r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|aplicaci[oó]n|app)\b"
+        return bool(re.search(verbo, t, re.I) and re.search(sustantivo, t, re.I))
+
     def _is_code_prompt(self, text: str) -> bool:
         """
         Guard rápido — detecta si el texto ES un prompt de código.
         Se evalúa ANTES de cualquier detección especial.
         """
         text_lower = text.lower()
-        return any(indicator in text_lower for indicator in self.CODE_INDICATORS)
+        return (any(indicator in text_lower for indicator in self.CODE_INDICATORS)
+                or self._is_code_creation_request(text))
 
     def _is_technical_context(self, text_normalized: str) -> bool:
         """
@@ -338,7 +407,7 @@ class APIDetector:
             )
             return False
 
-        result = any(re.search(p, text_normalized, re.I) for p in self.WEATHER_PATTERNS)
+        result = _is_weather_normalized(text_normalized)
         if result:
             matched = next((p for p in self.WEATHER_PATTERNS if re.search(p, text_normalized, re.I)), None)
             _log_classifier_api("weather_query", True, "regex", text, {"matched_pattern": matched})
@@ -355,6 +424,9 @@ class APIDetector:
     def _is_news_query(self, text: str) -> bool:
         """Detecta si es consulta sobre noticias."""
         text_normalized = self._normalize_text(text)
+        if re.search(r"\bnoticias?\s+(hay\s+)?(sobre|acerca de)\b", text_normalized):
+            _log_classifier_api("news_query", False, "noticia_tematica_web", text, {})
+            return False
         result = any(re.search(p, text_normalized, re.I) for p in self.NEWS_PATTERNS)
         if result:
             matched = next((p for p in self.NEWS_PATTERNS if re.search(p, text_normalized, re.I)), None)
@@ -373,19 +445,12 @@ class APIDetector:
             )
             return False
         text_normalized = self._normalize_text(text)
-        matched_pattern = next((p for p in self.FINANCE_PATTERNS if re.search(p, text_normalized, re.I)), None)
-        if matched_pattern:
-            _log_classifier_api("finance_query", True, "regex", text, {"matched_pattern": matched_pattern})
-            return True
-        matched_kw = next(
-            (
-                kw for kw in self.FINANCE_KEYWORDS
-                if re.search(rf"\b{re.escape(kw)}\b", text_normalized, re.I)
-            ),
-            None,
-        )
-        if matched_kw:
-            _log_classifier_api("finance_query", True, "keyword_fallback", text, {"matched_keyword": matched_kw})
+        # Riesgo país de otro país: la API solo publica Argentina; ir a web.
+        if "riesgo pais" in text_normalized and _pais_no_argentina(text_normalized):
+            _log_classifier_api("finance_query", False, "pais_no_argentina", text, {})
+            return False
+        if _is_finance_normalized(text_normalized):
+            _log_classifier_api("finance_query", True, "coocurrencia", text, {})
             return True
         return False
 
@@ -404,7 +469,16 @@ class APIDetector:
         ✅ v0.1.6: Expandido con patrones de GitHub, repositorios, proyectos, etc.
         ✅ v0.1.7: Patrones ahora funcionales (fix de doble backslash en raw strings).
         """
+        if self._is_code_creation_request(text):
+            return False
         text_normalized = self._normalize_text(text)
+        # Riesgo país no-Argentina y noticias con tema concreto → búsqueda web.
+        if "riesgo pais" in text_normalized and _pais_no_argentina(text_normalized):
+            _log_classifier_api("web_search_query", True, "pais_no_argentina", text, {})
+            return True
+        if re.search(r"\bnoticias?\s+(hay\s+)?(sobre|acerca de)\b", text_normalized):
+            _log_classifier_api("web_search_query", True, "noticia_tematica", text, {})
+            return True
         result = any(re.search(p, text_normalized, re.I) for p in self.WEB_SEARCH_PATTERNS)
         if result:
             matched = next((p for p in self.WEB_SEARCH_PATTERNS if re.search(p, text_normalized, re.I)), None)
@@ -434,6 +508,12 @@ class APIDetector:
             match = re.search(pattern, text_normalized, re.IGNORECASE)
             if match:
                 location = match.group(1).strip()
+                location = re.sub(r"^(hoy|manana|ahora|para|de|en)\s+", "", location)
+                location = re.sub(r"\s+(hoy|manana|ahora)$", "", location).strip()
+                if ((("vgb" in text_normalized or "villa general belgrano" in text_normalized)
+                        and "cordoba" in text_normalized)
+                        or location.lower() == "vgb"):
+                    location = "villa general belgrano"
                 location = location[:50]
                 if location.lower() not in ['el', 'la', 'los', 'las', 'un', 'una', 'hoy', 'manana', 'ahora']:
                     self._location_cache[cache_key] = location

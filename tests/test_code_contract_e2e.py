@@ -30,16 +30,16 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
-import sys
-import time
-import json
 import argparse
-import traceback
+import json
 import socket
 import subprocess
-from pathlib import Path
+import sys
+import time
+import traceback
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, List, Optional
 
 # Asegura que el proyecto esté en sys.path — este script se espera que
@@ -51,7 +51,7 @@ if not (_PROJECT_ROOT / "tools").exists():
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 try:
-    from tools.detailed_logger import get_logger, initialize_logger, close_logger, LoggerConfig
+    from tools.detailed_logger import LoggerConfig, close_logger, get_logger, initialize_logger
 except ImportError as e:
     print(f"❌ No se pudo importar tools.detailed_logger: {e}")
     print("   Corré este script desde la raíz de axioma (donde está la carpeta tools/).")
@@ -199,7 +199,11 @@ def test_import_code_contract() -> str:
     # Se importan TODOS los nombres que el test dice verificar (antes el
     # mensaje los nombraba sin importarlos: una limpieza de F401 los borró).
     from src.agents.code_contract import (  # noqa: F401 — verificación de API pública
-        CodeFile, CodeContract, parse_code_contract, build_contract_critique)
+        CodeContract,
+        CodeFile,
+        build_contract_critique,
+        parse_code_contract,
+    )
     assert callable(parse_code_contract)
     assert callable(build_contract_critique)
     return "CodeFile, CodeContract, parse_code_contract, build_contract_critique OK"
@@ -207,7 +211,11 @@ def test_import_code_contract() -> str:
 
 def test_import_code_validator() -> str:
     from src.agents.code_validator import (  # noqa: F401 — verificación de API pública
-        CodeValidator, ValidationReport, LayerResult, build_validation_critique)
+        CodeValidator,
+        LayerResult,
+        ValidationReport,
+        build_validation_critique,
+    )
     assert callable(build_validation_critique)
     return "CodeValidator, ValidationReport, LayerResult, build_validation_critique OK"
 
@@ -293,10 +301,10 @@ def test_contract_parsing_completo() -> str:
 
 
 def test_static_validation_syntax_error() -> str:
+    from config.settings import settings
     from src.agents.code_contract import parse_code_contract
     from src.agents.code_validator import CodeValidator
     from src.tools_mcp.sandbox import get_sandbox_executor
-    from config.settings import settings
 
     class _S:
         code_require_dependencies = False
@@ -320,10 +328,10 @@ def test_dynamic_validation_sandbox_real() -> str:
     pudo probar en la sesión de desarrollo porque sandbox_staging.py
     no estaba disponible ahí; acá corre contra el sandbox real completo.
     """
+    from config.settings import settings
     from src.agents.code_contract import parse_code_contract
     from src.agents.code_validator import CodeValidator
     from src.tools_mcp.sandbox import get_sandbox_executor
-    from config.settings import settings
 
     class _S:
         code_require_dependencies = False
@@ -350,10 +358,10 @@ def test_dynamic_validation_sandbox_real() -> str:
 
 def test_dynamic_validation_async_tests() -> str:
     """Los tests generados con `async def` deben correr (asyncio_mode=auto)."""
+    from config.settings import settings
     from src.agents.code_contract import parse_code_contract
     from src.agents.code_validator import CodeValidator
     from src.tools_mcp.sandbox import get_sandbox_executor
-    from config.settings import settings
 
     class _S:
         code_require_dependencies = False
@@ -382,10 +390,10 @@ def test_dynamic_validation_async_tests() -> str:
 
 def test_dynamic_validation_test_que_falla() -> str:
     """Mismo mecanismo que el anterior, pero con un bug real a propósito."""
+    from config.settings import settings
     from src.agents.code_contract import parse_code_contract
     from src.agents.code_validator import CodeValidator
     from src.tools_mcp.sandbox import get_sandbox_executor
-    from config.settings import settings
 
     class _S:
         code_require_dependencies = False
@@ -507,6 +515,7 @@ def test_dispatcher_code_generation_real() -> tuple:
     dejarlo para inferir del task_type de la respuesta.
     """
     import asyncio
+
     from src.core.dispatcher import Dispatcher
     from src.domain.entities import Message
 
@@ -548,6 +557,7 @@ def test_handle_code_direct_real() -> tuple:
     directo de lo que se construyó en esta sesión.
     """
     import asyncio
+
     from src.core.dispatcher import Dispatcher
     from src.domain.entities import Message
 
@@ -740,3 +750,237 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def test_generate_tests_segunda_etapa():
+    """ISSUE-163: el código se genera en una etapa y los tests en otra."""
+    from src.agents.coder import CoderAgent
+    agente = CoderAgent()
+    agente._generate = lambda **kwargs: (
+        "```python\n"
+        "from async_cache import AsyncTTLCache\n\n"
+        "async def test_cache_vigente():\n"
+        "    cache = AsyncTTLCache(ttl=10)\n"
+        "    await cache.set('k', 'v', ttl=10)\n"
+        "    assert await cache.get('k') == 'v'\n"
+        "```"
+    )
+    tests = agente.generate_tests(
+        "creá tests async para async_cache",
+        {"files": [{"name": "async_cache.py", "content": "class AsyncTTLCache: pass\n"}]})
+    assert tests, "la segunda etapa debe devolver al menos un archivo de tests"
+    assert tests[0].name.startswith("test_")
+    assert "async def" in tests[0].content
+
+
+def test_fallo_autonomo_devuelve_codigo_y_error(monkeypatch):
+    """El fallo autónomo no debe quedar en 'Autonomous mode: global_timeout'."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from src.core.dispatcher_handlers_extra_code import DispatcherHandlersExtraCodeMixin
+    from src.domain.entities import Message
+
+    class _Loop:
+        async def run(self, **kwargs):
+            return SimpleNamespace(
+                success=False, stop_reason="global_timeout",
+                final_code="print('hola')", duration_ms=1000.0, total_attempts=2,
+                traces=[SimpleNamespace(error_observed="FileNotFoundError: /path/to/vgb")])
+
+    import src.core.interpreter_loop as il
+    import src.core.workspace_manager as wm
+    import src.tools_mcp.tool_executor as te
+    monkeypatch.setattr(il, "get_interpreter_loop", lambda **kw: _Loop())
+    monkeypatch.setattr(te, "get_executor", lambda: None)
+    monkeypatch.setattr(wm, "get_workspace_manager", lambda: None)
+
+    class _Self:
+        coder = None
+    res = asyncio.run(DispatcherHandlersExtraCodeMixin._handle_autonomous_code(
+        _Self(), Message(content="escaneá nodos"), "code_generation", "s1", None))
+    assert res.error is None
+    assert "global_timeout" in res.content
+    assert "FileNotFoundError" in res.content
+    assert "print('hola')" in res.content
+
+
+def test_autonomo_muestra_codigo_y_prompt_selftest():
+    """El resultado autónomo debe mostrar el código final y pedir self-test."""
+    from src.core.interpreter_loop import InterpreterResult
+    from src.agents.coder import CoderAgent
+    from src.domain.entities import Message
+
+    r = InterpreterResult(
+        success=True, final_output="ok", final_code="print('hola')",
+        traces=[], total_attempts=1, duration_ms=10.0, stop_reason="success")
+    resp = r.to_response("s")
+    assert "Código final" in resp.content
+    assert "print('hola')" in resp.content
+
+    msg = Message(content="creá un programa y probalo",
+                  metadata={"autonomous_mode": True})
+    prompt = CoderAgent()._build_prompt(msg, "code_generation")
+    assert "MODO AUTÓNOMO" in prompt
+    assert "self-test" in prompt
+
+
+def test_pedido_autonomo_detallado_no_pide_aclaracion():
+    """El pedido con self-test/--path no debe responder 'varias partes'."""
+    from src.agents.coder_core import is_complex_request
+    prompt = (
+        "Creá `contar_txt.py` que cuente archivos .txt en un directorio.\n"
+        "- Por defecto usá `./datos`; si no existe, crealo con 2 archivos de ejemplo.\n"
+        "- Aceptá `--path`.\n- Incluí un self-test que corra sin argumentos y salga 0.\n"
+        "- Probalo hasta que pase; después mostrame el código para ejecutarlo con una carpeta real."
+    )
+    assert is_complex_request(prompt)[0] is False
+
+
+def test_crear_programa_gana_a_busqueda_web():
+    """'en busca de' no debe convertir un pedido de programa en web_search."""
+    from src.router.classifier import IntentClassifier
+    q = ("crea un programa que escanee la red en busca de nodos en vgb, "
+         "se busca saber cantidad de nodos activos")
+    r = IntentClassifier().classify(q)
+    task = r.get("task_type") if isinstance(r, dict) else getattr(r, "task_type", "")
+    assert task == "code_generation"
+
+
+def test_probalo_va_por_contrato_y_no_autonomo():
+    from src.core.dispatcher_handlers_extra_code import DispatcherHandlersExtraCodeMixin
+    q = "Creá contar_txt.py, incluí self-test y probalo hasta que pase."
+    assert DispatcherHandlersExtraCodeMixin._should_use_autonomous_mode(object(), q) is False
+
+
+def test_busca_imperativo_es_busqueda_web():
+    from src.router.classifier import IntentClassifier
+    r = IntentClassifier().classify("buscá la web oficial de la municipalidad de Villa General Belgrano")
+    task = r.get("task_type") if isinstance(r, dict) else getattr(r, "task_type", "")
+    assert task == "web_search"
+
+
+def test_contar_py_es_code_generation_no_code_testing():
+    from src.router.classifier import IntentClassifier
+    r = IntentClassifier().classify(
+        "Creá contar_txt.py que cuente archivos .txt, con self-test y probalo hasta que pase")
+    task = r.get("task_type") if isinstance(r, dict) else getattr(r, "task_type", "")
+    assert task == "code_generation"
+
+
+def test_gold_ruteo():
+    """Fase 0: rutas esperadas sobre paráfrasis y negativos idiomáticos."""
+    import yaml
+    from pathlib import Path
+    from src.router.classifier import IntentClassifier
+
+    data = yaml.safe_load(
+        Path(__file__).with_name("gold_ruteo.yaml").read_text(encoding="utf-8"))
+    clf = IntentClassifier()
+    fallos = []
+    for caso in data["cases"]:
+        esperado = caso["expect"]
+        esperados = esperado if isinstance(esperado, list) else [esperado]
+        r = clf.classify(caso["query"])
+        task = r.get("task_type") if isinstance(r, dict) else getattr(r, "task_type", "")
+        if task not in esperados:
+            fallos.append((caso["query"], esperados, task, r.get("method")))
+    assert not fallos, f"rutas inesperadas: {fallos}"
+
+
+def test_sistema_exige_objeto():
+    """Fase 2: no ejecutar sistema por una primera palabra ambigua."""
+    from src.core.dispatcher_process import _is_system_command_intent
+    assert _is_system_command_intent("abrí firefox") is True
+    assert _is_system_command_intent("cerrá la terminal") is True
+    assert _is_system_command_intent("listá archivos de ~/Descargas") is True
+    assert _is_system_command_intent("cerrá el tema, gracias") is False
+    assert _is_system_command_intent("copiá este texto y mejoralo") is False
+    assert _is_system_command_intent("borrá lo último que dijiste") is False
+
+
+def test_validacion_chat_apagada_por_flag(monkeypatch):
+    """Fase 4: con el flag OFF no se lanza el validador ni se cambia de modelo."""
+    from types import SimpleNamespace
+    from config.settings import settings as real_settings
+    from src.core.dispatcher_process_steps import DispatcherProcessStepsMixin
+
+    class _Self:
+        llamado = False
+        def _validar_a1(self, *args, **kwargs):
+            _Self.llamado = True
+
+    monkeypatch.setattr(real_settings, "chat_validation_enabled", False, raising=False)
+    respuesta = SimpleNamespace(error=None, content="respuesta de chat",
+                                metadata={}, sources=None)
+    msg = SimpleNamespace(content="hola, contame algo")
+    DispatcherProcessStepsMixin._validar_chat_si_corresponde(
+        _Self(), msg, respuesta, "general_chat")
+    assert _Self.llamado is False
+    assert respuesta.metadata.get("validation_disabled_by_flag") is True
+
+
+def test_gold_ruteo_holdout():
+    """Holdout no usado para ajustar reglas: mide generalización."""
+    import yaml
+    from pathlib import Path
+    from src.router.classifier import IntentClassifier
+
+    data = yaml.safe_load(
+        Path(__file__).with_name("gold_ruteo_holdout.yaml").read_text(encoding="utf-8"))
+    clf = IntentClassifier()
+    fallos = []
+    for caso in data["cases"]:
+        esperado = caso["expect"]
+        esperados = esperado if isinstance(esperado, list) else [esperado]
+        r = clf.classify(caso["query"])
+        task = r.get("task_type") if isinstance(r, dict) else getattr(r, "task_type", "")
+        if task not in esperados:
+            fallos.append((caso["query"], esperados, task, r.get("method")))
+    assert not fallos, f"holdout con rutas inesperadas: {fallos}"
+
+
+def test_shadow_route_basica():
+    """El log shadow no debe heredar el bug de 'busca' ni de código."""
+    from src.router.classifier_core import _shadow_route
+    assert _shadow_route("creá un programa que escanee la red") == "code_generation"
+    assert _shadow_route("buscá la web oficial") == "web_search"
+    assert _shadow_route("hola, contame algo") == "general_chat"
+
+
+def test_contexto_no_pisa_rutas_explicitas():
+    """G1: tras finanzas, 'buscá la web...' no debe heredar finance_query."""
+    from src.domain.context import SessionContext
+    from src.router.classifier import IntentClassifier
+
+    ctx = SessionContext(session_id="g1")
+    ctx.last_intent = "finance_query"
+    ctx.recent_intents = ["finance_query"] * 3
+    ctx.turns = 3
+    c = IntentClassifier()
+    for q in ("buscá la web oficial de la municipalidad",
+              "dame el link de la municipalidad",
+              "contame algo interesante"):
+        r = c.classify_with_context(q, ctx)
+        assert r["task_type"] in ("web_search", "general_chat"), (q, r)
+
+
+def test_riesgo_pais_de_otro_pais_va_web():
+    from src.router.classifier import IntentClassifier
+    c = IntentClassifier()
+    for q in ("¿cuánto está el riesgo país en China?",
+              "¿cómo está el riesgo país en Colombia?"):
+        assert c.classify(q)["task_type"] == "web_search", q
+
+
+def test_noticia_con_tema_va_web_y_generica_queda_news():
+    from src.router.classifier import IntentClassifier
+    c = IntentClassifier()
+    assert c.classify("¿qué noticias hay sobre la política exterior?")["task_type"] == "web_search"
+    assert c.classify("últimas noticias de Argentina")["task_type"] == "news_query"
+
+
+def test_ubicacion_vgb_cordoba_prioriza_vgb():
+    from src.handlers.data_fetchers_weather import WeatherFetcherMixin
+    assert WeatherFetcherMixin.extract_city(
+        "DAME EL PRONOSTICO PARA HOY EN VGB CORDOBA") == "Villa General Belgrano"

@@ -207,6 +207,7 @@ class DispatcherHandlersExtraCodeMixin:
             # Si el artefacto nuevo es idéntico al del intento anterior, otra
             # generación no puede cambiar nada: se corta.
             _last_artifact_fingerprint: Optional[str] = None
+            _last_validation_error: str = ""
             # ✅ ISSUE-142: el respaldo por negativa se intenta UNA vez por request
             # (no en cada vuelta del repair loop), y una vez que el respaldo generó,
             # **el resto del bucle usa ESE agente**: si no, la vuelta siguiente
@@ -277,6 +278,20 @@ class DispatcherHandlersExtraCodeMixin:
                 if not code_artifact:
                     break
 
+                # ✅ ISSUE-163: segunda etapa de tests si el usuario los pidió y el
+                # modelo devolvió solo el código. Sin esto no hay test_files y la capa
+                # dinámica de CodeValidator no corre.
+                if self._pide_tests(message.content) and not code_artifact.get("test_files"):
+                    tests = await asyncio.to_thread(
+                        self.coder.generate_tests, message.content, code_artifact)
+                    if tests:
+                        code_artifact["test_files"] = [t.to_dict() for t in tests]
+                        result.metadata["tests_generated_by"] = "two-stage"
+                        bloques = "\n\n".join(
+                            f"ARCHIVO: {t.name}\n```{t.language}\n{t.content}\n```"
+                            for t in tests)
+                        result.content = (result.content or "") + "\n\nTESTS:\n" + bloques
+                        logger.info("[Tests] %d archivo(s) de tests agregados al artefacto", len(tests))
                 try:
                     contract  = CodeContract.from_dict(code_artifact)
                     sandbox   = get_sandbox_executor(timeout=settings.code_validation_timeout)
@@ -301,6 +316,47 @@ class DispatcherHandlersExtraCodeMixin:
                     break
 
                 result.validation_passed = False
+                # ✅ 2026-11-25: si el fallo es del TEST (imports/NameError), regenerar
+                # los tests con la crítica; no volver a generar el código de producción.
+                _test_error = any(k in (report.error_summary or '') for k in (
+                    'NameError', 'ImportError', 'ModuleNotFoundError',
+                    'fixture', 'no module named')) or any(
+                        getattr(layer, 'layer', '') == 'dynamic'
+                        and not getattr(layer, 'passed', True)
+                        for layer in (report.layers or []))
+                if (_test_error and code_artifact.get('test_files')
+                        and not result.metadata.get('tests_repaired')):
+                    result.metadata['tests_repaired'] = True
+                    _tests = await asyncio.to_thread(
+                        self.coder.generate_tests, message.content,
+                        code_artifact, report.error_summary)
+                    if _tests:
+                        code_artifact['test_files'] = [t.to_dict() for t in _tests]
+                        _base = (result.content or '').split('\n\nTESTS:')[0]
+                        result.content = _base + '\n\nTESTS:\n' + '\n\n'.join(
+                            f'ARCHIVO: {t.name}\n```{t.language}\n{t.content}\n```'
+                            for t in _tests)
+                        _contract2 = CodeContract.from_dict(code_artifact)
+                        _report2 = CodeValidator(
+                            sandbox=get_sandbox_executor(timeout=settings.code_validation_timeout),
+                            settings=settings).validate(_contract2)
+                        result.metadata['validation_report'] = _report2.to_dict()
+                        if _report2.passed:
+                            result.validation_passed = True
+                            break
+                        report = _report2
+                        logger.warning('[Tests] reparación falló: %s',
+                                       report.error_summary[:200])
+                    result.metadata['validation_stalled_error'] = True
+                    break
+                # ✅ 2026-11-25: error de validación idéntico → regenerar no cambia el test.
+                _err_actual = report.error_summary or ""
+                if outer_attempt > 0 and _err_actual == _last_validation_error:
+                    logger.warning(
+                        "[CodeValidator] sin progreso: error idéntico — cortando repair loop")
+                    result.metadata["validation_stalled_error"] = True
+                    break
+                _last_validation_error = _err_actual
                 if outer_attempt < max_validation_retries:
                     validation_critique = build_validation_critique(report)
                     logger.info(
@@ -514,6 +570,40 @@ class DispatcherHandlersExtraCodeMixin:
                 "success": result.success,
             })
 
+            # ✅ 2026-11-24: si el loop autónomo agota el tiempo o falla, devolver
+            # el código generado + el último error en vez de un genérico
+            # "Autonomous mode: global_timeout". El usuario necesita ver qué pasó.
+            if not result.success:
+                codigo = (result.final_code or "").strip()
+                ultimo_error = ""
+                for trace in reversed(result.traces):
+                    if trace.error_observed:
+                        ultimo_error = trace.error_observed
+                        break
+                partes = [
+                    f"⚠️ No pude ejecutar el programa en el sandbox "
+                    f"({result.stop_reason}).",
+                ]
+                if ultimo_error:
+                    partes.append(f"Último error:\n```\n{ultimo_error[:800]}\n```")
+                if codigo:
+                    partes.append(
+                        f"Código generado (revisalo/ajustalo):\n```python\n{codigo[:6000]}\n```")
+                _log_event("INTERPRETER_LOOP", "Fallo autónomo reportado con código",
+                           extra={"stop_reason": result.stop_reason, "chars": len(codigo)})
+                return Response(
+                    content="\n\n".join(partes),
+                    session_id=session_id,
+                    model_used="interpreter_loop",
+                    task_type=task_type,
+                    latency_ms=(time.time() - start) * 1000,
+                    confidence=0.3,
+                    validation_passed=False,
+                    error=None,
+                    metadata={"autonomous_failed": True,
+                              "stop_reason": result.stop_reason},
+                )
+
             return result.to_response(session_id)
 
         except Exception as e:
@@ -526,6 +616,13 @@ class DispatcherHandlersExtraCodeMixin:
                 confidence=0.0, validation_passed=False, error=str(e),
             )
 
+
+    @staticmethod
+    def _pide_tests(query: str) -> bool:
+        """True si el pedido menciona tests/pytest/validación."""
+        return bool(re.search(
+            r"\b(test|tests|pytest|prueba|pruebas|validaci[oó]n)\b",
+            query or "", re.I))
 
     def _should_use_autonomous_mode(self, query: str) -> bool:
         """
@@ -558,13 +655,19 @@ class DispatcherHandlersExtraCodeMixin:
         q = q_no_quotes
         # ✅ 2026-11-24: si pide el CONTRATO (código/tests/archivos), es generación
         # normal, no ejecución autónoma aunque diga "ejecutá la validación".
-        if re.search(r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|contrato)", q, re.I):
+        if re.search(
+            r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|contrato|self-test|probalo|"
+            r"probar hasta|hasta que pase)", q, re.I):
+            # ✅ 2026-11-24: "creá + probá hasta que pase" va por contrato +
+            # CodeValidator (tests reales), no por el loop autónomo, que en CPU
+            # se queda sin tiempo y no garantiza tests.
             return False
         keywords = [
             "ejecuta", "ejecutá", "ejecutar", "ejecútalo", "ejecutalo",
             "corre", "corré", "correr", "correlo", "corrélo",
             "run", "corre el", "corre el test",
             "prueba", "probá", "probar", "pruébalo", "pruebalo",
+            "probalo", "probar hasta", "hasta que pase", "testealo",
             "testea", "testeá", "testear",
             "y ejecútalo", "y ejecutalo", "y correlo", "y corrélo",
             "y pruébalo", "y pruebalo", "y ejecuta", "y ejecutá",

@@ -53,7 +53,6 @@ from .code_contract import parse_code_contract, build_contract_critique
 _REPO_INDEX = None
 _REPO_INDEX_ERROR = None
 
-
 def _get_repo_index():
     """Devuelve el singleton de CodeIndex o None (build cacheado)."""
     global _REPO_INDEX, _REPO_INDEX_ERROR
@@ -286,7 +285,46 @@ class CoderAgent(CoderPromptMixin, BaseAgent):
             if pattern in code:
                 return reason
         return None
-
+    def generate_tests(self, query: str, code_artifact: dict,
+                       critique: str = "") -> list:
+        """Segunda etapa: escribe tests para el código ya generado.
+        Un solo prompt suele devolver solo el código (ISSUE-163). Acá se hace una
+        llamada enfocada, con el código como contexto, y se parsea el bloque de
+        tests como `CodeFile` para que `CodeValidator` corra pytest de verdad.
+        """
+        partes = []
+        for f in code_artifact.get("files", []):
+            nombre = str(f.get("name") or "codigo.py")
+            contenido = str(f.get("content") or "")
+            if contenido.strip():
+                partes.append(f"# ARCHIVO: {nombre}\n{contenido}")
+        codigo = "\n\n".join(partes)[:12000]
+        if not codigo.strip():
+            return []
+        prompt = (
+            "Escribí SOLO un archivo de tests con pytest para el código de abajo.\n"
+            "Reglas:\n"
+            "- Cubrí el comportamiento pedido y los casos borde importantes.\n"
+            "- Si el código usa `async def`, los tests también deben ser `async def` "
+            "y correr con pytest-asyncio (`asyncio_mode=auto`).\n"
+            "- Importá el módulo, pytest, os y tempfile; no dejes nombres indefinidos y reflejá el comportamiento real del código.\n"
+            "- Devolvé únicamente un bloque ```python ...```, sin explicación ni el código de producción.\n\n"
+            + (f"EL INTENTO ANTERIOR FALLÓ ASÍ (corregilo):\n{critique[:1200]}\n\n"
+             if critique else "")
+            + f"REQUERIMIENTO ORIGINAL:\n{query}\n\nCÓDIGO:\n{codigo}"
+        )
+        raw = self._generate(
+            prompt=prompt,
+            system="Sos un ingeniero de tests. Escribís tests claros, ejecutables y mínimos.",
+            max_tokens=1200,
+            timeout=settings.get_timeout_for_code_level(2),
+        )
+        contrato = parse_code_contract("TESTS:\n" + (raw or ""), settings, query=query)
+        logger.info(
+            "[Tests] segunda etapa: %d archivo(s) de tests",
+            len(contrato.test_files),
+        )
+        return contrato.test_files
     def _generate_chunked(
         self,
         prompt: str,
@@ -529,9 +567,17 @@ class CoderAgent(CoderPromptMixin, BaseAgent):
             )
 
             # ── Generación: chunked vs normal ────────────────────────────────
+            # ✅ ISSUE-163: el camino chunked NO arma contrato (ni tests ni
+            # CodeValidator). Si el pedido trae CÓDIGO/TESTS/ARCHIVO, se usa la
+            # generación normal para poder validar de verdad.
+            _contrato_explicito = bool(re.search(
+                r"(CÓDIGO:|CODIGO:|TESTS:|ARCHIVO:|```|contrato|"
+                r"self-test|probalo|probar hasta|hasta que pase|test_)",
+                input_msg.content or "", re.I))
             needs_chunked = (
                 task_type == TaskType.CODE_GENERATION.value
                 and attempt == 1
+                and not _contrato_explicito
                 and estimate_needs_chunking(input_msg.content, settings)
             )
 

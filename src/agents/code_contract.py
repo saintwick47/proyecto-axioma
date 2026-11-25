@@ -290,6 +290,8 @@ def parse_code_contract(response: str, settings: Any, query: str = "") -> CodeCo
 
     dependencies = _parse_dependencies(sections.get("dependencias", ""))
     test_files = _code_blocks_to_files(sections.get("tests", ""), query, is_test=True)
+    for _tf in test_files:
+        _tf.content = ensure_test_imports(_tf.content)
     test_command = _parse_command(sections.get("comando", ""))
     expected_output = _strip_outer_fence(sections.get("salida_esperada") or None)
     warnings = _parse_notes(sections.get("advertencias", ""))
@@ -341,3 +343,18 @@ def build_contract_critique(contract: CodeContract) -> str:
     }
     faltantes = ", ".join(_labels.get(m, m) for m in contract.missing)
     return f"Faltó incluir: {faltantes}. Repetí la respuesta completando esas secciones."
+
+def ensure_test_imports(content: str) -> str:
+    """Agrega imports obvios que el modelo omite en tests (os/tempfile/pytest/Path)."""
+    c = content or ""
+    imports = []
+    if ("TemporaryDirectory" in c or "tempfile." in c) and "tempfile" not in c.split("\n")[0:5].__str__():
+        if "from tempfile import" not in c and "import tempfile" not in c:
+            imports.append("import tempfile")
+    if "os." in c and "import os" not in c:
+        imports.append("import os")
+    if "pytest." in c and "import pytest" not in c:
+        imports.append("import pytest")
+    if "Path(" in c and "from pathlib import Path" not in c:
+        imports.append("from pathlib import Path")
+    return ("\n".join(imports) + "\n" + c) if imports else c

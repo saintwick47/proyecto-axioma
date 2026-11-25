@@ -7,6 +7,30 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Sin publicar]
 
+### Caché versionada, ruteo por país/tema y E2E de código (2026-11-25)
+
+- **Caché:** `CACHE_SCHEMA_VERSION` invalida L1/L2 + respuesta; al arrancar purga entradas
+  viejas. Corrige “VGB Córdoba” servido como Córdoba desde caché.
+- **Ruteo:** riesgo país no-Argentina y noticias con tema van a `web_search`; noticias genéricas
+  siguen `news_query`; “VGB Córdoba” prioriza Villa General Belgrano.
+- **Código:** E2E real **192,5 s**, tests reparados, structural/static/dynamic OK, 0 reintentos;
+  corte por error idéntico y reparación de tests dinámicos.
+- **G1:** descartado como requisito: la ruta determinística `web_search` es más rápida y no
+  depende de tool-calling; shadow 50: 9 divergencias aceptadas.
+- **Tests:** gold 150 + holdout 20; suite 28/28; gate ✅.
+
+### ISSUE-163: tests en dos etapas y contrato fuera del modo chunked (2026-11-24)
+
+- **Causa raíz**: el pedido de 47 líneas entraba en `needs_chunked`; ese camino **no arma
+  `CodeContract`**, así que no había `test_files`, no corría `CodeValidator` y el modelo devolvía
+  solo el código. Además, aun sin chunked, un solo prompt a `qwen2.5-coder:7b` suele omitir tests.
+- **Solución**: si el pedido trae `CÓDIGO:`/`TESTS:`/`ARCHIVO:` se desactiva chunked; si el usuario
+  pide tests y el artefacto no los trae, `CoderAgent.generate_tests()` hace una **segunda llamada**
+  con el código como contexto, el handler adjunta los `test_files` y `CodeValidator` corre pytest.
+- **Verificado a nivel componente**: 3 tests async generados; `CodeValidator` pasó
+  **structural/static/dynamic** en el sandbox real. La corrida web completa quedó pendiente por
+  tiempo de CPU (generación de tests ≈235 s). Suite 28/28, gate 15/15.
+
 ### Corrección: búsqueda de links, riesgo país intradiario y falsos positivos de código (2026-11-24)
 
 - **Búsqueda de links**: `web_search` sintetiza con **qwen3.5:9b** (antes caía en

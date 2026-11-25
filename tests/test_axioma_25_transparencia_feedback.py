@@ -979,3 +979,17 @@ def test_texto_degenerado_se_detecta():
     assert _texto_degenerado("AXIOMA es un asistente local y usa Ollama.") is False
     salad = "urretjョ克斯adgeelingen功夫شمadólyph敏neh昊 sofrshinees蟬挺ibat" * 4
     assert _texto_degenerado(salad) is True
+
+
+def test_validacion_desactivada_por_flag_no_se_muestra_aprobada():
+    from types import SimpleNamespace
+    from src.interfaces.web.app_logic import _validation_state
+    from src.core.dispatcher_process_guard import calibrate_response_confidence
+
+    md = {"validation_disabled_by_flag": True}
+    assert _validation_state(True, md) == "omitida"
+    resp = SimpleNamespace(confidence=0.9, confidence_label="Alto",
+                           metadata=md, sources=[])
+    valor = calibrate_response_confidence(resp, task_type="general_chat")
+    assert valor is not None and valor <= 0.79
+    assert resp.confidence_label == "Sin validar"

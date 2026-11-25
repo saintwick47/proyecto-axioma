@@ -137,6 +137,11 @@ def _log_cache(op: str, level: str = "L1", key: str = "",
 # ═══════════════════════════════════════════════════════════════
 # CLASE: CacheEntry
 # ═══════════════════════════════════════════════════════════════
+# ✅ 2026-11-25: bumpear cuando cambie el ruteo/extractores; invalida L1/L2
+# viejos (caso real: "VGB Córdoba" quedó cacheado como Córdoba).
+CACHE_SCHEMA_VERSION = "2"
+
+
 class CacheEntry:
     """Entrada individual de caché con metadata."""
     def __init__(self, key: str, value: Any, ttl_seconds: int = 300):
@@ -201,6 +206,23 @@ class RouterCache:
         self.max_size = max_size
         self.persist_path = persist_path or Paths.DATA / "router_cache.json"
         self.enable_l2 = enable_l2
+        # ✅ 2026-11-25: si cambia el esquema de ruteo, purgar cachés viejas
+        # (caso real: "VGB Córdoba" quedó cacheado como Córdoba y se respondía
+        # lo almacenado aunque el extractor ya estaba corregido).
+        try:
+            _schema = Paths.CACHE / ".cache_schema"
+            _actual = _schema.read_text(encoding="utf-8").strip() if _schema.exists() else ""
+            if _actual != CACHE_SCHEMA_VERSION:
+                for _f in (Paths.CACHE / "router_l2.db", self.persist_path):
+                    try:
+                        _f.unlink(missing_ok=True)
+                    except OSError as _fe:
+                        logger.debug("[CACHE] no pude borrar %s: %s", _f, _fe)
+                _schema.parent.mkdir(parents=True, exist_ok=True)
+                _schema.write_text(CACHE_SCHEMA_VERSION, encoding="utf-8")
+                logger.warning("RouterCache: caché vieja invalidada (schema %s)", CACHE_SCHEMA_VERSION)
+        except OSError as _ce:
+            logger.debug("[CACHE] no pude invalidar schema: %s", _ce)
 
         # L1: Exact match
         self._l1_cache: OrderedDict[str, CacheEntry] = OrderedDict()
@@ -254,7 +276,8 @@ class RouterCache:
 
     def _generate_key(self, query: str) -> str:
         """Genera key hash para query (SHA256, 16 chars)."""
-        return hashlib.sha256(query.encode()).hexdigest()[:16]
+        return hashlib.sha256(
+            f"{CACHE_SCHEMA_VERSION}:{query}".encode()).hexdigest()[:16]
 
     def _restore_l1_from_l2(self) -> int:
         """Restaura L1 desde L2 SQLite al inicio (promote de las más recientes)."""

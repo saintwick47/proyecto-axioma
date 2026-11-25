@@ -19,6 +19,7 @@
 #   para garantizar consistencia y evitar AttributeError: 'str' has no 'value'
 # ═══════════════════════════════════════════════════════════════
 import logging
+import re
 import time
 from enum import Enum
 from typing import TYPE_CHECKING, Optional, Dict, Any, List, Tuple
@@ -734,6 +735,22 @@ class IntentClassifier(ClassifierExternalDataMixin):
 
         # Sin last_intent no hay contexto que aplicar
         if not context.last_intent:
+            result["metadata"]["context_boost_applied"] = False
+            return result
+
+        # ✅ G1 2026-11-25: el contexto NO puede pisar una ruta explícita
+        # (web_search/code_generation/weather/finance/file/system). Antes,
+        # "buscá la web..." (conf 0.60) heredaba finance del turno anterior.
+        _hard_base = {"web_search", "code_generation", "weather_query",
+                      "finance_query", "file_search", "system_control"}
+        if base_task in _hard_base:
+            result["metadata"]["context_boost_applied"] = False
+            return result
+        # Un chat genérico sin señal de continuación tampoco debe heredar
+        # finanzas/clima del turno anterior ("contame algo interesante").
+        if base_task == "general_chat" and not re.search(
+                r"\b(y|tambien|entonces|eso|esto|ahi|asi|manana|hoy|el|la)\b",
+                text.lower()):
             result["metadata"]["context_boost_applied"] = False
             return result
 

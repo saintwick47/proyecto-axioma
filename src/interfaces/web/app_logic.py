@@ -258,6 +258,8 @@ def _validation_state(passed: bool, response_meta: Dict[str, Any]) -> str:
     veredicto todavía no existe: antes eso se mostraba como 'no_aplicada' (una
     mentira por omisión). Ahora se distingue "se está validando" de "no se validó".
     """
+    if response_meta.get('validation_disabled_by_flag'):
+        return 'omitida'
     if passed:
         return 'aprobada'
     if response_meta.get('validation_failed'):

@@ -70,7 +70,8 @@ class ClassifierKeywordRulesMixin:
         # Normalizamos acá para no depender de que el caller lo haga bien.
         text_lower = self._preprocess_text(processed_text)
         if len(text_lower) < 20:
-            if any(g in text_lower for g in ["hola", "hello", "hi", "buenos", "buenas"]):
+            # ✅ Plan ruteo Fase 1: "hi" como substring matcheaba "chiste".
+            if re.search(r"\b(hola|hello|hi|buenos|buenas)\b", text_lower):
                 return True
         for pattern in GREETING_PATTERNS:
             if re.match(pattern, text_lower, re.I):
@@ -106,6 +107,18 @@ class ClassifierKeywordRulesMixin:
         # función que calcule el precio…", "Generá tests… que deba validar…")
         # no debe perder contra un FP de explanation/quality. "Explicá qué
         # hace…" no tiene verbo de CODE_VERBS → sigue por explanation.
+        # ✅ 2026-11-24: pedido de CREAR un artefacto de código → CODE_GENERATION.
+        # Una sola regla estructural, antes de probar/busca/test.
+        if re.search(
+                r"\b(crea|creá|genera|generá|escribí|escribe|arma|armá|implementa|"
+              r"desarrolla|escribime|haceme|necesito|creame|generame|armame|programame)\b",
+                processed_text, re.I) and re.search(
+                r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|app|aplicaci[oó]n)\b|\.py\b",
+                processed_text, re.I):
+            duration = time.perf_counter() - start
+            _log_router(processed_text[:50], TaskType.CODE_GENERATION.value,
+                        "code_creation", 0.9, duration=duration)
+            return TaskType.CODE_GENERATION.value, 0.9
         code_verb_matches = self._set_keyword_count(CODE_VERBS, processed_text)
         code_context_matches = self._set_keyword_count(CODE_CONTEXT_KEYWORDS, processed_text)
         if code_verb_matches > 0 and code_context_matches >= 1:

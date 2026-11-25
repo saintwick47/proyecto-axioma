@@ -19,6 +19,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 import logging
 import asyncio
+import re
 import time
 import traceback
 import hashlib
@@ -27,6 +28,7 @@ from datetime import datetime, timezone
 
 from src.domain.entities import Message, Response
 from config.settings import settings
+from src.router.cache import CACHE_SCHEMA_VERSION
 from src.core.dispatcher_handlers import _log_event, _log_error
 
 # ✅ v0.6.9v (REFACTOR 50/50): guard + write-path de memoria extraídos a
@@ -132,7 +134,16 @@ def _is_system_command_intent(query: str) -> bool:
         from src.agents.system_agent import DISPATCHER_ROUTING_VERBS
     except ImportError:
         return False
-    return first in DISPATCHER_ROUTING_VERBS
+    if first not in DISPATCHER_ROUTING_VERBS:
+        return False
+    rest = " ".join(words[1:]).strip(".,!?:;¿¡").lower()
+    if first in {"abrir", "abrí", "abri", "abre", "lanzar", "lanzá", "lanza", "cerrar", "cerrá", "cerra", "cierra"}:
+        return bool(re.search(r"\b(app|aplicaci[oó]n|navegador|firefox|chrome|terminal|ventana|programa|editor|calculadora)\b", rest))
+    if first in {"archivos", "listar", "listá", "lista", "copiar", "copiá", "copia", "mover", "moví", "movi", "mueve", "eliminar", "eliminá", "elimina", "borrar", "borrá", "borra"}:
+        return bool(re.search(r"\b(archivo|carpeta|directorio|ruta|portapapeles|clipboard)\b|[/~]", rest))
+    if first == "volumen":
+        return bool(re.search(r"\d|sub[ií]|baj[aá]|pon[eé]", rest))
+    return True
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -400,7 +411,7 @@ class DispatcherProcessMixin(DispatcherProcessStepsMixin, DispatcherProcessGuard
         # cualquiera de los dos y la entrada ya no aplica.
         _ctx_firma = self._firma_contexto(session_id, message.content)
         _rcache_key = hashlib.sha256(
-            f"{message.content}\x00{_ctx_firma}\x00{settings.llm_default_model}".encode()
+            f"{CACHE_SCHEMA_VERSION}\x00{message.content}\x00{_ctx_firma}\x00{settings.llm_default_model}".encode()
         ).hexdigest()
         if not settings.cache_respuestas_enabled:
             _rcache_key = None      # caché de respuesta desactivada por configuración
