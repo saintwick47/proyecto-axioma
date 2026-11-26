@@ -31,9 +31,8 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 En **Windows** hace falta Docker Desktop con **WSL 2**; los instaladores y el demonio de voz se prueban en cada cambio sobre un Windows real (runner de GitHub Actions). Ahí AXIOMA usa el puerto **8080** y la **voz del contenedor no está disponible**; sí existe un **demonio nativo** que usa la voz de Windows
 (`instalar/rafael_windows.ps1`, ver [`MANUAL_RAFAEL.md`](MANUAL_RAFAEL.md)). El chat y los modelos funcionan igual. En **macOS** el instalador todavía se ejecuta desde una consola.
 
-> **Versión probada:** AXIOMA se validó con **Docker Engine 29.10.0** y **Docker Compose 5.8.0**.
-> La última estable es **Engine 29.10.1** (24/11/2026), con parches de seguridad; se recomienda actualizar
-> Docker Desktop cuando esté disponible. Compose 5.8.0 ya es la última.
+> **Versión probada:** AXIOMA se validó con **Docker Engine 29.10.1** y **Docker Compose 5.8.0**.
+> Engine 29.10.1 incluye los parches de seguridad del 24/11/2026; Compose 5.8.0 es la última.
 
 Con menos de 16 GB **igual funciona**: AXIOMA te avisa de la restricción concreta. Con una placa de video
 con memoria suficiente, el modelo más pesado se aloja en la placa y AXIOMA trabaja **en paralelo** en vez de

@@ -33,8 +33,8 @@
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | 🟢 En desarrollo activo | `main` · último tag `v0.7.9` | MIT | Linux · **Windows** (Docker Desktop) · macOS · Python 3.14 (contenedor y desarrollo) | Ollama (local) | — |
 
-> **Docker:** probado con **Engine 29.10.0** y **Compose 5.8.0** (2026-11-26). La última estable es
-> **Engine 29.10.1** (parches de seguridad del 24/11/2026); Compose 5.8.0 es la última.
+> **Docker:** probado con **Engine 29.10.1** y **Compose 5.8.0** (2026-11-26). Actualizado el 26/11/2026
+> con los parches de seguridad de Engine 29.10.1; Compose 5.8.0 es la última.
 
 > **Ollama:** probado con **0.40.16** (y 0.30.0); se instala aparte, no se versiona con el
 > código. Mediciones y decisiones de rendimiento: [`RENDIMIENTO_MEDICIONES.md`](RENDIMIENTO_MEDICIONES.md).
