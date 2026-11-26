@@ -20,7 +20,7 @@ def test_la_raiz_del_proyecto_es_la_carpeta_del_archivo():
     """B1: el punto de entrada tiene que usar SU carpeta, no la del autor.
 
     Medido el 2026-10-04: corriendo una copia en `/tmp/axioma_fase0`, `main.py --check`
-    informaba y **escribía** en `/ruta/a/axioma` (la carpeta original).
+    informaba y **escribía** en `/home/saintwick/Escritorio/axioma` (la carpeta original).
     """
     import importlib
     main = importlib.import_module("main")
@@ -102,12 +102,12 @@ def test_no_quedan_rutas_del_autor_en_codigo_ejecutable():
         nodos = list(ast.walk(ast.parse(py.read_text(encoding="utf-8", errors="ignore"))))
         docs = {id(n.value) for n in nodos if isinstance(n, ast.Expr)}
         malas += [f"{py.relative_to(PROJECT_ROOT)}:{n.lineno}" for n in nodos
-                  if isinstance(n, ast.Constant) and "/usuario" in str(n.value)
+                  if isinstance(n, ast.Constant) and "/home/saintwick" in str(n.value)
                   and id(n) not in docs]
     assert malas == [], f"rutas del autor en código que se ejecuta: {malas}"
 
     def con_ruta(texto):
-        return any(("/usuario" in ln or "Escritorio" in ln)
+        return any(("/home/saintwick" in ln or "Escritorio" in ln)
                    and not ln.lstrip().startswith("#") for ln in texto.splitlines())
 
     yamls = [y.name for y in (PROJECT_ROOT / "config").glob("*.y*ml")
@@ -422,7 +422,7 @@ def test_los_guiones_de_windows_estan_en_utf8_con_bom_y_sin_emoji():
                         if not any(a <= ord(ch) <= b for a, b in permitido)})
         assert raros == [], (
             f"{nombre} usa {raros}: la consola de Windows (CP850/CP437) los imprime como «?»")
-        assert "/usuario" not in texto and "saintwick" not in texto.lower(), (
+        assert "/home/saintwick" not in texto and "saintwick" not in texto.lower(), (
             f"{nombre} nombra al autor")
 
 
@@ -658,7 +658,8 @@ def test_el_ci_prueba_los_instaladores_en_un_windows_de_verdad():
     # Tiene que ejecutar los guiones de verdad (no sólo leerlos).
     assert 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File' in texto, \
         "el comprobador tiene que ejecutar los guiones como lo hace el acceso directo"
-    for esperado in ("-Ensayo", "Docker Desktop no está disponible", "axioma-puente"):
+    for esperado in ("-Ensayo", "Docker Desktop (no está disponible|no está instalado)",
+                     "Docker está instalado pero no llegó a responder", "axioma-puente"):
         assert esperado in texto, f"el comprobador no comprueba: {esperado}"
 
     ci = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
