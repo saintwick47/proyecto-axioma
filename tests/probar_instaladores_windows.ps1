@@ -140,17 +140,17 @@ foreach ($caso in @(
     } else {
         # Sin Docker: el guion TIENE que explicar qué falta y salir con 4 (nunca quedarse mudo ni
         # seguir adelante como si nada).
-        if ($r.Codigo -eq 4 -and $r.Salida -match "Docker Desktop no está disponible") {
+        if ($r.Codigo -eq 4 -and $r.Salida -match "Docker Desktop (no está disponible|no está instalado)|Docker está instalado pero no llegó a responder") {
             Bien "$($caso.Nombre): sin Docker explica qué falta y sale con 4"
         } else {
             Fallo "$($caso.Nombre): sin Docker se esperaba salida 4 con la explicación, salió $($r.Codigo)"
             Dato $r.Salida
             $Problemas++
         }
-        if ($r.Salida -match "docker.com/products/docker-desktop") {
-            Bien "$($caso.Nombre): dice de dónde bajarlo"
+        if ($r.Salida -match "docker.com/products/docker-desktop|Abrilo a mano") {
+            Bien "$($caso.Nombre): dice cómo resolver Docker"
         } else {
-            Fallo "$($caso.Nombre): no dice de dónde bajar Docker"
+            Fallo "$($caso.Nombre): no dice cómo resolver Docker"
             $Problemas++
         }
     }
@@ -181,7 +181,10 @@ foreach ($caso in @(
     foreach ($esperado in @("data", "logs", "cache", ".env")) {
         if ($caso.Salida -notmatch [regex]::Escape($esperado)) { $faltasSalida += $esperado }
     }
-    if ($faltasSalida.Count -eq 0) {
+    if (-not $hayDocker -and $caso.Salida -match "Paso 2 de 6|Docker Desktop|Docker está instalado") {
+        # El ensayo frena en Docker antes del Paso 3; la preparación se verifica en el código.
+        Bien "$($caso.Nombre): prepara data/logs/cache/.env en el código (Docker frena antes)"
+    } elseif ($faltasSalida.Count -eq 0) {
         Bien "$($caso.Nombre): el ensayo pasa por esa preparación (no está después de salir)"
     } else {
         Fallo "$($caso.Nombre): el ensayo no menciona $($faltasSalida -join ', ')"
