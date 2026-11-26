@@ -25,6 +25,9 @@
 #     docker compose exec axioma python -m src.core.preflight     # ¿qué le falta?
 #     docker compose down                   # detener
 
+# Probado con Docker Engine 29.10.0 y Docker Compose 5.8.0 (2026-11-26).
+# Última estable: Engine 29.10.1 (parches de seguridad); Compose 5.8.0.
+
 services:
   axioma:
     build:
