@@ -108,22 +108,13 @@ def _is_analysis_intent(query: str) -> bool:
 # "abrí nautilus", etc. caen a general_chat/web_search y nunca llegan a
 # SystemAgent.
 # ═══════════════════════════════════════════════════════════════
-def _is_system_command_intent(query: str) -> bool:
-    """
-    True si la primera palabra de la query es un verbo de SystemAgent
-    sin colisión conocida con el classifier — ver DISPATCHER_ROUTING_VERBS
-    en system_agent.py (el comentario ahí lista las 3 categorías excluidas
-    por colisión con KEYWORD_MAP o por depender de contexto de sesión:
-    write_file/take_screenshot/verdict_*).
+_SYS_ABSTRACT = re.compile(
+    r"\b(tema|conversaci[oó]n|chat|debate|discusi[oó]n|sesi[oó]n|caso|asunto|"
+    r"puerta|cuenta|pregunta|negocio|ciclo|etapa|cap[ií]tulo|ronda|esto|eso|di[aá]logo)\b")
 
-    Mismo criterio que SystemAgent._parse_intent(): match EXACTO de
-    palabra, no substring — "listá" matchea, "listado" no. A diferencia
-    de _parse_intent (que tolera relleno antes del verbo, "por favor
-    eliminá X"), acá solo se mira la PRIMERA palabra — más estricto a
-    propósito, para minimizar falsos positivos a nivel de ruteo, donde
-    una clasificación equivocada es más cara que un parámetro mal
-    extraído dentro de un agente ya elegido.
-    """
+
+def _is_system_command_intent(query: str) -> bool:
+    """True si la primera palabra es un verbo de sistema y el objeto no es abstracto."""
     if not query:
         return False
     words = query.strip().split()
@@ -136,10 +127,14 @@ def _is_system_command_intent(query: str) -> bool:
         return False
     if first not in DISPATCHER_ROUTING_VERBS:
         return False
-    rest = " ".join(words[1:]).strip(".,!?:;¿¡").lower()
-    if first in {"abrir", "abrí", "abri", "abre", "lanzar", "lanzá", "lanza", "cerrar", "cerrá", "cerra", "cierra"}:
-        return bool(re.search(r"\b(app|aplicaci[oó]n|navegador|firefox|chrome|terminal|ventana|programa|editor|calculadora)\b", rest))
-    if first in {"archivos", "listar", "listá", "lista", "copiar", "copiá", "copia", "mover", "moví", "movi", "mueve", "eliminar", "eliminá", "elimina", "borrar", "borrá", "borra"}:
+    rest = " ".join(words[1:]).strip(".,!?:;¿¡ ").lower()
+    if first in {"abrir", "abrí", "abri", "abre", "lanzar", "lanzá", "lanza",
+                 "cerrar", "cerrá", "cerra", "cierra"}:
+        return (bool(rest) and not _SYS_ABSTRACT.search(rest)
+                and len(rest.split()) <= 5)
+    if first in {"archivos", "listar", "listá", "lista", "copiar", "copiá", "copia",
+                 "mover", "moví", "movi", "mueve", "eliminar", "eliminá", "elimina",
+                 "borrar", "borrá", "borra"}:
         return bool(re.search(r"\b(archivo|carpeta|directorio|ruta|portapapeles|clipboard)\b|[/~]", rest))
     if first == "volumen":
         return bool(re.search(r"\d|sub[ií]|baj[aá]|pon[eé]", rest))

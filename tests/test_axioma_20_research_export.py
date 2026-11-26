@@ -824,3 +824,93 @@ class TestConversationExport:
               or "&lt;b&gt;" in html_document.md_to_html_body("<b>x</b>"),
               html_document.md_to_html_body("<b>x</b>"), SECTION_2)
         assert re_mod._md_body_to_html is html_document.md_to_html_body
+
+
+def test_sistema_acepta_apps_y_objetos_concretos():
+    from src.core.dispatcher_process import _is_system_command_intent
+    for q in ("abrí spotify", "abrí vscode", "abrí whatsapp", "abrí steam",
+              "cerrá discord", "abrí la carpeta Descargas",
+              "cerrá todas las ventanas", "abrí el explorador de archivos"):
+        assert _is_system_command_intent(q), q
+
+
+def test_sistema_rechaza_objetos_abstractos():
+    from src.core.dispatcher_process import _is_system_command_intent
+    for q in ("cerrá el tema, gracias", "copiá este texto y mejoralo",
+              "borrá lo último que dijiste", "abrí la puerta"):
+        assert not _is_system_command_intent(q), q
+
+
+def test_codigo_no_confunde_info_ni_clases_no_tecnicas():
+    from src.router.classifier import IntentClassifier
+    c = IntentClassifier()
+    for q in ("Necesito saber qué hace esta función", "necesito una clase de matemática",
+              "haceme una clase de yoga", "generame un código de descuento"):
+        assert c.classify(q)["task_type"] != "code_generation", q
+    for q in ("necesito un programa que sume", "creá un script en bash",
+              "necesito una función en python"):
+        assert c.classify(q)["task_type"] == "code_generation", q
+
+
+def test_finanzas_no_confunde_palabras_comunes():
+    from src.router.classifier import IntentClassifier
+    c = IntentClassifier()
+    for q in ("el cambio climático es real", "necesito un cambio de look",
+              "lavarse las manos", "Marsella es una ciudad"):
+        assert c.classify(q)["task_type"] != "finance_query", q
+    assert c.classify("necesito 100 USD")["task_type"] == "finance_query"
+
+
+def test_tool_executor_coerciona_args_json():
+    """P0: max_results='5' del modelo no debe llegar como string al slice."""
+    from src.tools_mcp.tool_base import ToolParam, ToolSchema
+    from src.tools_mcp.tool_executor import ToolExecutor
+
+    class _Tool:
+        name = "web_search"
+        schema = ToolSchema(name="web_search", description="demo",
+                            params=[ToolParam("max_results", "int", "máximo", False, 5)])
+
+    assert ToolExecutor._coerce_tool_kwargs(_Tool(), {"max_results": "5"}) == {"max_results": 5}
+    assert ToolExecutor._coerce_tool_kwargs(_Tool(), {"max_results": "no"}) == {"max_results": 5}
+
+
+def test_tool_executor_no_inyecta_none_en_required():
+    """Borde P0: required int sin default no debe quedar en None (slice abierto)."""
+    from src.tools_mcp.tool_base import ToolParam, ToolSchema
+    from src.tools_mcp.tool_executor import ToolExecutor
+
+    class _Tool:
+        name = "demo"
+        schema = ToolSchema(name="demo", description="demo",
+                            params=[ToolParam("max_results", "int", "x")])
+
+    assert "max_results" not in ToolExecutor._coerce_tool_kwargs(_Tool(), {"max_results": None})
+    assert "max_results" not in ToolExecutor._coerce_tool_kwargs(_Tool(), {"max_results": "no"})
+
+
+def test_detailed_logger_redacta_request_kwargs():
+    """La key anidada en el frame dump no debe quedar en texto plano."""
+    from tools.detailed_logger import DetailedLogger
+
+    def _falla():
+        request_kwargs = {"json": {"api_key": "tvly-dev-abcdefghijklmnopqrstuvwxyz123456"}}
+        assert request_kwargs
+        raise RuntimeError("fallo simulado")
+
+    try:
+        _falla()
+    except RuntimeError as exc:
+        dump = repr(DetailedLogger._get_frame_locals(exc))
+    assert "tvly-" not in dump
+    assert "[REDACTED]" in dump
+
+
+def test_clima_sin_ciudad_no_inventa_ubicacion():
+    """Clima sin ciudad debe caer a geolocalización/default, no a 'Hace'/'Mi Ubicación'."""
+    from src.handlers.data_fetchers_weather import WeatherFetcherMixin
+    from src.router.classifier import IntentClassifier
+
+    for q in ("¿Qué clima hace?", "¿Qué clima hace en mi ubicación?", "clima", "¿qué tiempo hace?"):
+        assert WeatherFetcherMixin.extract_city(q) is None, q
+    assert IntentClassifier().classify("clima")["task_type"] == "weather_query"

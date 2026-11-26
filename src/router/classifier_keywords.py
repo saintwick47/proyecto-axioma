@@ -346,7 +346,7 @@ FINANCE_KEYWORDS: Set[str] = {
     # ✅ Plan ruteo Fase 1: monedas ambiguas (peso/libra/euro/blue/bolsa) fuera;
     # las resuelve el detector de co-ocurrencia (clima/finanzas).
     'dolar', 'dólar', 'argenpesos', 'cotizacion', 'cotización',
-    'bitcoin', 'crypto', 'cripto', 'usd', 'ars', 'tasa', 'cambio', 'divisa',
+    'bitcoin', 'crypto', 'cripto', 'usd', 'ars', 'tasa', 'divisa',
 }
 
 # v4.6.0: "articulo" eliminado (ya no está en KEYWORD_MAP)
@@ -363,6 +363,7 @@ _WORD_BOUNDARY_KEYWORDS: Set[str] = {
     "jarvis", "axioma", "autonoma", "autonomamente",
     "geolocalización", "geolocalizacion",
     "ubicación", "ubicacion", "localización", "localizacion",
+    "ars", "usd", "tasa", "cambio", "divisa",
 }
 
 TRAINING_EXAMPLES: Dict[str, List[str]] = {

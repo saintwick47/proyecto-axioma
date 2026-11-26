@@ -49,20 +49,22 @@ _SECRET_VALUE_PATTERNS = [
     re.compile(r'AKIA[A-Z0-9]{16}'),                        # AWS access key
     re.compile(r'ghp_[A-Za-z0-9]{30,}'),                    # GitHub token
     re.compile(r'xox[baprs]-[A-Za-z0-9-]{10,}'),            # Slack token
-    re.compile(r'Bearer\s+[A-Za-z0-9._-]{15,}', re.IGNORECASE),
+    re.compile(r'tvly-[A-Za-z0-9_-]{16,}'),                 # Tavily
+    re.compile(r'Bearer\\s+[A-Za-z0-9._-]{15,}', re.IGNORECASE),
 ]
-
+_SECRET_ASSIGN_RE = re.compile(
+    r"(?i)(api[_-]?key|token|secret|password|authorization)"
+    r"(['\"]?\\s*[:=]\\s*['\"])([^'\"]{6,})")
 
 def _redact_value(name: str, value_repr: str) -> str:
-    """Redacta value_repr si `name` sugiere un secreto o si el contenido
-    matchea un patrón de secreto conocido. No toca nada más — el resto
-    de la variable (u otras variables) se loguea igual que antes."""
+    """Redacta secretos por nombre y por contenido (incluye dicts anidados)."""
     if any(hint in name.lower() for hint in _SENSITIVE_NAME_HINTS):
         return "[REDACTED]"
-    redacted = value_repr
+    redacted = _SECRET_ASSIGN_RE.sub(r"\1\2[REDACTED]", value_repr)
     for pattern in _SECRET_VALUE_PATTERNS:
         redacted = pattern.sub("[REDACTED]", redacted)
     return redacted
+
 
 # ============================================================================
 # CONFIGURACIÓN — RUTAS DERIVADAS DEL PROYECTO (portátiles)
@@ -357,8 +359,9 @@ class DetailedLogger:
                     continue
                 try:
                     s = repr(v)
-                    s = s[:120] + "..." if len(s) > 120 else s
-                    result[k] = _redact_value(k, s)
+                    s = _redact_value(k, s)
+                    s = s[:120] + '...' if len(s) > 120 else s
+                    result[k] = s
                 except Exception:
                     result[k] = "<repr error>"
             return result
@@ -438,7 +441,7 @@ class DetailedLogger:
         try:
             tb_lines = traceback.format_exception(type(error), error, error.__traceback__)
             for line in tb_lines[:self.config.MAX_TRACEBACK_LINES]:
-                body.append(f"  {line}")
+                body.append(f"  {_redact_value('traceback', line)}")
             if len(tb_lines) > self.config.MAX_TRACEBACK_LINES:
                 body.append(f"  ... ({len(tb_lines) - self.config.MAX_TRACEBACK_LINES} líneas omitidas)\n")
         except Exception as tb_err:

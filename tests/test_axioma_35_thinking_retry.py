@@ -5,8 +5,8 @@
 # "Thinking SÓLO si falla" (2026-10-27). Con `chat_disable_thinking` activo,
 # un modelo con razonamiento puede gastar TODO `num_predict` en el "thinking" y
 # devolver la respuesta VACÍA. Medido con qwen3.5:9b y 200 tokens: 200 de
-# razonamiento y `response=""`. Antes eso llegaba al usuario como respuesta en
-# blanco; ahora se reintenta UNA vez con `think: True` y el doble de presupuesto.
+# razonamiento y `response=""`. Se reintenta UNA vez SIN thinking y con el doble
+# de presupuesto: reactivar thinking desviaba a tools (2026-11-26).
 #
 # Autorizado por el tope R13: `test_axioma_02_core.py` (946), `test_axioma_03`
 # (948) y `test_axioma_22` (949) están al límite de 950 líneas.
@@ -48,7 +48,7 @@ def test_respuesta_fallida_detecta_vacio_y_solo_vacio():
     assert cb.OllamaClientBase._respuesta_fallida({"response": "3"}) is False
 
 
-def test_generate_reintenta_con_thinking_si_la_respuesta_viene_vacia(monkeypatch):
+def test_generate_reintenta_sin_thinking_si_la_respuesta_viene_vacia(monkeypatch):
     cli = _cliente()
     cli.is_first_request = False
     sesion = _SesionFalsa()
@@ -69,7 +69,7 @@ def test_generate_reintenta_con_thinking_si_la_respuesta_viene_vacia(monkeypatch
     assert r.content == "3"
     assert len(payloads) == 2, "tiene que haber reintentado una vez"
     assert payloads[0].get("think") is False, "el primer intento NO usa thinking"
-    assert payloads[1].get("think") is True, "el reintento SÍ usa thinking"
+    assert payloads[1].get("think") is False, "el reintento NO debe reactivar thinking"
     assert payloads[1]["options"]["num_predict"] > payloads[0]["options"]["num_predict"]
 
 

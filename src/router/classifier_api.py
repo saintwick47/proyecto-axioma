@@ -77,10 +77,10 @@ _W_CTX = re.compile(
 )
 _W_NO = re.compile(r"\b(reunion|ambiente|clima laboral|equipo)\b")
 
-_F_UNI = re.compile(r"\b(dolar(es)?|bitcoin|ethereum|cripto(moneda)?s?|riesgo pais|cotizacion|cotiza(r|n)?)\b")
-_F_CUR = re.compile(r"\b(euro(s)?|peso(s)?|libra(s)?|yen|real(es)?|blue|mep|ccl|usd|ars|bolsa|merval|acciones)\b")
+_F_UNI = re.compile(r"\b(dolar(es)?|bitcoin|ethereum|cripto(moneda)?s?|riesgo pais|tipo de cambio|cotizacion|cotiza(r|n)?)\b")
+_F_CUR = re.compile(r"\b(euro(s)?|peso(s)?|libra(s)?|yen|real(es)?|blue|mep|ccl|usd|ars|bolsa|merval)\b")
 _F_SIG = re.compile(
-    r"\b(cotiz\w*|precio|cuanto (vale|cuesta|esta|sale|cotiza)|a cuanto|valor del|tasa|cambio"
+    r"\b(cotiz\w*|precio|cuanto (vale|cuesta|esta|sale|cotiza)|a cuanto|valor del|tasa|tipo de cambio|divisa"
     r"|convert\w*|equivale\w*|\d+ (dolares|euros|pesos))\b|cuantos (pesos|dolares|euros) son"
 )
 _F_NO = re.compile(
@@ -114,6 +114,14 @@ def _is_finance_normalized(t: str) -> bool:
     if _F_UNI.search(t):
         return True
     return bool(_F_CUR.search(t) and _F_SIG.search(t))
+
+
+_CODE_INFO = re.compile(
+    r"\b(saber|entender|explic\w*|qu[eé] hace|para qu[eé] sirve|"
+    r"c[oó]mo funciona|significa)\b")
+_CODE_NOCODE = re.compile(
+    r"\b(de (matem[aá]tica|yoga|radio|entrenamiento|descuento|ejercicio|"
+    r"cocina|baile)|postal|pel[ií]cula|gimnasio)\b")
 
 
 class APIDetector:
@@ -349,10 +357,20 @@ class APIDetector:
     def _is_code_creation_request(self, text: str) -> bool:
         """True si pide CREAR un programa/script/función (aunque diga "en busca de")."""
         t = text.lower()
+        if _CODE_INFO.search(t) or _CODE_NOCODE.search(t):
+            return False
         verbo = (r"\b(crea|creá|genera|generá|escribí|escribe|arma|armá|implementa|"
                  r"desarrolla|escribime|haceme|necesito|creame|generame|armame|programame)\b")
-        sustantivo = r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|aplicaci[oó]n|app)\b"
-        return bool(re.search(verbo, t, re.I) and re.search(sustantivo, t, re.I))
+        sustantivo = (r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|"
+                      r"aplicaci[oó]n|app|tests?|pruebas?|bot)\b")
+        if not (re.search(verbo, t, re.I) and re.search(sustantivo, t, re.I)):
+            return False
+        return not (
+            re.search(r"\b(app|aplicaci[oó]n)\b", t, re.I)
+            and not re.search(r"\b(python|bash|java|javascript|js|typescript|"
+                              r"c\+\+|rust|go|sql|php|ruby|powershell|html|css)\b|\.py\b",
+                              t, re.I))
+
 
     def _is_code_prompt(self, text: str) -> bool:
         """
@@ -406,6 +424,10 @@ class APIDetector:
                 {"reason": "contexto técnico detectado, weather descartado"}
             )
             return False
+
+        if re.fullmatch(r"(el |que )?clima", text_normalized.strip()):
+            _log_classifier_api("weather_query", True, "bare_clima", text, {})
+            return True
 
         result = _is_weather_normalized(text_normalized)
         if result:

@@ -222,6 +222,37 @@ class ToolExecutor:
         self._executor_initialized = True
         logger.info("ToolExecutor inicializado")
 
+    @staticmethod
+    def _coerce_tool_kwargs(tool: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Convierte args JSON al tipo declarado en ToolParam (max_results="5")."""
+        params = {p.name: p for p in getattr(getattr(tool, "schema", None), "params", [])}
+        for name, value in list(kwargs.items()):
+            param = params.get(name)
+            if param is None:
+                continue
+            if value is None:
+                if param.default is not None:
+                    kwargs[name] = param.default
+                else:
+                    kwargs.pop(name, None)
+                continue
+            try:
+                if param.type == "int" and not isinstance(value, bool):
+                    kwargs[name] = int(value)
+                elif param.type == "float":
+                    kwargs[name] = float(value)
+                elif param.type == "bool" and not isinstance(value, bool):
+                    kwargs[name] = str(value).strip().lower() in {"1", "true", "si", "sí", "yes", "on"}
+                elif param.type == "str" and not isinstance(value, str):
+                    kwargs[name] = str(value)
+            except (TypeError, ValueError) as _ce:
+                logger.warning("[Executor] %s.%s inválido (%r): %s", tool.name, name, value, _ce)
+                if param.default is not None:
+                    kwargs[name] = param.default
+                else:
+                    kwargs.pop(name, None)
+        return kwargs
+
     # ── Ejecución principal ───────────────────────────────────────────────────
 
     async def run(
@@ -260,6 +291,9 @@ class ToolExecutor:
                 tool_name=tool_name,
                 latency_ms=latency,
             )
+
+        # Args del modelo vienen como JSON: convertir strings a int/bool.
+        kwargs = self._coerce_tool_kwargs(tool, kwargs)
 
         # ── 2. Validar permisos de sesión ────────────────────────────────
         if tool.permission_level > ctx.session_permission:

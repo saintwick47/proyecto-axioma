@@ -240,6 +240,9 @@ class WeatherFetcherMixin:
         'hoy', 'mañana', 'pasado', 'esta', 'este', 'semana',
         'actual', 'ahora', 'lunes', 'martes', 'miércoles',
         'jueves', 'viernes', 'sábado', 'domingo',
+        'hace', 'hay', 'está', 'va', 'llover', 'llueve',
+        'mi ubicación', 'mi ubicacion', 'ubicación', 'ubicacion',
+        'aquí', 'aqui', 'acá', 'aca', 'actualmente',
     }
 
     # Diccionario de normalización: variante → nombre canónico
@@ -278,6 +281,24 @@ class WeatherFetcherMixin:
         "neuquen": "Neuquén",
     }
 
+    def _ciudad_por_geolocalizacion(self, query: str) -> str:
+        """Ciudad sin mención explícita: IP/default, nunca Buenos Aires fijo."""
+        try:
+            from config.settings import settings as _settings
+            from src.utils.geolocator import get_geolocator
+            _ctx = get_geolocator(
+                use_ip_lookup=_settings.enable_ip_geolocation
+            ).get_context_for_weather(query)
+            return (_ctx.get('city')
+                    or _settings.default_location.split(',')[0].strip())
+        except Exception as _ge:
+            logger.debug('[weather] geolocalización no disponible: %s', _ge)
+            try:
+                from config.settings import settings as _settings
+                return _settings.default_location.split(',')[0].strip()
+            except Exception:
+                return 'Buenos Aires'
+
     async def fetch_weather(self, query: str) -> Dict[str, Any]:
         """
         Open-Meteo: clima en tiempo real.
@@ -291,7 +312,7 @@ class WeatherFetcherMixin:
         start = time.time()
         logger.debug(f"DataFetchers: fetch_weather started: {query[:50]}...")
 
-        city = self.extract_city(query) or "Buenos Aires"
+        city = self.extract_city(query) or self._ciudad_por_geolocalizacion(query)
         coords = await get_coordinates(city)
 
         # ✅ 2026-08-25: fallback progresivo — si el nombre completo no resuelve,
@@ -398,6 +419,8 @@ class WeatherFetcherMixin:
             match = re.search(pattern, query, re.IGNORECASE)
             if match:
                 candidate = match.group(1).strip()
+                if re.search(r'\b(hace|hay|mi ubicaci[oó]n|actualmente)\b', candidate.lower()):
+                    continue
                 # Filtrar stopwords
                 if candidate.lower() not in WeatherFetcherMixin._CITY_STOPWORDS:
                     # ✅ 2026-08-25: si el candidato contiene un nombre canónico

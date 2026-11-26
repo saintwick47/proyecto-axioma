@@ -3263,3 +3263,32 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 ---
 
 *Última actualización: 2026-03-06 | AXIOMA v0.0.1*
+
+### Guards de sistema/código/finanzas (2026-11-26)
+
+- Sistema: “abrí spotify/whatsapp/vscode”, “cerrá discord/ventanas” y “abrí la carpeta Descargas”
+  vuelven a `system_control`; objetos abstractos (“cerrá el tema”) siguen fuera.
+- Código: “necesito saber qué hace esta función”, “clase de matemática/yoga” y “código de descuento”
+  ya no van a `CoderAgent`; “creá un script en bash” sigue a `code_generation`.
+- Finanzas: `real` solo con señal de cotización; `ars/usd` con boundary (Marsella/lavarse dejan de
+  ser finanzas); “cambio de look” ya no matchea. Gold 150 → 162.
+
+### P0/P1: argumentos de tools y reintento vacío (2026-11-26)
+
+- **P0**: los args JSON del modelo se convierten al tipo declarado en `ToolParam`; `max_results="5"`
+  ya no llega a `results[:max_results]`. Defensa extra en `search_web`.
+- **P1**: el reintento por respuesta vacía mantiene `think:false` y amplía `num_predict`; no reactiva
+  thinking ni desvía a tools. Test `test_axioma_35` actualizado.
+
+### Seguridad: frame dump de logs (2026-11-26)
+
+- `_get_frame_locals` ahora redacta `tvly-*`, valores anidados de `api_key/token/secret/password/
+  authorization` y el traceback completo; redacta antes de truncar. Test de regresión.
+- **Acción del usuario:** rotar la API key de Tavily expuesta en el log; el código ya no la escribe.
+
+### Clima sin ciudad: geolocalización/default (2026-11-26)
+
+- `extract_city` rechaza verbos/frases (“hace”, “mi ubicación”) que se tomaban como ciudad.
+- Sin ciudad explícita, `fetch_weather` usa `Geolocator` (IP) y `default_location`; antes caía
+  siempre en “Buenos Aires”. “clima” solo ahora rutea a `weather_query`.
+- Verificado: “¿Qué clima hace?” → Córdoba (default/IP), no Buenos Aires; suite 28/28, gate ✅.

@@ -946,5 +946,3 @@ class TestCancelacionDeLosAgentes:
                 return False
 
         return _Ctx()
-
-

@@ -41,6 +41,14 @@ from src.router.classifier_keywords import (
 logger = logging.getLogger(__name__)
 
 
+_CODE_INFO = re.compile(
+    r"\b(saber|entender|explic\w*|qu[eé] hace|para qu[eé] sirve|"
+    r"c[oó]mo funciona|significa)\b")
+_CODE_NOCODE = re.compile(
+    r"\b(de (matem[aá]tica|yoga|radio|entrenamiento|descuento|ejercicio|"
+    r"cocina|baile)|postal|pel[ií]cula|gimnasio)\b")
+
+
 class ClassifierKeywordRulesMixin:
     """Clasificación por reglas de palabras clave.
 
@@ -109,11 +117,15 @@ class ClassifierKeywordRulesMixin:
         # hace…" no tiene verbo de CODE_VERBS → sigue por explanation.
         # ✅ 2026-11-24: pedido de CREAR un artefacto de código → CODE_GENERATION.
         # Una sola regla estructural, antes de probar/busca/test.
-        if re.search(
+        _app = re.search(r"\b(app|aplicaci[oó]n)\b", processed_text, re.I)
+        _lang = re.search(
+            r"\b(python|bash|java|javascript|js|typescript|c\+\+|rust|go|sql|php|"
+            r"ruby|powershell|html|css)\b|\.py\b", processed_text, re.I)
+        if not (_app and not _lang) and not (_CODE_INFO.search(processed_text) or _CODE_NOCODE.search(processed_text)) and re.search(
                 r"\b(crea|creá|genera|generá|escribí|escribe|arma|armá|implementa|"
               r"desarrolla|escribime|haceme|necesito|creame|generame|armame|programame)\b",
                 processed_text, re.I) and re.search(
-                r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|app|aplicaci[oó]n)\b|\.py\b",
+                r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|app|aplicaci[oó]n|tests?|pruebas?|bot)\b|\.py\b",
                 processed_text, re.I):
             duration = time.perf_counter() - start
             _log_router(processed_text[:50], TaskType.CODE_GENERATION.value,

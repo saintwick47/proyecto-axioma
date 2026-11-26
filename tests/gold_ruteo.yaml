@@ -416,3 +416,27 @@ cases:
     expect: [general_chat, brainstorming]
   - query: "gracias"
     expect: general_chat
+  - query: "Necesito saber qué hace esta función"
+    expect: [code_explanation, general_chat]
+  - query: "necesito una clase de matemática"
+    expect: [general_chat, academic_search]
+  - query: "haceme una clase de yoga"
+    expect: general_chat
+  - query: "generame un código de descuento"
+    expect: general_chat
+  - query: "el cambio climático es real"
+    expect: general_chat
+  - query: "necesito un cambio de look"
+    expect: general_chat
+  - query: "lavarse las manos"
+    expect: general_chat
+  - query: "Marsella es una ciudad"
+    expect: general_chat
+  - query: "escribime tests para sumar"
+    expect: code_generation
+  - query: "programame un bot en python"
+    expect: code_generation
+  - query: "necesito una app para pedir comida"
+    expect: general_chat
+  - query: "tipo de cambio hoy"
+    expect: finance_query

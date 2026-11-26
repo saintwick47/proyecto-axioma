@@ -539,24 +539,26 @@ class OllamaClientBase:
 
                 # ✅ 2026-10-27: "thinking SÓLO si falla". Si el primer intento vuelve
                 # vacío (el razonamiento consumió todo `num_predict`), se reintenta UNA
-                # vez con thinking habilitado y el doble de presupuesto. Sólo aplica a
-                # modelos con razonamiento y cuando el flag base era `think: False`.
+                  # vez SIN thinking y con el doble de presupuesto.
+                  # modelos con razonamiento cuando el flag base era think:false.
                 if (self._respuesta_fallida(data) and payload.get("think") is False
                         and not stream):
-                    payload_thinking = dict(payload)
-                    payload_thinking["think"] = True
+                    payload_retry = dict(payload)
+                    # ✅ 2026-11-26: no reactivar thinking en el vacío (desviaba a tools);
+                    # mantener think:false y ampliar el presupuesto.
+                    payload_retry["think"] = False
                     opciones = dict(payload.get("options") or {})
                     opciones["num_predict"] = int(effective_max_tokens * 2)
-                    payload_thinking["options"] = opciones
+                    payload_retry["options"] = opciones
                     _log_event(
                         "OLLAMA_CLIENT",
-                        "Respuesta vacía con thinking desactivado: reintento con thinking",
+                        "Respuesta vacía: reintento sin thinking y más presupuesto",
                         level="WARNING",
                         extra={"model": self.model, "task_type": task_type,
                                "num_predict_original": effective_max_tokens,
                                "num_predict_reintento": opciones["num_predict"]},
                     )
-                    data = _datos_de_generacion(session, payload_thinking, effective_timeout,
+                    data = _datos_de_generacion(session, payload_retry, effective_timeout,
                                                 token_cancelacion_actual())
                 self.circuit_breaker.record_success()
                 ollama_response = OllamaResponse(

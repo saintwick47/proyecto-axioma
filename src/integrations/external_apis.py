@@ -448,6 +448,10 @@ class ExternalAPIManager:
            El AST puede resolver estáticamente cada rama del match.
            El flujo Data Handler pasa de [⚠️ PARCIAL] a [✅ CONECTADO].
         """
+        try:
+            max_results = int(max_results)
+        except (TypeError, ValueError):
+            max_results = 5
         start = time.time()
         _log_event("INTEGRATION", f"search_web() started: query='{query[:50]}...', max_results={max_results}")
         available = self._get_available_apis()
