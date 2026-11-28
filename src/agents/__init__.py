@@ -193,3 +193,74 @@ def health_check() -> Dict[str, bool]:
 # ═══════════════════════════════════════════════════════════════
 # ✅ ARCHIVO COMPLETO — 185 LÍNEAS — SIN OMISIONES — PROTOCOLO CUMPLIDO
 # ═══════════════════════════════════════════════════════════════
+
+
+def host_bridge_request(text: str, timeout: float = 90.0):
+    """Cliente del bridge del host. Devuelve dict o None si no hay bridge."""
+    import json
+    import os
+    import socket
+
+    if os.environ.get("AXIOMA_HOST_BRIDGE_SERVER"):
+        return None
+    path = os.environ.get("AXIOMA_HOST_BRIDGE_SOCKET", "/tmp/axioma-host/bridge.sock")
+    if not os.path.exists(path):
+        return None
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout)
+            sock.connect(path)
+            sock.sendall((json.dumps({"text": text}, ensure_ascii=False) + "\n").encode())
+            data = b""
+            while not data.endswith(b"\n"):
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                data += chunk
+        return json.loads(data.decode()) if data else None
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def host_bridge_server(socket_path: str | None = None) -> int:
+    """Servidor del host: ejecuta SystemAgent con DISPLAY/apps reales."""
+    import json
+    import logging
+    import os
+    import socketserver
+    from pathlib import Path
+
+    os.environ["AXIOMA_HOST_BRIDGE_SERVER"] = "1"
+    socket_path = socket_path or os.environ.get(
+        "AXIOMA_HOST_BRIDGE_SOCKET", "/tmp/axioma-host/bridge.sock")
+    Path(socket_path).parent.mkdir(parents=True, exist_ok=True)
+    try:
+        Path(socket_path).unlink()
+    except FileNotFoundError:
+        logging.getLogger(__name__).debug("host bridge: socket previo inexistente")
+
+    from src.agents.system_agent import SystemAgent
+    from src.domain.entities import Message
+
+    agent = SystemAgent()
+
+    class _Handler(socketserver.StreamRequestHandler):
+        def handle(self) -> None:
+            try:
+                req = json.loads(self.rfile.readline().decode() or "{}")
+                msg = Message(content=req.get("text", ""))
+                result = agent.execute(msg, session_id=req.get("session_id", "host-bridge"))
+                payload = {"success": bool(result.success), "content": result.content or "",
+                           "error": result.error}
+            except Exception as exc:  # el bridge no debe caerse por una orden
+                payload = {"success": False, "content": "", "error": f"host-bridge: {exc}"}
+            self.wfile.write((json.dumps(payload, ensure_ascii=False) + "\n").encode())
+
+    class _Server(socketserver.ThreadingUnixStreamServer):
+        daemon_threads = True
+
+    with _Server(socket_path, _Handler) as server:
+        os.chmod(socket_path, 0o660)
+        print(f"AXIOMA host bridge escuchando en {socket_path}", flush=True)
+        server.serve_forever()
+    return 0

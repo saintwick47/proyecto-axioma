@@ -3292,3 +3292,85 @@ Orden ejecutado según feedback: 0 (fix bug) → B mínimo (write-path) → 1
 - Sin ciudad explícita, `fetch_weather` usa `Geolocator` (IP) y `default_location`; antes caía
   siempre en “Buenos Aires”. “clima” solo ahora rutea a `weather_query`.
 - Verificado: “¿Qué clima hace?” → Córdoba (default/IP), no Buenos Aires; suite 28/28, gate ✅.
+
+### Ruteo: evidencia positiva para código y objeto real para sistema (2026-11-28)
+
+- `is_code_creation_request()` exige verbo + artefacto + lenguaje/`.py`, acción técnica o tests
+  unitarios; deja de usar listas negras y evita “programa de la facultad”, “clase de inglés” y
+  “tests de vocabulario”.
+- `is_system_object()` exige app conocida o ejecutable instalado (`shutil.which`); “abrí los ojos”,
+  “cerrá la llave del gas” y “cerrá el trato…” ya no rutean a sistema.
+- `programa` sale de `CODE_VERBS`; `_OPEN_APP_BLOCKLIST` bloquea utilidades que ejecutan comandos.
+- Gold +18 casos; suite 28/28, auditor 68, gate ✅.
+
+### Fallback semántico opt-in (2026-11-28)
+
+- `ROUTER_SEMANTIC_FALLBACK_ENABLED=false` por defecto. Si se activa, `general_chat` de baja
+  confianza con ≥5 palabras consulta al modelo (prompt con categorías y ejemplos) y acepta solo
+  categorías no-chat con confianza ≥0.8. Medido: 12/12 frases nuevas, ~12 s por consulta en CPU.
+- No reemplaza rutas duras ni keywords claras; cachea el resultado como el resto del clasificador.
+- Tests de compuerta y de activación; suite 28/28, auditor 68, gate ✅.
+
+### Pendientes de ruteo: pruebas cotidianas y close_app (2026-11-28)
+
+- “prueba de manejo”, “test de embarazo” y “pruebas de que me estafaron” ya no van a
+  `code_testing`; se filtran por contexto no técnico. Gold 183.
+- `close_app` usa `pkill -x -- <proceso>` (nombre exacto), no `pkill -f` por substring.
+- Tests nuevos y de validador; suite 28/28, auditor 68, gate ✅.
+
+### Abrir apps/URLs y respuestas claras (2026-11-28)
+
+- `sys_open_app` resuelve URL explícita, navegador, ejecutable instalado o URL oficial de apps
+  conocidas (Spotify, WhatsApp Web, Discord, etc.). Si no hay app ni URL, responde que no la tiene
+  y pide la dirección, en vez de lanzar un comando inexistente o inventar una respuesta.
+- Regla de permiso acotada a `sys_open_app` (auto) manteniendo blocklist de utilidades.
+- `is_system_object` acepta apps/URLs concretas y rechaza modismos (“ojos”, “llave”, “trato”).
+- Verificado: `Abrí spotify.` abre `https://open.spotify.com` si no está instalado; `Abrí foobar.`
+  responde claro; suite 28/28, auditor 68, gate ✅.
+
+### Sistema: apps instaladas, juegos, rutas y ejecución controlada (2026-11-28)
+
+- `sys_open_app` resuelve ejecutables instalados, apps/juegos por `.desktop` (`gtk-launch`),
+  gestor de archivos (`explorador`), carpetas/rutas (`xdg-open`) y URLs.
+- `SystemAgent` acepta objetivos de varias palabras (`7 Days to Die`, `carpeta Descargas`).
+- Nueva operación `create_folder` (`creá/crear/mkdir una carpeta en <ruta>`), sin shell.
+- Nueva operación `run_program` con allowlist (`ollama`, `dsh`, `harness`→`dsh`); no comandos libres.
+- Capturas y búsquedas siguen por `take_screenshot`/`fs_search`/`web_search`.
+- Verificado: resolución de desktop/rutas, creación de carpeta y suite 28/28; auditor 68; gate ✅.
+
+### Apps, capturas y dependencias de juegos (2026-11-28)
+
+- `lutris.` se resolvía como URL porque el punto final impedía `which`; ahora se normaliza el target
+  y se prefiere el ejecutable instalado antes de la web.
+- “Tomá/Hacé una captura de pantalla” ya no va a Vision (`screenshot_analysis`): rutea a
+  `take_screenshot`; medido **2,0 s**, archivo `/tmp/axioma_screenshot.png`.
+- Juegos con `.desktop`: antes de `gtk-launch`, se inicia el padre detectado en `Exec=`
+  (`steam`/`lutris`/`wine`) si no está corriendo. “Abrí 7 Days to Die” arranca Steam primero.
+- Verificado: suite 28/28, auditor 68, gate ✅.
+
+### Ajuste final: Lutris, captura y lanzamiento de juegos (2026-11-28)
+
+- `lutris.` se resuelve al ejecutable instalado antes de cualquier URL; Lutris no depende de Steam.
+- Captura de pantalla va directo a `take_screenshot` (2,0 s, archivo real), no a Vision.
+- Juegos `.desktop`: `gio launch` de la ruta completa y arranque del padre `Exec=` (Steam/Lutris/Wine)
+  con espera de 2 s. “7 Days to Die” inicia Steam y luego el juego.
+
+### Host bridge para apps del escritorio desde Docker (2026-11-28)
+
+- El chat web corría dentro del contenedor, sin `DISPLAY` ni Lutris/Steam: los `Popen` fallaban o
+  abrían la web. Se agregó un bridge por socket Unix (`/tmp/axioma-host/bridge.sock`) y
+  `python main.py --host-bridge` en el host.
+- El contenedor monta `/tmp/axioma-host`, delega `SystemAgent` al host y mantiene fallback local.
+- `docker-compose.yml` monta el socket en `axioma` y `axioma-puente`; README documenta el arranque.
+- Verificado: `Abrí lutris.` desde dentro del contenedor devuelve `✅ open_app … pid` real del host;
+  búsqueda del navegador también. Suite 28/28, auditor 68, gate ✅.
+
+### Rafael usa las mismas funciones de sistema (2026-11-28)
+
+- `_classify_jarvis_intent` ahora detecta órdenes reales de sistema con
+  `_is_system_command_intent` y las manda a `system_control`, en vez de tratarlas como
+  `autonomous_task`.
+- Incluye abrir/cerrar apps, captura, crear carpetas, ejecutar Ollama/Harness y búsqueda en
+  pestaña del navegador; el bridge del host también está montado en el servicio `voz`.
+- Verificado en el contenedor: “Abrí lutris” → `system_control`; captura → `system_control`;
+  búsqueda → `system_control`; bridge responde desde el contenedor. Suite 28/28, auditor 68, gate ✅.

@@ -118,6 +118,10 @@ class SettingsLLM(BaseModel):
         default=False,
         description="Clasificación por LLM como paso de ruteo (OFF: palabras clave, sin los 15 s perdidos)",
     )
+    router_semantic_fallback_enabled: bool = Field(
+        default=False,
+        description="Fallback semántico por LLM para consultas ambiguas (cuesta ~12 s; OFF por defecto)",
+    )
     # ═══════════════════════════════════════════════════════════
     # === CACHÉS DE RESPUESTA (MEDIDO 2026-10-03: contaminaban) ===
     # El usuario veía respuestas "contaminadas" por la caché. Medido:

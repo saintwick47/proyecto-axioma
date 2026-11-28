@@ -86,6 +86,8 @@ services:
       - ./.env:/app/.env
       # La configuración es la del usuario y se puede editar sin recompilar.
       - ./config:/app/config
+      # Host bridge: socket Unix creado por `python main.py --host-bridge` en el equipo.
+      - /tmp/axioma-host:/tmp/axioma-host
     healthcheck:
       test: ["CMD", "python", "-m", "src.core.preflight", "--json"]
       interval: 60s
@@ -131,6 +133,8 @@ services:
       # de embeddings se volvía a bajar en cada `down`/`up` (antes 4,3 GB; hoy 638 MB).
       - ./cache:/app/cache
       - ./config:/app/config
+      # Host bridge: socket Unix creado por `python main.py --host-bridge` en el equipo.
+      - /tmp/axioma-host:/tmp/axioma-host
     extra_hosts:
       - "host.docker.internal:host-gateway"    # Linux: hace que el nombre resuelva al equipo
 
@@ -186,6 +190,8 @@ services:
       # voz queda aislada (se ven con `docker compose logs -f voz` o en `data/registros_voz/`).
       - ./data/registros_voz:/app/logs
       - ./config:/app/config
+      # Host bridge: Rafael también abre apps/capturas/carpetas del equipo.
+      - /tmp/axioma-host:/tmp/axioma-host
       # El servidor de sonido del equipo (PipeWire/PulseAudio): es la vía que FUNCIONA para
       # capturar (medido: abrir la placa directo da "Invalid sample rate"). Ajustá el 1000 si tu
       # usuario tiene otro id (`id -u`).

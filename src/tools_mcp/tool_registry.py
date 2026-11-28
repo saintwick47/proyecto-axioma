@@ -83,7 +83,6 @@ except ImportError:
     WorkspaceManageTool = None
     logger.debug("WorkspaceManageTool no disponible")
 
-
 # ============================================================================
 # TERMINAL TOOL — ✅ v1.5.1: shlex.split() ANTES del sandbox
 # ============================================================================
@@ -390,7 +389,6 @@ class SecureTerminalTool(BaseTool):
                 latency_ms=(time.perf_counter() - t0) * 1000,
             )
 
-
 # ============================================================================
 # SISTEMA TOOL
 # ============================================================================
@@ -438,7 +436,6 @@ class SysEnvTool(BaseTool):
             data={"var_name": var_name, "found": found},
         )
 
-
 # ============================================================================
 # SYSTEM OPEN APP TOOL
 # ============================================================================
@@ -462,6 +459,119 @@ _BROWSER_CANDIDATES = [
 ]
 _BROWSER_ALIASES = {"navegador", "browser", "internet", "web"}
 
+_KNOWN_APP_URLS = {
+    "spotify": "https://open.spotify.com",
+    "whatsapp": "https://web.whatsapp.com",
+    "telegram": "https://web.telegram.org",
+    "discord": "https://discord.com/app",
+    "instagram": "https://www.instagram.com",
+    "facebook": "https://www.facebook.com",
+    "youtube": "https://www.youtube.com",
+    "netflix": "https://www.netflix.com",
+    "gmail": "https://mail.google.com",
+    "github": "https://github.com",
+    "twitter": "https://x.com",
+    "x": "https://x.com",
+    "tiktok": "https://www.tiktok.com",
+    "twitch": "https://www.twitch.tv",
+    "steam": "https://store.steampowered.com",
+    "lutris": "https://lutris.net",
+    "vscode": "https://vscode.dev",
+    "code": "https://vscode.dev",
+}
+
+_FILE_MANAGERS = ("dolphin", "nautilus", "thunar", "pcmanfm", "nemo")
+_FILE_MANAGER_ALIASES = {"explorador", "explorador de archivos", "archivos", "carpeta", "carpetas"}
+
+def _desktop_launch(target: str):
+    """Busca una app/juego instalado por nombre en archivos .desktop."""
+    objetivo = target.strip().lower()
+    for base in (Path.home() / ".local/share/applications",
+                 Path("/usr/share/applications"),
+                 Path("/usr/local/share/applications")):
+        if not base.is_dir():
+            continue
+        for desktop in base.glob("*.desktop"):
+            try:
+                texto = desktop.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            nombres = {desktop.stem.lower()}
+            for linea in texto.splitlines():
+                if linea.startswith(("Name=", "Name[es]=", "Name[en]=")):
+                    nombres.add(linea.split("=", 1)[1].strip().lower())
+            if objetivo in nombres:
+                # `gio launch` usa la ruta completa del .desktop; más fiable
+                # para juegos con Exec=steam steam://... que el ID de gtk-launch.
+                if shutil.which("gio"):
+                    return "gio", f"launch:{desktop}", None
+                if shutil.which("gtk-launch"):
+                    return "gtk-launch", desktop.stem, None
+    return None, None, None
+
+def _desktop_prereq(target: str) -> str | None:
+    """Devuelve el programa padre (steam/lutris/wine) que un .desktop necesita."""
+    objetivo = target.strip().lower()
+    padres = {"steam", "lutris", "wine", "heroic", "bottles"}
+    for base in (Path.home() / ".local/share/applications",
+                 Path("/usr/share/applications"),
+                 Path("/usr/local/share/applications")):
+        if not base.is_dir():
+            continue
+        for desktop in base.glob("*.desktop"):
+            try:
+                texto = desktop.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            nombres = {desktop.stem.lower()}
+            exec_line = ""
+            for linea in texto.splitlines():
+                if linea.startswith(("Name=", "Name[es]=", "Name[en]=")):
+                    nombres.add(linea.split("=", 1)[1].strip().lower())
+                elif linea.startswith("Exec=") and not exec_line:
+                    exec_line = linea.split("=", 1)[1].strip()
+            if objetivo not in nombres or not exec_line:
+                continue
+            try:
+                argv = shlex.split(exec_line)
+            except ValueError:
+                continue
+            for token in argv:
+                base_name = Path(token).name.lower()
+                if base_name in padres and shutil.which(base_name):
+                    return base_name
+    return None
+
+def _start_prereq(name: str) -> None:
+    exe = shutil.which(name)
+    if not exe:
+        return
+    try:
+        running = subprocess.run(["pgrep", "-x", name], stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, timeout=2)
+        if running.returncode == 0:
+            return
+    except (OSError, subprocess.SubprocessError):
+        logger.debug('[open_app] pgrep falló', exc_info=True)
+    try:
+        subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         stdin=subprocess.DEVNULL, start_new_session=True)
+        time.sleep(2.0)
+    except OSError:
+        logger.debug('[open_app] no pude iniciar prereq', exc_info=True)
+
+
+def _open_path(path_text: str):
+    """Abre una carpeta/archivo existente con el gestor de archivos."""
+    p = Path(path_text).expanduser()
+    if not p.exists():
+        return None, None, f"No encuentro la ruta '{path_text}'"
+    if shutil.which("xdg-open"):
+        return "xdg-open", str(p), ""
+    return None, None, "No hay xdg-open disponible para abrir rutas"
+
+
+
 _OPEN_APP_BLOCKLIST = frozenset({
     "bash", "sh", "zsh", "dash", "ksh", "csh", "tcsh", "fish",
     "sudo", "su", "pkexec", "doas",
@@ -472,6 +582,17 @@ _OPEN_APP_BLOCKLIST = frozenset({
     "python", "python3", "perl", "ruby", "node", "php",
     "nc", "netcat", "ncat", "curl", "wget", "ssh", "telnet",
     "gcc", "cc", "make",
+    # ✅ 2026-11-28 (plan ruteo, revisión Fase 2): el ruteo ya no filtra por palabra y
+    # sys_open_app hace Popen([target]) con el texto del usuario → se cierran utilidades que
+    # ejecutan comandos arbitrarios o tocan el sistema. Los emuladores de terminal GUI
+    # (gnome-terminal, xterm, konsole…) se dejan permitidos A PROPÓSITO: "abrí la terminal" es un
+    # pedido legítimo y lo gobierna PermissionGateway.
+    "env", "awk", "gawk", "mawk", "sed", "find", "xargs", "nohup", "timeout", "watch", "eval", "exec",
+    "vi", "vim", "nvim", "tmux", "screen", "busybox", "expect", "tclsh", "lua", "nodejs", "deno", "bun",
+    "pwsh", "powershell", "python3.10", "python3.11", "python3.12", "python3.13",
+    "socat", "nmap", "openssl", "tar", "rsync", "scp", "sftp", "ftp",
+    "gdb", "strace", "systemctl", "crontab", "chmod", "chown", "mount", "umount",
+    "iptables", "nft", "useradd", "userdel", "passwd", "visudo",
 })
 
 
@@ -514,6 +635,49 @@ class SysOpenAppTool(BaseTool):
         tags=["system", "execute"],
     )
 
+    @staticmethod
+    def _resolve_open_target(target: str, target_lower: str):
+        """Devuelve (comando, argumento, url_o_None, error). No ejecuta nada."""
+        if target_lower.startswith(("http://", "https://")):
+            return "xdg-open", target, target, ""
+        # Carpetas y archivos existentes: abrir en el gestor.
+        if target_lower in _FILE_MANAGER_ALIASES:
+            for fm in _FILE_MANAGERS:
+                ruta = shutil.which(fm)
+                if ruta:
+                    return ruta, None, None, ""
+            if shutil.which("xdg-open"):
+                _cmd, _arg, _err = _open_path("~")
+                return _cmd, _arg, None, _err
+            return "", None, None, "No hay gestor de archivos"
+        if target_lower.startswith("carpeta "):
+            raw = target.split(" ", 1)[1].strip()
+            if not raw.startswith(("/", "~")):
+                raw = str(Path.home() / raw)
+            return ("xdg-open", raw, None, "") if shutil.which("xdg-open") else (None, None, None, "No hay xdg-open")
+        if target_lower.startswith(("/", "~/", "./", "../")):
+            return ("xdg-open", str(Path(target).expanduser()), None, "") if shutil.which("xdg-open") else (None, None, None, "No hay xdg-open")
+        if target_lower in _BROWSER_ALIASES:
+            apps = _detect_installed_apps()
+            if not apps:
+                return "", None, None, "No se detectó ningún navegador instalado"
+            return next(iter(apps.values())), None, None, ""
+        if shutil.which(target) is not None:
+            return target, None, None, ""
+        # Juegos y apps GUI: buscar en .desktop (Steam incluido).
+        cmd, arg, _ = _desktop_launch(target)
+        if cmd:
+            return cmd, arg, None, ""
+        url = _KNOWN_APP_URLS.get(target_lower)
+        if url:
+            return "xdg-open", url, url, ""
+        apps = _detect_installed_apps()
+        if target_lower in (c.split("-")[0] for c in _BROWSER_CANDIDATES) and apps:
+            return "", None, None, f"'{target}' no está instalado. Navegadores disponibles: {', '.join(apps.keys())}"
+        return "", None, None, (f"'{target}' no está instalado y no tengo una URL oficial. "
+                                f"Pasame la dirección web o instalá la aplicación.")
+
+
     def _run(self, target: str = "", **kwargs: Any) -> ToolResult:
         t0 = time.perf_counter()
         if not target:
@@ -523,7 +687,8 @@ class SysOpenAppTool(BaseTool):
                 latency_ms=(time.perf_counter() - t0) * 1000,
             )
 
-        target_lower = target.lower().strip()
+        target = target.strip(".,!?:; ")
+        target_lower = target.lower().strip(".,!?:; ")
         # Mismo criterio que el método original: comparar por basename, no
         # por el string completo — un path ("/bin/bash") esquivaba una
         # blocklist que solo comparaba nombres pelados.
@@ -537,30 +702,18 @@ class SysOpenAppTool(BaseTool):
                 metadata={"blocked": True},
             )
 
-        resolved = target
-
-        if target_lower in _BROWSER_ALIASES:
-            apps = _detect_installed_apps()
-            if not apps:
-                return ToolResult.fail(
-                    error="No se detectó ningún navegador instalado",
-                    tool_name=self.name,
-                    latency_ms=(time.perf_counter() - t0) * 1000,
-                )
-            resolved = next(iter(apps.values()))
-        elif shutil.which(target) is None:
-            apps = _detect_installed_apps()
-            if target_lower in (c.split("-")[0] for c in _BROWSER_CANDIDATES) and apps:
-                disponibles = ", ".join(apps.keys())
-                return ToolResult.fail(
-                    error=f"'{target}' no está instalado. Navegadores disponibles: {disponibles}",
-                    tool_name=self.name,
-                    latency_ms=(time.perf_counter() - t0) * 1000,
-                )
+        resolved, extra_arg, opened_url, _err = self._resolve_open_target(target, target_lower)
+        if _err:
+            return ToolResult.fail(error=_err, tool_name=self.name,
+                                  latency_ms=(time.perf_counter() - t0) * 1000)
+        if resolved in ("gtk-launch", "gio"):
+            _prereq = _desktop_prereq(target)
+            if _prereq:
+                _start_prereq(_prereq)
 
         try:
             proc = subprocess.Popen(
-                [resolved],
+                [resolved, *([extra_arg] if extra_arg else [])],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
@@ -588,13 +741,17 @@ class SysOpenAppTool(BaseTool):
             )
 
         latency = (time.perf_counter() - t0) * 1000
+        if opened_url:
+            output = (f"'{target}' no estaba instalado; abrí {opened_url} "
+                      f"en el navegador (pid={proc.pid})")
+        else:
+            output = f"'{resolved}' lanzado (pid={proc.pid})"
         return ToolResult.ok(
-            output=f"'{resolved}' lanzado (pid={proc.pid})",
+            output=output,
             tool_name=self.name,
             latency_ms=latency,
-            data={"resolved": resolved, "pid": proc.pid},
+            data={"resolved": resolved, "pid": proc.pid, "url": opened_url},
         )
-
 
 # ============================================================================
 # TOOL REGISTRY — Sistema nervioso central

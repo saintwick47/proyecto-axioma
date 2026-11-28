@@ -897,6 +897,11 @@ def test_sistema_exige_objeto():
     assert _is_system_command_intent("cerrá el tema, gracias") is False
     assert _is_system_command_intent("copiá este texto y mejoralo") is False
     assert _is_system_command_intent("borrá lo último que dijiste") is False
+    assert _is_system_command_intent("abrí spotify") is True
+    assert _is_system_command_intent("cerrá todas las ventanas") is True
+    assert _is_system_command_intent("abrí los ojos") is False
+    assert _is_system_command_intent("cerrá la llave del gas") is False
+    assert _is_system_command_intent("cerrá el trato con el cliente") is False
 
 
 def test_validacion_chat_apagada_por_flag(monkeypatch):

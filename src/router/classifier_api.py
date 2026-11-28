@@ -15,11 +15,13 @@ import logging
 import time
 import re
 import hashlib
+import shutil
 import unicodedata
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from config.settings import settings
 from src.router.classifier_core import _log_error
+from src.router.classifier_keyword_rules import is_code_creation_request
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +118,57 @@ def _is_finance_normalized(t: str) -> bool:
     return bool(_F_CUR.search(t) and _F_SIG.search(t))
 
 
-_CODE_INFO = re.compile(
-    r"\b(saber|entender|explic\w*|qu[eé] hace|para qu[eé] sirve|"
-    r"c[oó]mo funciona|significa)\b")
-_CODE_NOCODE = re.compile(
-    r"\b(de (matem[aá]tica|yoga|radio|entrenamiento|descuento|ejercicio|"
-    r"cocina|baile)|postal|pel[ií]cula|gimnasio)\b")
+# ✅ 2026-11-28 (plan ruteo, revisión Fase 2): objeto de "abrí/cerrá/lanzá". Una lista negra de
+# abstractos dejaba pasar modismos ("abrí los ojos", "cerrá la llave del gas") y, peor, mandaba
+# a sys_open_app (Popen del texto del usuario) cualquier palabra. Ahora el objeto debe ser una
+# app/ventana CONOCIDA o un ejecutable realmente instalado (shutil.which): lo mismo que la tool
+# puede lanzar de verdad.
+_SYS_ABSTRACT = re.compile(
+    r"\b(tema|conversacion|chat|debate|discusion|sesion|caso|asunto|puerta|cuenta|pregunta|"
+    r"negocio|ciclo|etapa|capitulo|ronda|esto|eso|dialogo)\b")
+_SYS_NON_APP = re.compile(
+    r"\b(ojos|llave|gas|manos|puerta|coraz[oó]n|boca|nariz|pierna|brazo|cabeza|"
+    r"trato|tema|cuenta|pregunta)\b")
+_SYS_DET = re.compile(r"^(todas las|todos los|el|la|los|las|un|una|mi|tu)\s+")
+_SYS_TOKEN = re.compile(r"[a-z0-9][a-z0-9._+-]*")
+_SYS_APPS = frozenset({
+    "navegador", "browser", "firefox", "chrome", "chromium", "brave", "edge", "opera",
+    "terminal", "consola", "explorador", "nautilus", "thunar", "dolphin", "nemo", "pcmanfm",
+    "carpeta", "carpetas", "calculadora", "editor", "gedit", "kate", "notepad", "vscode", "code",
+    "sublime", "bloc", "ventana", "ventanas", "app", "aplicacion", "programa", "spotify",
+    "discord", "steam", "whatsapp", "telegram", "slack", "zoom", "skype", "teams", "vlc",
+    "gimp", "inkscape", "blender", "libreoffice", "writer", "calc", "impress", "obsidian",
+    "thunderbird", "evince", "okular", "audacity", "obs", "kdenlive", "krita", "postman",
+})
+
+
+def is_system_object(rest: str) -> bool:
+    """True si el objeto de abrir/cerrar/lanzar es una app/ventana conocida o instalada."""
+    t = unicodedata.normalize("NFKD", rest.lower())
+    t = "".join(c for c in t if not unicodedata.combining(c)).strip(".,!?:;¿¡ ")
+    if not t:
+        return False
+    if re.fullmatch(r"https?://[^\s]+", t, re.I):
+        return True
+    if len(t.split()) > 5 or _SYS_ABSTRACT.search(t):
+        return False
+    if _SYS_NON_APP.search(t):
+        return False
+    t = _SYS_DET.sub("", t).strip()
+    tok = t.split()[0] if t else ""
+    if not _SYS_TOKEN.fullmatch(tok):
+        return False
+    if tok in _SYS_APPS or shutil.which(tok) is not None:
+        return True
+    try:
+        from src.tools_mcp.tool_registry import _desktop_launch
+        if _desktop_launch(t)[0]:
+            return True
+    except Exception as _de:
+        logging.getLogger(__name__).debug("[is_system_object] desktop lookup: %s", _de)
+    # Un objeto de una sola palabra que no sea app conocida se deriva al
+    # handler para que responda "no instalada / no tengo URL" sin inventar.
+    return len(t.split()) == 1
 
 
 class APIDetector:
@@ -356,21 +403,7 @@ class APIDetector:
 
     def _is_code_creation_request(self, text: str) -> bool:
         """True si pide CREAR un programa/script/función (aunque diga "en busca de")."""
-        t = text.lower()
-        if _CODE_INFO.search(t) or _CODE_NOCODE.search(t):
-            return False
-        verbo = (r"\b(crea|creá|genera|generá|escribí|escribe|arma|armá|implementa|"
-                 r"desarrolla|escribime|haceme|necesito|creame|generame|armame|programame)\b")
-        sustantivo = (r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|"
-                      r"aplicaci[oó]n|app|tests?|pruebas?|bot)\b")
-        if not (re.search(verbo, t, re.I) and re.search(sustantivo, t, re.I)):
-            return False
-        return not (
-            re.search(r"\b(app|aplicaci[oó]n)\b", t, re.I)
-            and not re.search(r"\b(python|bash|java|javascript|js|typescript|"
-                              r"c\+\+|rust|go|sql|php|ruby|powershell|html|css)\b|\.py\b",
-                              t, re.I))
-
+        return is_code_creation_request(text)
 
     def _is_code_prompt(self, text: str) -> bool:
         """

@@ -51,6 +51,13 @@ Decile **"rafael dime ..."** (o "rafael, ¿...?", "rafael decime ..."):
 | Hora | "¿qué hora es?" | Hora del sistema |
 | Noticias | "buscá noticias de tecnología" | Noticias recientes |
 | Búsqueda web | "buscá información sobre X" | Resumen con fuentes |
+| **Abrir app** | "abrí Lutris" | Lanza el programa instalado (o informa si ya está abierto) |
+| **Abrir juego** | "abrí 7 Days to Die" | Inicia Steam/Lutris/Wine si hace falta y lanza el juego |
+| **Carpeta** | "abrí la carpeta Descargas" | Abre el explorador en esa ruta |
+| **Captura** | "tomá una captura de pantalla" | Guarda el archivo; no describe la pantalla |
+| **Crear carpeta** | "creá una carpeta en ~/Escritorio/Pruebas" | Crea la ruta completa |
+| **Navegador** | "abrí una pestaña del navegador y buscá clima en Córdoba" | Abre la búsqueda |
+| **Servicio** | "ejecutá ollama" | Inicia `ollama serve` (allowlist) |
 | **Buscar archivo** | "buscá el archivo settings" | **Ruta exacta** del archivo/carpeta |
 | **Citar un bloque** | "citá un bloque del archivo .env" | Bloque del archivo (rápido) |
 | **Leer y resumir** | "leé el archivo README y resumilo" | Resumen del contenido (LLM, ~1 min en CPU) |
@@ -105,6 +112,22 @@ docker compose --profile voz up -d voz      # encender la voz
 docker compose --profile voz stop voz       # apagarla
 docker compose logs -f voz                  # ver cómo va
 ```
+
+### Rafael y las órdenes de sistema
+
+Rafael usa el mismo `SystemAgent` que el chat: abrir programas/juegos, explorador, capturas,
+carpetas, navegador y ejecutar Ollama/Harness. Cuando corre **en el contenedor**, necesita el
+bridge del host; el servicio `voz` ya monta `/tmp/axioma-host`:
+
+```bash
+# en el equipo, con sesión gráfica
+python main.py --host-bridge
+# después
+docker compose --profile voz up -d voz
+```
+
+Si el bridge no está activo, las órdenes que dependen del escritorio fallan; el resto de la voz y
+el chat siguen funcionando.
 
 **Si lo corrés a mano, pasale los datos de tu equipo** (el lanzador ya los calcula solo): el grupo
 `audio` no es el mismo en todas las distribuciones (Debian/Ubuntu 29 · Fedora 63 · Arch/CachyOS 996) y el

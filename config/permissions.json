@@ -74,6 +74,14 @@
     },
     {
       "pattern": "*",
+      "mode": "auto",
+      "min_confidence": 0.85,
+      "max_risk_score": 0.35,
+      "allowed_tools": ["sys_open_app"],
+      "description": "Abrir apps/URLs: sys_open_app aplica blocklist y resuelve apps conocidas o URLs oficiales."
+    },
+    {
+      "pattern": "*",
       "mode": "default",
       "min_confidence": 0.92,
       "max_risk_score": 0.30,

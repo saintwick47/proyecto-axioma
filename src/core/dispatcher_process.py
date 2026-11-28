@@ -108,13 +108,8 @@ def _is_analysis_intent(query: str) -> bool:
 # "abrí nautilus", etc. caen a general_chat/web_search y nunca llegan a
 # SystemAgent.
 # ═══════════════════════════════════════════════════════════════
-_SYS_ABSTRACT = re.compile(
-    r"\b(tema|conversaci[oó]n|chat|debate|discusi[oó]n|sesi[oó]n|caso|asunto|"
-    r"puerta|cuenta|pregunta|negocio|ciclo|etapa|cap[ií]tulo|ronda|esto|eso|di[aá]logo)\b")
-
-
 def _is_system_command_intent(query: str) -> bool:
-    """True si la primera palabra es un verbo de sistema y el objeto no es abstracto."""
+    """True si la primera palabra es un verbo de sistema y el objeto es una app/ventana real."""
     if not query:
         return False
     words = query.strip().split()
@@ -128,10 +123,16 @@ def _is_system_command_intent(query: str) -> bool:
     if first not in DISPATCHER_ROUTING_VERBS:
         return False
     rest = " ".join(words[1:]).strip(".,!?:;¿¡ ").lower()
+    if (first in {"abrir", "abrí", "abri", "abre", "lanzar", "lanzá", "lanza"}
+            and re.search(r"\b(pesta[nñ]a|navegador|browser)\b", rest)
+            and re.search(r"\b(busca|busc[aá]|buscar|b[uú]squeda)\b", rest)):
+        return True
+    if first in {"captura", "screenshot", "toma", "tomá", "saca", "sacá", "hace", "hacé"}:
+        return bool(re.search(r"\b(pantalla|captura|screenshot)\b", rest))
     if first in {"abrir", "abrí", "abri", "abre", "lanzar", "lanzá", "lanza",
                  "cerrar", "cerrá", "cerra", "cierra"}:
-        return (bool(rest) and not _SYS_ABSTRACT.search(rest)
-                and len(rest.split()) <= 5)
+        from src.router.classifier_api import is_system_object
+        return is_system_object(rest)
     if first in {"archivos", "listar", "listá", "lista", "copiar", "copiá", "copia",
                  "mover", "moví", "movi", "mueve", "eliminar", "eliminá", "elimina",
                  "borrar", "borrá", "borra"}:

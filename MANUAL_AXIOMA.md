@@ -171,6 +171,21 @@ para decidir si confiar en la respuesta. Ahí mismo se **califica (1 a 5)** con
 comentario y etiquetas — esa calificación **entrena al sistema**
 (`FeedbackLoop` → `QualityMonitor`), no queda solo en un log.
 
+## 3.7 Órdenes de sistema
+
+El chat y Rafael comparten `SystemAgent`:
+
+- Abrir ejecutables instalados (Lutris, VSCode, Steam) y juegos por `.desktop`.
+- Iniciar el padre del juego (`steam`, `lutris`, `wine`) si hace falta.
+- Explorador en una ruta, captura de pantalla, creación de carpetas.
+- Pestaña del navegador con una búsqueda.
+- Ejecutar `ollama`/`dsh`/`harness` con allowlist.
+
+En Docker, el contenedor delega estas órdenes al host mediante
+`/tmp/axioma-host/bridge.sock`; el host inicia el bridge con `python main.py --host-bridge`.
+Rafael clasifica estas frases como `system_control` y el servicio `voz` monta el mismo socket.
+Límite actual: una intención por mensaje.
+
 ## 4. Memoria (Capa 2)
 
 - Cada mensaje se guarda por **usuario** y por **sesión** (short-term en RAM,

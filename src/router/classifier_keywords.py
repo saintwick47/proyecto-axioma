@@ -517,7 +517,10 @@ CODE_CONTEXT_KEYWORDS: Set[str] = {
 
 CODE_VERBS: Set[str] = {
     "genera", "generá", "crea", "creá", "escribí", "escribe",
-    "programa", "programar", "corregir", "corregí",
+    # ✅ 2026-11-28: "programa" (sustantivo) sale de CODE_VERBS — estaba también en
+    # CODE_CONTEXT_KEYWORDS y se autocumplía el compuesto verbo+contexto ("el programa de la
+    # facultad" → CODE_GENERATION). La creación explícita la cubre is_code_creation_request().
+    "programar", "corregir", "corregí",
     "debug", "depurar", "optimizar", "refactor", "compilar",
     # ✅ v0.6.9e: imperativos/voseo de construcción de código
     "implementá", "implementa", "diseñá", "diseña",

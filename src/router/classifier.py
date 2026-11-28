@@ -103,6 +103,39 @@ def _ensure_str_task_type(value: Any, fallback: str = "general_chat") -> str:
 # ═══════════════════════════════════════════════════════════
 # CLASE: IntentClassifier (Facade)
 # ═══════════════════════════════════════════════════════════
+_SEMANTIC_CATS = (
+    "weather_query", "finance_query", "code_generation", "code_debugging",
+    "code_explanation", "web_search", "news_query", "system_control",
+    "file_search", "time_query", "location_query", "data_analysis", "general_chat",
+)
+_SEMANTIC_ACCEPTED = frozenset(t for t in _SEMANTIC_CATS if t != "general_chat")
+_SEMANTIC_PROMPT = """Sos el clasificador de intención de AXIOMA. Elegí UNA categoría.
+Categorías: {cats}.
+- weather_query: clima, lluvia, temperatura, ropa según el tiempo, playa/nieve.
+- finance_query: monedas, cotizaciones, dólar, euro, divisas, tasas.
+- code_generation: crear/modificar código, scripts, funciones, clases, tests, apps.
+- web_search: buscar información actual, precios, viajes o datos en internet.
+- system_control: abrir/cerrar apps, volumen, archivos del sistema.
+- file_search: buscar en archivos/carpetas locales.
+- news_query: noticias de último momento.
+- location_query: dónde estoy/geolocalización.
+- time_query: hora/fecha.
+- data_analysis: analizar datos.
+- general_chat: charla, opinión, explicación general.
+Ejemplos:
+"¿va a llover mañana?" -> weather_query
+"¿me llevo campera?" -> weather_query
+"¿me voy a mojar si salgo?" -> weather_query
+"¿necesito paraguas?" -> weather_query
+"¿a cuánto está el euro?" -> finance_query
+"necesito un script que lea un CSV" -> code_generation
+"buscá la web de la municipalidad" -> web_search
+"abrime spotify" -> system_control
+"qué hora es" -> time_query
+"contame un chiste" -> general_chat
+Pedido: "{q}"
+Respondé SOLO JSON: {{"task_type":"<categoria>","confidence":0.0}}"""
+
 class IntentClassifier(ClassifierExternalDataMixin):
     """
     Facade orquestador para clasificación de intenciones con APIs externas.
@@ -440,6 +473,19 @@ class IntentClassifier(ClassifierExternalDataMixin):
                 result["method"] = "embeddings_fallback"
                 self._core._stats["embedding_classifications"] += 1
 
+        # PASO 5: fallback semántico opcional (solo general_chat dudoso).
+        if (settings.router_semantic_fallback_enabled
+                and self._semantic_fallback_eligible(result, text)):
+            sem_task, sem_conf = self._classify_by_semantic(text)
+            if sem_task:
+                result["task_type"] = _ensure_str_task_type(sem_task)
+                result["confidence"] = sem_conf
+                result["method"] = "semantic_llm"
+                self._core._stats["llm_classifications"] = (
+                    self._core._stats.get("llm_classifications", 0) + 1
+                )
+
+
         # Guardar en cache
         try:
             # ✅ FIX v0.1.1: Reconstruir TaskType desde string normalizado
@@ -519,6 +565,43 @@ class IntentClassifier(ClassifierExternalDataMixin):
         if best_task and best_sim >= 0.40 and (best_sim - second >= 0.02 or best_sim >= 0.50):
             return best_task, round(min(0.9, 0.45 + best_sim * 0.5), 2)
         return None, 0.0
+
+    @staticmethod
+    def _semantic_fallback_eligible(result: dict[str, Any], text: str) -> bool:
+        """Solo consultas generales de baja confianza y con suficiente contexto."""
+        return (result.get("task_type") == "general_chat"
+                and float(result.get("confidence", 0.0)) <= 0.55
+                and len((text or "").split()) >= 5)
+
+    def _classify_by_semantic(self, text: str) -> tuple[str | None, float]:
+        """Fallback semántico acotado; no reemplaza rutas duras ni keywords claras."""
+        try:
+            import httpx
+            import json as _json
+            import re as _re
+            prompt = _SEMANTIC_PROMPT.format(cats=", ".join(_SEMANTIC_CATS), q=text)
+            payload = {
+                "model": settings.llm_default_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "think": False,
+                "options": {"temperature": 0.0, "num_predict": 60},
+            }
+            with httpx.Client(timeout=20.0) as client:
+                resp = client.post(f"{settings.ollama_host}/api/chat", json=payload)
+                resp.raise_for_status()
+                raw = (resp.json().get("message", {}).get("content") or "").strip()
+            raw = _re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=_re.M).strip()
+            parsed = _json.loads(raw)
+            task = str(parsed.get("task_type", "")).strip()
+            conf = float(parsed.get("confidence", 0.0))
+            if task in _SEMANTIC_ACCEPTED and conf >= 0.8:
+                _log_router(text[:50], task, "semantic_llm", conf)
+                return task, min(conf, 1.0)
+        except Exception as exc:
+            logger.debug("[classifier] fallback semántico no disponible: %s", exc)
+        return None, 0.0
+
 
     def _classify_by_llm(self, text: str) -> Tuple[Optional[str], float]:
         """

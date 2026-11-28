@@ -189,9 +189,25 @@ Escribí en el chat y enviá. Algunas cosas para probar:
 | `Escribime una función en Python que ordene una lista` | Código |
 | `Investigué sobre paneles solares y hacé un resumen con fuentes` | Investigación (necesita internet) |
 | `Analizá este archivo` (adjuntándolo) | Análisis |
+| `Abrí Lutris.` · `Abrí la carpeta Descargas.` | Abre un programa instalado o una carpeta |
+| `Tomá una captura de pantalla.` | Guarda una captura |
+| `Creá una carpeta en ~/Escritorio/Pruebas.` | Crea la carpeta |
+| `Abrí una pestaña del navegador y buscá clima en Córdoba.` | Busca en el navegador |
 
 Mientras responde, podés **detenerlo** con el botón de parar. Arriba a la derecha está el botón **Avanzado**
 con las funciones extra (Mi Hard, Estado, Archivos, Exportar, Sesiones, Configuración).
+
+### Órdenes de sistema y bridge del host
+
+El chat puede abrir Lutris, VSCode, Steam, juegos, el explorador en una carpeta, una captura o una
+pestaña de búsqueda. Rafael usa las mismas órdenes por voz. Si AXIOMA corre en Docker, el
+contenedor no ve los programas del equipo: iniciá el bridge en el host antes de usarlas.
+
+```bash
+python main.py --host-bridge
+```
+
+Dejá esa ventana abierta. Si no está, el chat sigue funcionando para el resto de las tareas.
 
 ### La voz (opcional)
 
@@ -233,6 +249,7 @@ El detalle está en `MANUAL_RAFAEL.md`; el chat y los modelos funcionan igual si
 | "la ejecución de scripts está deshabilitada" (Windows) | Usá la forma larga del paso 3: `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\instalar_axioma.ps1` |
 | "No encontré Ollama… levanto el que viene con AXIOMA" | Es normal: AXIOMA se encarga solo |
 | El navegador no se abre | Entrá a mano a **http://127.0.0.1:8080** |
+| Lutris/Steam no abre desde el chat | Iniciá el bridge del host (`python main.py --host-bridge`) |
 | "El puerto 8080 está ocupado" | Cerrá el programa que lo usa, o usá otro puerto: `AXIOMA_PUERTO=8090 ./instalar/iniciar_axioma.sh` |
 | Dicen que falta memoria | Cerrá otras aplicaciones pesadas; con 16 GB o más anda cómodo |
 | La descarga de un modelo se cortó | Volvé a la pantalla 🧩 y tocá otra vez "Descargar los que faltan" |

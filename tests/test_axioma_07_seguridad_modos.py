@@ -537,7 +537,7 @@ class TestTerminalExecAllowlist:
     def test_los_comandos_del_system_agent_pasan_la_validacion(self):
         from src.tools_mcp.tool_registry import SecureTerminalTool
         t = SecureTerminalTool()
-        for cmd in ("pkill -f firefox", "pactl set-sink-volume @DEFAULT_SINK@ 50%",
+        for cmd in ("pkill -x -- firefox", "pactl set-sink-volume @DEFAULT_SINK@ 50%",
                     "wl-paste", "wl-copy texto", "grep medalla config/models.yaml"):
             assert t._validar_comando(cmd.split(), cwd=".") is None, f"bloqueado: {cmd}"
 

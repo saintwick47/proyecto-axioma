@@ -823,6 +823,7 @@ Ejemplos:
   python main.py --backup --full            # Respaldo completo (JSON + datos comprimidos)
   python main.py --web                      # Iniciar UI web (NiceGUI + API)
   python main.py --web --host 0.0.0.0 --port 8080  # Servidor público
+  python main.py --host-bridge            # Bridge de apps del host para el contenedor
   python main.py --rotar-token              # Código de acceso nuevo de la API web
 
 Rutas absolutas:
@@ -861,6 +862,7 @@ VRAM Management (v1.0.6):
     parser.add_argument("--rac", metavar="ACCION", default=None,
                         choices=["status", "stop", "pause", "resume"])   # ISSUE-113
     group.add_argument("--web", action="store_true", help="Iniciar UI web NiceGUI + API")
+    group.add_argument("--host-bridge", action="store_true", help="Bridge de apps del host (socket Unix)")
     parser.add_argument("--rotar-token", action="store_true", dest="rotar_token",
                         help="Generar un código de acceso nuevo para la API web (data/.web_token)")
 
@@ -888,6 +890,10 @@ def main() -> int:
         parser = _construir_parser()
 
         args = parser.parse_args()
+
+        if getattr(args, "host_bridge", False):
+            from src.agents import host_bridge_server
+            return host_bridge_server()
 
         # ✅ D1: `--full` sólo tiene sentido con `--backup`. Antes de la corrección el
         # flag no existía; ahora un uso suelto se explica en vez de imprimir la ayuda.
@@ -920,7 +926,8 @@ def main() -> int:
         if args.voice:     # ✅ unificación: implementación del módulo CLI
             from src.interfaces.cli.main import cmd_voice
             return cmd_voice(_consola_raiz(), args.model if hasattr(args, "model") else None)
-        if not any([args.check, args.chat is not None, args.backup, args.web]):
+        if not any([args.check, args.chat is not None, args.backup, args.web,
+                    getattr(args, "host_bridge", False)]):
             parser.print_help()
             return 0
 

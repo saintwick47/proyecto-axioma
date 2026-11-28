@@ -217,7 +217,7 @@ async def test_5_jarvis_fallback() -> bool:
 
         test_cases = [
             ("¿Qué ves en la pantalla?", "screen_describe"),
-            ("Abrí Firefox", "autonomous_task"),
+            ("Abrí Firefox", "system_control"),
             ("¿Qué ves en la cámara?", "camera_describe"),
             ("Hola", "jarvis_query"),
         ]

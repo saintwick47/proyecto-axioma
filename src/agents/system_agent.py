@@ -12,16 +12,18 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 import logging
+import re
 import shlex
+import shutil
+from urllib.parse import quote_plus
+import subprocess
 import time
 from pathlib import Path
 from typing import Optional, Tuple
 from src.agents.base import BaseAgent, AgentResult
 from src.core.promotion_gate import get_promotion_gate
 from src.domain.entities import Message
-
 logger = logging.getLogger(__name__)
-
 # ✅ detailed_logger — import seguro (doble capa)
 try:
     from tools.detailed_logger import get_logger as _get_detailed_logger
@@ -29,8 +31,6 @@ try:
 except ImportError:
     _DETAILED_LOGGER_AVAILABLE = False
     _get_detailed_logger = None  # type: ignore[assignment]
-
-
 def _dlog() -> Optional[any]:
     """Retorna instancia del detailed_logger o None si no disponible."""
     if not _DETAILED_LOGGER_AVAILABLE:
@@ -42,8 +42,6 @@ def _dlog() -> Optional[any]:
     except Exception as _d2e:
         logging.getLogger(__name__).debug(f"[D2 system_agent.py:43] excepción degradada (intencional): {_d2e}")
     return None
-
-
 # Mapeo keyword → operación (infinitivo + voseo imperativo)
 _INTENT_MAP = {
     "abrir":       "open_app",
@@ -60,6 +58,21 @@ _INTENT_MAP = {
     "volumen":     "set_volume",
     "captura":     "take_screenshot",
     "screenshot":  "take_screenshot",
+    "toma":        "take_screenshot",
+    "tomá":        "take_screenshot",
+    "saca":        "take_screenshot",
+    "sacá":        "take_screenshot",
+    "hace":        "take_screenshot",
+    "hacé":        "take_screenshot",
+    "crear":       "create_folder",
+    "creá":        "create_folder",
+    "crea":        "create_folder",
+    "mkdir":       "create_folder",
+    "ejecutar":    "run_program",
+    "ejecutá":     "run_program",
+    "ejecuta":     "run_program",
+    "correr":      "run_program",
+    "corré":       "run_program",
     "portapapeles": "read_clipboard",
     "clipboard":   "read_clipboard",
     "archivos":    "list_files",
@@ -94,8 +107,6 @@ _INTENT_MAP = {
     "descartar":   "verdict_descartar",
     "descartá":    "verdict_descartar",
 }
-
-
 # ═══════════════════════════════════════════════════════════════
 # ✅ NUEVO v1.6.0: subset de _INTENT_MAP seguro para que dispatcher.py
 # fuerce task_type="system_control" ANTES de que el resto del pipeline
@@ -147,9 +158,10 @@ DISPATCHER_ROUTING_VERBS: frozenset[str] = frozenset({
     "copiar", "copiá", "copia",
     "mover", "moví", "movi", "mueve",
     "eliminar", "eliminá", "elimina", "borrar", "borrá", "borra",
+    "crear", "creá", "crea", "mkdir",
+    "ejecutar", "ejecutá", "ejecuta", "correr", "corré",
+    "captura", "screenshot", "toma", "tomá", "saca", "sacá", "hace", "hacé",
 })
-
-
 class SystemAgent(BaseAgent):
     """
     Agente de control del sistema operativo Linux.
@@ -159,13 +171,15 @@ class SystemAgent(BaseAgent):
     read_clipboard, write_clipboard, list_files
     """
     AGENT_TYPE = "system"
-
     # ✅ FIX T25: Constante movida a clase para que el test SystemAgent.ALLOWED_OPERATIONS funcione
     ALLOWED_OPERATIONS = {
         "open_app",
         "close_app",
         "set_volume",
         "take_screenshot",
+        "create_folder",
+        "run_program",
+        "browser_search",
         "read_clipboard",
         "write_clipboard",
         "list_files",
@@ -178,7 +192,6 @@ class SystemAgent(BaseAgent):
         "verdict_corregir",
         "verdict_descartar",
     }
-
     def __init__(self, **kwargs):
         super().__init__(
             system_prompt=(
@@ -188,16 +201,13 @@ class SystemAgent(BaseAgent):
             ),
             **kwargs,
         )
-
     # ── FASE 4 (plan_harness): coordinación multi-modelo con memoria segura ──
     def run_model_chain(self, steps: list, timeout: float = 600.0) -> dict:
         """
         Ejecuta una cadena de pasos que pueden requerir modelos distintos,
         con guard de memoria (no OOM) y swap con drenado.
-
         steps: [{"name": str, "model": str, "fn": callable(model, deps),
                  "depends_on": [str]}]
-
         Cada paso recibe (model_name, deps) donde deps = {nombre: resultado}.
         Si un modelo no puede cargarse por memoria, el paso se registra
         como refused_oom y la cadena devuelve el error sin ejecutar.
@@ -205,12 +215,20 @@ class SystemAgent(BaseAgent):
         from src.core.agent_coordinator import get_coordinator
         coord = get_coordinator()
         return coord.run_chain(steps, timeout=timeout)
-
     def execute(self, input_msg: Message, **kwargs) -> AgentResult:
         """Parsea intención y delega a execute_tool_sync()."""
         import time
         t0 = time.perf_counter()
         task_type = kwargs.get("task_type", "system_control")
+        from src.agents import host_bridge_request
+        _bridge = host_bridge_request(input_msg.content)
+        if _bridge is not None:
+            return AgentResult(success=bool(_bridge.get('success')),
+                               content=_bridge.get('content') or '',
+                               agent_type=self.AGENT_TYPE, model_used='host-bridge',
+                               task_type=task_type,
+                               latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+                               error=_bridge.get('error'))
         # ✅ FIX (hallazgo test_fs_agent_temp.py — "Documentos"→"documentos"
         # en el error de list_files): antes se lowercaseaba TODO el query
         # acá, antes de _parse_intent(). Case-sensitive filesystem (Linux):
@@ -224,7 +242,6 @@ class SystemAgent(BaseAgent):
         # _parse_intent(), por palabra, sin tocar el case de
         # targets/contenido/reason.
         query = input_msg.content
-
         # ✅ Log inicio en detailed_logger
         dl = _dlog()
         if dl:
@@ -234,9 +251,7 @@ class SystemAgent(BaseAgent):
                 state="started",
                 success=True,
             )
-
         operation, params = self._parse_intent(query)
-
         if operation not in self.ALLOWED_OPERATIONS:
             error_msg = f"Operación no permitida: {operation}"
             if dl:
@@ -257,7 +272,6 @@ class SystemAgent(BaseAgent):
                 latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                 error=f"{operation} no está en ALLOWED_OPERATIONS",
             )
-
         try:
             # [D1] Grounding check pre-ejecución
             ok, reason = self._grounding_check(operation, params)
@@ -274,7 +288,6 @@ class SystemAgent(BaseAgent):
                     latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                     error=reason,
                 )
-
             # [D1] DependencyGraph hook — solo si hay múltiples targets
             if len(params) > 1 or (isinstance(params.get("target"), list)):
                 try:
@@ -289,7 +302,6 @@ class SystemAgent(BaseAgent):
                     logging.getLogger(__name__).debug(f"[D2 system_agent.py:289] excepción degradada (intencional): {_d2e}")
                 except Exception as _dg_err:
                     logger.warning(f"[SystemAgent] DependencyGraph hook error: {_dg_err}")
-
             # ✅ FIX Fase 0: take_screenshot delega en ScreenCaptureEngine.
             # scrot es X11 puro — no captura en sesión Wayland nativa (KDE/Sway/Hyprland).
             if operation == "take_screenshot":
@@ -313,7 +325,6 @@ class SystemAgent(BaseAgent):
                     latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                     error=None if success else "ScreenCaptureEngine no disponible",
                 )
-
             # ✅ v1.6.0: open_app ya no llama subprocess directo — pasa por la
             # tool sys_open_app (tool_registry.py) vía ToolExecutor, igual que
             # list_files pasa por fs_list. Gana PermissionGateway+CircuitBreaker;
@@ -346,11 +357,16 @@ class SystemAgent(BaseAgent):
                     latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                     error=None if success else output,
                 )
-
             # ✅ v1.3.0: list_files usa la tool real fs_list (BaseTool) —
             # antes construía "ls -la {target}" y lo mandaba a terminal_exec
             # como shell. fs_list ya está registrada en tool_registry (ver
             # tool_implementations.py) — misma ruta que fs_read/fs_write.
+            if operation == "browser_search":
+                return self._browser_search(params, task_type, t0)
+            if operation == "create_folder":
+                return self._create_folder(params, task_type, t0)
+            if operation == "run_program":
+                return self._run_program(params, task_type, t0)
             if operation == "list_files":
                 target = params.get("target", "") or "~"
                 result = self.execute_tool_sync(
@@ -362,7 +378,6 @@ class SystemAgent(BaseAgent):
                 success, output = self._unpack_tool_result(result)
                 if success:
                     output = "\n".join(output.splitlines()[:20])
-
                 if dl:
                     dl.log_agent_execution(
                         agent_name="SystemAgent",
@@ -372,7 +387,6 @@ class SystemAgent(BaseAgent):
                         success=success,
                         error=None if success else output,
                     )
-
                 return AgentResult(
                     success=success,
                     content=f"✅ {operation}: {output}" if success else f"❌ {operation} falló: {output}",
@@ -382,7 +396,6 @@ class SystemAgent(BaseAgent):
                     latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                     error=None if success else output,
                 )
-
             # ✅ NUEVO (agente filesystem) v1.6.0: read_file usa fs_read
             # directo — mismo criterio que list_files (solo lectura, no
             # pasa por PromotionGate). No se agrega "leer"/"leé"/"lee" a
@@ -405,7 +418,6 @@ class SystemAgent(BaseAgent):
                     risk_score=0.1,
                 )
                 success, output = self._unpack_tool_result(result)
-
                 if dl:
                     dl.log_agent_execution(
                         agent_name="SystemAgent", task_type=task_type,
@@ -413,7 +425,6 @@ class SystemAgent(BaseAgent):
                         duration=(time.perf_counter() - t0), success=success,
                         error=None if success else output,
                     )
-
                 return AgentResult(
                     success=success,
                     content=f"✅ {operation}: {output}" if success else f"❌ {operation} falló: {output}",
@@ -423,17 +434,14 @@ class SystemAgent(BaseAgent):
                     latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                     error=None if success else output,
                 )
-
             # ✅ v1.5.0: write_file/move_file/delete_file ya no tocan fs_write/
             # fs_move/fs_delete directo — pasan por PromotionGate. session_id
             # identifica la propuesta pendiente para el veredicto posterior.
             session_id = kwargs.get("session_id", "default")
-
             if operation == "write_file":
                 target = params.get("target", "")
                 content_file = params.get("content_file", "")
                 content = params.get("content", "")
-
                 if not target:
                     msg = "write_file requiere un path (ej: 'escribí notas.txt hola mundo')"
                     return AgentResult(
@@ -441,7 +449,6 @@ class SystemAgent(BaseAgent):
                         model_used="system", task_type=task_type,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg,
                     )
-
                 if content_file:
                     try:
                         content = Path(content_file).expanduser().read_text(encoding="utf-8")
@@ -452,7 +459,6 @@ class SystemAgent(BaseAgent):
                             model_used="system", task_type=task_type,
                             latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg,
                         )
-
                 try:
                     proposal = get_promotion_gate().propose_write(target, content, session_id=session_id)
                 except RuntimeError as e:
@@ -462,7 +468,6 @@ class SystemAgent(BaseAgent):
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=str(e),
                     )
                 return self._proposal_result(proposal, task_type, t0, dl)
-
             # ✅ NUEVO (agente filesystem) v1.6.0: copy_file compone fs_read
             # (ToolExecutor, solo lectura — no toca PromotionGate) + propose_write
             # (mismo camino que write_file, reusado tal cual, no una escritura
@@ -482,7 +487,6 @@ class SystemAgent(BaseAgent):
                         model_used="system", task_type=task_type,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg,
                     )
-
                 read_result = self.execute_tool_sync(
                     tool_name="fs_read",
                     path=src,
@@ -498,7 +502,6 @@ class SystemAgent(BaseAgent):
                         model_used="system", task_type=task_type,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg,
                     )
-
                 read_kind = (getattr(read_result, "data", None) or {}).get("kind")
                 if read_kind not in (None, "text"):
                     msg = (
@@ -511,7 +514,6 @@ class SystemAgent(BaseAgent):
                         model_used="system", task_type=task_type,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg,
                     )
-
                 try:
                     proposal = get_promotion_gate().propose_write(dst, read_output, session_id=session_id)
                 except RuntimeError as e:
@@ -521,7 +523,6 @@ class SystemAgent(BaseAgent):
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=str(e),
                     )
                 return self._proposal_result(proposal, task_type, t0, dl)
-
             if operation == "move_file":
                 src = params.get("target", "")
                 dst = params.get("target2", "")
@@ -532,7 +533,6 @@ class SystemAgent(BaseAgent):
                         model_used="system", task_type=task_type,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg,
                     )
-
                 try:
                     proposal = get_promotion_gate().propose_move(src, dst, session_id=session_id)
                 except RuntimeError as e:
@@ -542,7 +542,6 @@ class SystemAgent(BaseAgent):
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=str(e),
                     )
                 return self._proposal_result(proposal, task_type, t0, dl)
-
             if operation == "delete_file":
                 target = params.get("target", "")
                 if not target:
@@ -552,7 +551,6 @@ class SystemAgent(BaseAgent):
                         model_used="system", task_type=task_type,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg,
                     )
-
                 try:
                     proposal = get_promotion_gate().propose_delete(target, session_id=session_id)
                 except RuntimeError as e:
@@ -562,14 +560,12 @@ class SystemAgent(BaseAgent):
                         latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=str(e),
                     )
                 return self._proposal_result(proposal, task_type, t0, dl)
-
             # ✅ v1.5.0: "aprobar"/"corregir"/"descartar" resuelven la propuesta
             # pendiente de la sesión — no requieren el proposal_id.
             if operation in ("verdict_aprobar", "verdict_corregir", "verdict_descartar"):
                 verdict = operation.split("_", 1)[1]
                 reason = params.get("reason", "")
                 result = get_promotion_gate().resolve_pending(session_id, verdict, reason)
-
                 if dl:
                     dl.log_agent_execution(
                         agent_name="SystemAgent", task_type=task_type,
@@ -577,7 +573,6 @@ class SystemAgent(BaseAgent):
                         duration=(time.perf_counter() - t0), success=bool(result.get("success")),
                         error=None if result.get("success") else result.get("error", result.get("message")),
                     )
-
                 success = bool(result.get("success"))
                 text = result.get("message") or result.get("error", "")
                 return AgentResult(
@@ -587,7 +582,6 @@ class SystemAgent(BaseAgent):
                     latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                     error=None if success else text,
                 )
-
             # ✅ v1.2.1: _build_command() retorna str (contrato con terminal_exec schema)
             command = self._build_command(operation, params)
 
@@ -800,6 +794,16 @@ class SystemAgent(BaseAgent):
         if operation in ("verdict_aprobar", "verdict_corregir", "verdict_descartar"):
             return operation, {"reason": " ".join(rest)}
 
+        if re.search(r"\b(pesta[nñ]a|navegador|browser)\b", query, re.I) and re.search(
+                r"\b(busca|busc[aá]|buscar|b[uú]squeda)\b", query, re.I):
+            m = re.search(r"\b(?:busca|busc[aá]|buscar|b[uú]squeda)\s+(?:de\s+)?(.+)", query, re.I)
+            return "browser_search", {"query": (m.group(1).strip() if m else "")}
+        if operation == "create_folder":
+            _raw = " ".join(raw_rest)
+            _m = re.search(r"(?:carpeta|directorio)\s+(?:en\s+)?(.+)", _raw, re.I)
+            return operation, {"target": (_m.group(1) if _m else _raw).strip(" .,!?:;")}
+        if operation in ("open_app", "close_app", "run_program"):
+            return operation, {"target": " ".join(rest)}
         param = rest[-1] if rest else ""
         return operation, {"target": param}
 
@@ -873,6 +877,88 @@ class SystemAgent(BaseAgent):
             return success, text
         return bool(result), str(result)
 
+    def _browser_search(self, params, task_type, t0):
+                query = params.get("query", "").strip()
+                if not query:
+                    msg = "browser_search requiere una consulta"
+                    return AgentResult(success=False, content=f"❌ {msg}",
+                                       agent_type=self.AGENT_TYPE, model_used="system",
+                                       task_type=task_type,
+                                       latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+                                       error=msg)
+                url = "https://www.google.com/search?q=" + quote_plus(query)
+                exe = shutil.which("xdg-open")
+                if not exe:
+                    msg = "No hay xdg-open para abrir el navegador"
+                    return AgentResult(success=False, content=f"❌ {msg}",
+                                       agent_type=self.AGENT_TYPE, model_used="system",
+                                       task_type=task_type,
+                                       latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+                                       error=msg)
+                subprocess.Popen([exe, url], stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                                 start_new_session=True)
+                return AgentResult(success=True,
+                                   content=f"✅ Navegador abierto con búsqueda: {query}",
+                                   agent_type=self.AGENT_TYPE, model_used="system",
+                                   task_type=task_type,
+                                   latency_ms=round((time.perf_counter() - t0) * 1000, 2))
+
+
+    def _create_folder(self, params, task_type, t0):
+                target = params.get("target", "").strip()
+                target = re.sub(r"^(una |la )?(carpeta|directorio)\s+", "", target, flags=re.I)
+                target = re.sub(r"^en\s+", "", target, flags=re.I).strip()
+                if not target:
+                    msg = "create_folder requiere una ruta"
+                    return AgentResult(success=False, content=f"❌ {msg}", agent_type=self.AGENT_TYPE,
+                                       model_used="system", task_type=task_type,
+                                       latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg)
+                ruta = Path(target).expanduser()
+                try:
+                    ruta.mkdir(parents=True, exist_ok=True)
+                except OSError as exc:
+                    msg = f"No pude crear '{ruta}': {exc}"
+                    return AgentResult(success=False, content=f"❌ {msg}", agent_type=self.AGENT_TYPE,
+                                       model_used="system", task_type=task_type,
+                                       latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg)
+                msg = f"Carpeta lista: {ruta}"
+                return AgentResult(success=True, content=f"✅ {msg}", agent_type=self.AGENT_TYPE,
+                                   model_used="system", task_type=task_type,
+                                   latency_ms=round((time.perf_counter() - t0) * 1000, 2))
+
+    def _run_program(self, params, task_type, t0):
+                target = params.get("target", "").strip()
+                first = target.split()[0].lower() if target else ""
+                allowed = {"ollama", "dsh", "harness"}
+                if first not in allowed:
+                    msg = f"Solo puedo ejecutar programas permitidos: {', '.join(sorted(allowed))}"
+                    return AgentResult(success=False, content=f"❌ {msg}", agent_type=self.AGENT_TYPE,
+                                       model_used="system", task_type=task_type,
+                                       latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg)
+                exe = shutil.which(first)
+                if not exe:
+                    msg = f"'{first}' no está instalado"
+                    return AgentResult(success=False, content=f"❌ {msg}", agent_type=self.AGENT_TYPE,
+                                       model_used="system", task_type=task_type,
+                                       latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg)
+                argv = [exe]
+                if first == "ollama" and "serve" not in target.lower().split():
+                    argv.append("serve")
+                try:
+                    proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                            stdin=subprocess.DEVNULL, start_new_session=True)
+                except OSError as exc:
+                    msg = f"No pude ejecutar '{first}': {exc}"
+                    return AgentResult(success=False, content=f"❌ {msg}", agent_type=self.AGENT_TYPE,
+                                       model_used="system", task_type=task_type,
+                                       latency_ms=round((time.perf_counter() - t0) * 1000, 2), error=msg)
+                msg = f"Proceso '{first}' iniciado (pid={proc.pid})"
+                return AgentResult(success=True, content=f"✅ {msg}", agent_type=self.AGENT_TYPE,
+                                   model_used="system", task_type=task_type,
+                                   latency_ms=round((time.perf_counter() - t0) * 1000, 2))
+
+
     def _build_command(self, operation: str, params: dict) -> str:
         """
         ✅ v1.2.1: Construye comando como STRING (contrato con terminal_exec schema).
@@ -903,7 +989,7 @@ class SystemAgent(BaseAgent):
         # procesos) y en `pactl` metía argumentos de más. `shlex.quote` no agrega comillas cuando no
         # hacen falta (ej. `firefox`, `50%`), así que el caso normal queda igual.
         commands = {
-            "close_app":       f"pkill -f {shlex.quote(target)}",
+            "close_app":       f"pkill -x -- {shlex.quote(target)}",
             "set_volume":      f"pactl set-sink-volume @DEFAULT_SINK@ {shlex.quote(str(target) + '%')}",
             "read_clipboard":  "wl-paste",
             "write_clipboard": f"wl-copy {shlex.quote(target)}",

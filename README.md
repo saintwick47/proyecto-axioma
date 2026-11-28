@@ -16,6 +16,9 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 - **Noticias:** las noticias con un tema concreto se buscan en la web; las genéricas siguen por la API.
 - **Caché:** se invalida cuando cambia el esquema de ruteo, para no repetir respuestas viejas.
 - **Código:** los tests se generan y validan; la corrida E2E de referencia pasó en **192,5 s**.
+- **Sistema:** abrir apps instaladas, juegos (Steam/Lutris), explorador, carpetas, capturas y
+  pestañas de búsqueda del navegador.
+- **Rafael:** la voz y el chat del widget usan las mismas órdenes de sistema.
 
 ---
 
@@ -26,7 +29,7 @@ claves **no salen de tu máquina**: los modelos se ejecutan en tu equipo con [Ol
 | **Memoria (RAM)** | 9 GB (funciona con restricciones) | **16 GB** (bien) · **24-32 GB** (ideal) |
 | **Disco libre** | ~15 GB (la aplicación ~5,6 GB + los dos modelos que hacen falta ~9,6 GB) | 25 GB (con los opcionales) |
 | **Sistema** | Linux, macOS o Windows con Docker | — |
-| **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop) · Engine **29.10.0** · Compose **5.8.0** | — |
+| **Docker** | [Docker Desktop](https://www.docker.com/products/docker-desktop) · Engine **29.10.1** · Compose **5.8.0** | — |
 
 En **Windows** hace falta Docker Desktop con **WSL 2**; los instaladores y el demonio de voz se prueban en cada cambio sobre un Windows real (runner de GitHub Actions). Ahí AXIOMA usa el puerto **8080** y la **voz del contenedor no está disponible**; sí existe un **demonio nativo** que usa la voz de Windows
 (`instalar/rafael_windows.ps1`, ver [`MANUAL_RAFAEL.md`](MANUAL_RAFAEL.md)). El chat y los modelos funcionan igual. En **macOS** el instalador todavía se ejecuta desde una consola.
@@ -96,6 +99,13 @@ que tengas en mente va a andar en tu PC, la pantalla **🧩 Configurar AXIOMA** 
 | Ver si falta algo | Botón **🧩** del encabezado |
 | Apagar AXIOMA | Doble clic en el lanzador otra vez |
 | Ver qué pasa | `docker compose logs -f axioma` |
+| Abrir un programa | `Abrí Lutris.` · `Abrí VSCode.` · `Abrí Steam.` |
+| Abrir un juego | `Abrí 7 Days to Die.` (inicia Steam si hace falta) |
+| Explorador o carpeta | `Abrí la carpeta Descargas.` |
+| Captura de pantalla | `Tomá una captura de pantalla.` |
+| Crear una carpeta | `Creá una carpeta en ~/Escritorio/Pruebas.` |
+| Buscar en el navegador | `Abrí una pestaña del navegador y buscá clima en Córdoba.` |
+| Ejecutar un servicio | `Ejecutá ollama.` |
 | Cambiar de usuario | *Avanzado* → 👤 |
 
 **Voz (opcional)**: un servicio aparte escucha la frase *"hey rafael"*:
@@ -105,6 +115,27 @@ del sistema: `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\raf
 (detalle en [`MANUAL_RAFAEL.md`](MANUAL_RAFAEL.md)).
 
 ---
+
+### Órdenes de sistema (abrir, ejecutar, buscar)
+
+Además de conversar, AXIOMA puede actuar sobre el equipo: abrir programas instalados (Lutris,
+VSCode, Steam), juegos del menú, el explorador en una ruta, una pestaña del navegador con una
+búsqueda, una captura de pantalla, o crear una carpeta. Rafael usa exactamente las mismas
+operaciones por voz o por el chat del widget.
+
+Si AXIOMA corre en Docker, el contenedor no puede lanzar programas del escritorio por sí solo.
+Para eso está el **bridge del host**:
+
+```bash
+# en el equipo, con el código del proyecto y una sesión gráfica
+python main.py --host-bridge
+# luego, en el proyecto:
+docker compose up -d --build
+```
+
+El bridge escucha en `/tmp/axioma-host/bridge.sock`, monta ese socket en el contenedor y sólo
+acepta las operaciones de sistema de AXIOMA (no es un shell libre). Si no está corriendo, el chat
+sigue funcionando con las funciones que no dependen del escritorio.
 
 ## Tus datos y tu privacidad
 
@@ -121,6 +152,8 @@ del sistema: `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar\raf
 | "permiso denegado" con Docker | `sudo usermod -aG docker $USER` y volvé a entrar |
 | Puerto 8080 ocupado | `AXIOMA_PUERTO=8090 ./instalar/iniciar_axioma.sh` |
 | Un modelo no baja | Reintentá desde la pantalla 🧩 (lo bajado no se pierde) |
+| Lutris/Steam no abre desde el chat | Iniciá el bridge del host: `python main.py --host-bridge` (ver arriba) |
+| “Dos acciones en un mensaje” | Mandá una orden por mensaje; el ruteo actual ejecuta una intención |
 
 ## Documentación
 

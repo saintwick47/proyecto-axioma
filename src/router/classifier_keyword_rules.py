@@ -28,6 +28,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+import unicodedata
 from collections import Counter
 from typing import Optional, Set, Tuple
 
@@ -40,13 +41,66 @@ from src.router.classifier_keywords import (
 
 logger = logging.getLogger(__name__)
 
+# "prueba/test" es code_testing solo si el objeto es técnico.
+_NONCODE_TEST = re.compile(
+    r"\b(pruebas?|tests?)\s+(de\s+)?(manejo|embarazo|vocabulario|estafa|estafaron|"
+    r"sangre|orina|drogas|alcohol|conducir|nivel|ingreso|admisi[oó]n|diagn[oó]stico)\b"
+    r"|\b(pruebas?|tests?)\s+de\s+que\b", re.I)
 
+
+# ✅ 2026-11-28 (plan ruteo, revisión Fase 1b): detector ÚNICO de "pedido de CREAR código".
+# Antes: lista negra (_CODE_INFO/_CODE_NOCODE) → "necesito una clase de inglés" o "tests de
+# vocabulario" seguían yendo a CODE_GENERATION. Ahora exige EVIDENCIA POSITIVA: verbo de
+# creación + artefacto + (lenguaje/.py | "que/para + acción" | tests unitarios). Lo comparten
+# este mixin y APIDetector (classifier_api.py) — una sola fuente de verdad.
 _CODE_INFO = re.compile(
-    r"\b(saber|entender|explic\w*|qu[eé] hace|para qu[eé] sirve|"
-    r"c[oó]mo funciona|significa)\b")
+    r"\b(saber|entender|explic\w*|que hace|para que sirve|como funciona|significa)\b")
 _CODE_NOCODE = re.compile(
-    r"\b(de (matem[aá]tica|yoga|radio|entrenamiento|descuento|ejercicio|"
-    r"cocina|baile)|postal|pel[ií]cula|gimnasio)\b")
+    r"\b(de (matematica|yoga|radio|entrenamiento|descuento|ejercicio|cocina|baile)|"
+    r"postal|pelicula|gimnasio)\b")
+_CODE_VERBO = re.compile(
+    r"\b(crea|genera|escribi|escribe|arma|implementa|desarrolla|escribime|haceme|hace|"
+    r"necesito|creame|generame|armame|programame)\b")
+_CODE_ARTEFACTO = re.compile(
+    r"\b(script|programa|funcion|clase|modulo|codigo|bot|app|aplicacion|"
+    r"tests? unitarios?|pruebas unitarias|pytest|unittest)\b|\.py\b")
+# "tests" a secas es ambiguo ("tests de vocabulario"): solo cuenta con una acción técnica concreta.
+_CODE_TEST_SOLO = re.compile(r"\btests?\b")
+_CODE_TEST_FUERTE = re.compile(
+    r"\b(para|de|que) (\w+ )?(sumar|restar|multiplicar|dividir|validar|calcular|ordenar|parsear|"
+    r"convertir|verificar|comprobar|testear|filtrar|leer|escribir|contar|listar|renombrar|procesar|"
+    r"funcion|clase|modulo|script|codigo)\b")
+_CODE_APP = re.compile(r"\b(app|aplicacion)\b")
+_CODE_LANG = re.compile(
+    r"(?<!\w)(python|bash|java|javascript|js|typescript|c\+\+|rust|go|sql|php|ruby|"
+    r"powershell|html|css)(?!\w)|\.py\b")
+_CODE_TESTS = re.compile(r"\b(tests? unitarios?|pruebas unitarias|pytest|unittest)\b")
+_CODE_ACCION = re.compile(
+    r"\b(que|para) (\w+ )?(haga|valide|sume|calcule|escanee|cuente|lea|genere|ordene|"
+    r"descargue|envie|procese|convierta|busque|muestre|imprima|verifique|liste|copie|"
+    r"renombre|mida|monitoree|parsee|extraiga|automatice|responda|\w+(ar|er|ir))\b")
+
+
+def _code_fold(text: str) -> str:
+    """Minúsculas y sin acentos (creá→crea, función→funcion)."""
+    t = unicodedata.normalize("NFD", text.lower())
+    return "".join(c for c in t if unicodedata.category(c) != "Mn")
+
+
+def is_code_creation_request(text: str) -> bool:
+    """True si el texto pide CREAR un artefacto de código (evidencia positiva, no lista negra)."""
+    t = _code_fold(text)
+    if _CODE_INFO.search(t) or _CODE_NOCODE.search(t):
+        return False
+    if not _CODE_VERBO.search(t):
+        return False
+    lang = _CODE_LANG.search(t)
+    if not _CODE_ARTEFACTO.search(t):
+        return bool(_CODE_TEST_SOLO.search(t) and (lang or _CODE_TEST_FUERTE.search(t)))
+    if _CODE_APP.search(t) and not lang:
+        return False
+    return bool(lang or _CODE_TESTS.search(t) or _CODE_ACCION.search(t)
+                or (_CODE_TEST_SOLO.search(t) and _CODE_TEST_FUERTE.search(t)))
 
 
 class ClassifierKeywordRulesMixin:
@@ -117,16 +171,7 @@ class ClassifierKeywordRulesMixin:
         # hace…" no tiene verbo de CODE_VERBS → sigue por explanation.
         # ✅ 2026-11-24: pedido de CREAR un artefacto de código → CODE_GENERATION.
         # Una sola regla estructural, antes de probar/busca/test.
-        _app = re.search(r"\b(app|aplicaci[oó]n)\b", processed_text, re.I)
-        _lang = re.search(
-            r"\b(python|bash|java|javascript|js|typescript|c\+\+|rust|go|sql|php|"
-            r"ruby|powershell|html|css)\b|\.py\b", processed_text, re.I)
-        if not (_app and not _lang) and not (_CODE_INFO.search(processed_text) or _CODE_NOCODE.search(processed_text)) and re.search(
-                r"\b(crea|creá|genera|generá|escribí|escribe|arma|armá|implementa|"
-              r"desarrolla|escribime|haceme|necesito|creame|generame|armame|programame)\b",
-                processed_text, re.I) and re.search(
-                r"\b(programa|script|c[oó]digo|funci[oó]n|clase|m[oó]dulo|app|aplicaci[oó]n|tests?|pruebas?|bot)\b|\.py\b",
-                processed_text, re.I):
+        if is_code_creation_request(processed_text):
             duration = time.perf_counter() - start
             _log_router(processed_text[:50], TaskType.CODE_GENERATION.value,
                         "code_creation", 0.9, duration=duration)
@@ -207,6 +252,8 @@ class ClassifierKeywordRulesMixin:
             for kw in self.KEYWORD_MAP
             if ClassifierKeywordRulesMixin._keyword_match(kw, _text_no_quotes)
         ]
+        if _NONCODE_TEST.search(_text_no_quotes):
+            matches = [m for m in matches if m != TaskType.CODE_TESTING.value]
         if matches:
             most_common = Counter(matches).most_common(1)[0][0]
             duration = time.perf_counter() - start

@@ -164,6 +164,46 @@ Settings: `vision_num_predict` (512) · `vision_preprocess_enabled` · `vision_o
 
 ---
 
+## 🖥️ Bridge del host (apps del escritorio desde Docker)
+
+Si usás el chat web dentro del contenedor y querés abrir Lutris, Steam, VSCode, el explorador,
+juegos o el navegador del equipo, el contenedor necesita un puente al host. El aislamiento de
+Docker no permite lanzar programas del escritorio desde adentro.
+
+En el **host** (con tu usuario y `DISPLAY`), una vez por sesión:
+
+```bash
+python main.py --host-bridge
+# deja el proceso corriendo; escucha en /tmp/axioma-host/bridge.sock
+```
+
+Después, en el proyecto:
+
+```bash
+docker compose up -d --build
+```
+
+El socket se monta en `/tmp/axioma-host`; el chat del contenedor delega las órdenes de sistema al
+host y mantiene el fallback local si el bridge no está disponible. El bridge solo acepta las
+operaciones de `SystemAgent` (allowlist), no comandos de shell arbitrarios.
+
+### Órdenes de sistema y Rafael
+
+El mismo `SystemAgent` atiende al chat web, a la CLI y a Rafael:
+
+| Orden | Resultado |
+|---|---|
+| `Abrí Lutris.` / `Abrí VSCode.` / `Abrí Steam.` | Lanza el ejecutable instalado (si ya está abierto, lo informa) |
+| `Abrí 7 Days to Die.` | Resuelve el `.desktop`, inicia Steam/Lutris/Wine si hace falta y lanza el juego |
+| `Abrí la carpeta Descargas.` | Abre el gestor de archivos en la ruta |
+| `Tomá una captura de pantalla.` | Guarda una captura (no la describe) |
+| `Creá una carpeta en ~/Escritorio/Pruebas.` | Crea la ruta completa, con espacios |
+| `Abrí una pestaña del navegador y buscá clima en Córdoba.` | Abre el navegador con la búsqueda |
+| `Ejecutá ollama.` | Inicia `ollama serve` (allowlist `ollama`/`dsh`/`harness`) |
+
+Rafael clasifica estas órdenes como `system_control` (no como `autonomous_task`) tanto en voz como
+en el chat del widget; el servicio `voz` monta el mismo socket del bridge.
+
 ## 🚀 Comandos
 
 ```bash

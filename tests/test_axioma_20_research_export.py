@@ -914,3 +914,81 @@ def test_clima_sin_ciudad_no_inventa_ubicacion():
     for q in ("¿Qué clima hace?", "¿Qué clima hace en mi ubicación?", "clima", "¿qué tiempo hace?"):
         assert WeatherFetcherMixin.extract_city(q) is None, q
     assert IntentClassifier().classify("clima")["task_type"] == "weather_query"
+
+
+def test_semantic_fallback_solo_para_duda_general():
+    from src.router.classifier import IntentClassifier
+
+    assert IntentClassifier._semantic_fallback_eligible(
+        {"task_type": "general_chat", "confidence": 0.5}, "frase nueva de prueba larga")
+    assert not IntentClassifier._semantic_fallback_eligible(
+        {"task_type": "weather_query", "confidence": 0.5}, "frase nueva de prueba larga")
+    assert not IntentClassifier._semantic_fallback_eligible(
+        {"task_type": "general_chat", "confidence": 0.9}, "frase nueva de prueba larga")
+    assert not IntentClassifier._semantic_fallback_eligible(
+        {"task_type": "general_chat", "confidence": 0.5}, "corto")
+
+
+def test_semantic_fallback_enabled(monkeypatch):
+    from config.settings import settings
+    from src.router.classifier import IntentClassifier
+
+    monkeypatch.setattr(settings, "router_semantic_fallback_enabled", True)
+    c = IntentClassifier()
+    monkeypatch.setattr(c, "_classify_by_semantic",
+                        lambda _text: ("weather_query", 0.95))
+    r = c.classify("¿me mojo mañana si salgo sin campera?")
+    assert r["task_type"] == "weather_query"
+    assert r["method"] == "semantic_llm"
+
+
+def test_pruebas_cotidianas_no_son_code_testing():
+    from src.router.classifier import IntentClassifier
+    c = IntentClassifier()
+    for q in ("Necesito una prueba de manejo", "un test de embarazo",
+              "pruebas de que me estafaron"):
+        assert c.classify(q)["task_type"] == "general_chat", q
+
+
+def test_close_app_no_usa_pkill_por_substring():
+    from src.agents.system_agent import SystemAgent
+    cmd = SystemAgent.__new__(SystemAgent)._build_command(
+        "close_app", {"target": "firefox"})
+    assert "pkill -x -- firefox" in cmd
+    assert "pkill -f" not in cmd
+
+
+def test_open_app_url_y_objeto_desconocido():
+    from src.router.classifier_api import is_system_object
+    from src.tools_mcp.tool_registry import _KNOWN_APP_URLS, SysOpenAppTool
+
+    assert is_system_object("spotify") is True
+    assert is_system_object("https://open.spotify.com") is True
+    assert is_system_object("ojos") is False
+    assert "spotify" in _KNOWN_APP_URLS
+    r = SysOpenAppTool()._run("foobar")
+    assert getattr(r, "success", True) is False
+    assert "no tengo una URL oficial" in (getattr(r, "error", "") or "")
+
+
+def test_open_app_usa_url_conocida_sin_lanzar_app(monkeypatch):
+    from src.tools_mcp.tool_registry import SysOpenAppTool
+    calls = []
+
+    class _Proc:
+        pid = 123
+        returncode = 0
+        def poll(self):
+            return None
+
+    def _popen(args, **kwargs):
+        calls.append(args)
+        return _Proc()
+
+    import src.tools_mcp.tool_registry as tr
+    monkeypatch.setattr(tr.subprocess, "Popen", _popen)
+    monkeypatch.setattr(tr.shutil, "which", lambda _name: None)
+    r = SysOpenAppTool()._run("spotify")
+    assert getattr(r, "success", False) is True
+    assert calls and calls[0][0] == "xdg-open"
+    assert calls[0][1] == "https://open.spotify.com"

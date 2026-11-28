@@ -946,3 +946,50 @@ class TestCancelacionDeLosAgentes:
                 return False
 
         return _Ctx()
+
+
+def test_system_parsea_apps_de_varias_palabras_y_carpetas():
+    from src.agents.system_agent import SystemAgent
+    s = SystemAgent.__new__(SystemAgent)
+    assert s._parse_intent("Abrí 7 Days to Die") == ("open_app", {"target": "7 Days to Die"})
+    assert s._parse_intent("Creá una carpeta en /tmp/x")[0] == "create_folder"
+    assert s._parse_intent("Ejecutá ollama")[0] == "run_program"
+
+
+def test_system_resuelve_rutas(tmp_path):
+    from src.tools_mcp.tool_registry import SysOpenAppTool
+    cmd, arg, _url, err = SysOpenAppTool._resolve_open_target(
+        f"carpeta {tmp_path}", f"carpeta {tmp_path}")
+    assert cmd == "xdg-open" and arg == str(tmp_path) and not err
+
+
+def test_captura_de_pantalla_rutea_a_sistema():
+    from src.core.dispatcher_process import _is_system_command_intent
+    assert _is_system_command_intent("Tomá una captura de pantalla.")
+    assert _is_system_command_intent("Hacé una captura de pantalla.")
+    assert not _is_system_command_intent("Tomá un café.")
+    assert not _is_system_command_intent("Hacé un script.")
+
+
+def test_browser_search_parsea_y_rutea():
+    from src.core.dispatcher_process import _is_system_command_intent
+    from src.agents.system_agent import SystemAgent
+    q = "Abrí una pestaña del navegador y buscá clima en Córdoba"
+    assert _is_system_command_intent(q)
+    op, params = SystemAgent.__new__(SystemAgent)._parse_intent(q)
+    assert op == "browser_search" and params["query"] == "clima en Córdoba"
+
+
+def test_create_folder_con_espacios_no_pierde_la_ruta():
+    from src.agents.system_agent import SystemAgent
+    op, params = SystemAgent.__new__(SystemAgent)._parse_intent(
+        "Creá una carpeta en ~/Escritorio/Prueba AXIOMA.")
+    assert op == "create_folder"
+    assert params["target"] == "~/Escritorio/Prueba AXIOMA"
+
+
+def test_host_bridge_sin_socket_no_rompe(tmp_path, monkeypatch):
+    from src.agents import host_bridge_request
+    monkeypatch.setenv("AXIOMA_HOST_BRIDGE_SOCKET", str(tmp_path / "no-existe.sock"))
+    monkeypatch.delenv("AXIOMA_HOST_BRIDGE_SERVER", raising=False)
+    assert host_bridge_request("Abrí lutris.") is None

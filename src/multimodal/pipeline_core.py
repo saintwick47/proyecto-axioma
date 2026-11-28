@@ -64,7 +64,7 @@ _AUTONOMOUS_TASK_KEYWORDS = frozenset({
 _CAMERA_DESCRIBE_KEYWORDS = frozenset({
     "cámara", "camara", "webcam",
 })
-_JARVIS_EXCLUSIVE_TASKS = frozenset({"screen_describe", "camera_describe", "autonomous_task"})
+_JARVIS_EXCLUSIVE_TASKS = frozenset({"screen_describe", "camera_describe", "autonomous_task", "system_control"})
 
 
 def _classify_jarvis_intent(text: str) -> str:
@@ -76,6 +76,14 @@ def _classify_jarvis_intent(text: str) -> str:
     """
     if not text:
         return "jarvis_query"
+    # Reusar el mismo ruteo estructural del chat: si es una orden real de
+    # sistema (abrir/cerrar/captura/carpeta/ejecutar/browser), va a SystemAgent.
+    try:
+        from src.core.dispatcher_process import _is_system_command_intent
+        if _is_system_command_intent(text):
+            return "system_control"
+    except Exception as _e:
+        logger.debug("[pipeline_core] system intent no disponible: %s", _e)
     q = text.strip().lower()
     if any(kw in q for kw in _CAMERA_DESCRIBE_KEYWORDS):
         return "camera_describe"

@@ -440,3 +440,45 @@ cases:
     expect: general_chat
   - query: "tipo de cambio hoy"
     expect: finance_query
+  - query: "escribime tests para sumar"
+    expect: code_generation
+  - query: "generá tests para la función suma"
+    expect: code_generation
+  - query: "armame un bot de telegram en python"
+    expect: code_generation
+  - query: "hacé un script que mida la latencia"
+    expect: code_generation
+  - query: "necesito una clase de inglés"
+    expect: general_chat
+  - query: "necesito tests de vocabulario para el examen"
+    expect: general_chat
+  - query: "necesito el programa de la facultad"
+    expect: general_chat
+  - query: "armame un programa de ejercicios"
+    expect: general_chat
+  - query: "necesito un programa de entrenamiento"
+    expect: general_chat
+  - query: "necesito una app para organizar mi día"
+    expect: general_chat
+  - query: "generame un código de descuento"
+    expect: general_chat
+  - query: "haceme una clase de yoga"
+    expect: general_chat
+  - query: "necesito una clase de matemática"
+    expect: general_chat
+  - query: "me gusta Marsella"
+    expect: general_chat
+  - query: "el cambio climático es real"
+    expect: general_chat
+  - query: "necesito un cambio de look"
+    expect: general_chat
+  - query: "cómo puedo cuidarse mejor en invierno"
+    expect: general_chat
+  - query: "explicame cómo lavarse las manos bien"
+    expect: general_chat
+  - query: "Necesito una prueba de manejo"
+    expect: general_chat
+  - query: "un test de embarazo"
+    expect: general_chat
+  - query: "pruebas de que me estafaron"
+    expect: general_chat
